@@ -20,13 +20,8 @@ def session() -> AsyncMock:
 
 
 @pytest.fixture
-def client(session: AsyncMock) -> Iterator[TestClient]:
-    app = create_app(
-        Settings(
-            database_url="postgresql+psycopg://test:test@127.0.0.1:1/test",
-            readiness_timeout=0.02,
-        )
-    )
+def client(session: AsyncMock, settings: Settings) -> Iterator[TestClient]:
+    app = create_app(settings.model_copy(update={"readiness_timeout": 0.02}))
 
     async def override_session() -> AsyncIterator[AsyncSession]:
         yield session

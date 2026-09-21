@@ -1,0 +1,274 @@
+{
+  "version": "codex-cli 0.155.1",
+  "thread": {
+    "turns": [
+      {
+        "id": "01a0c49c-8c28-72a0-8294-cad005b15daf",
+        "items": [
+          {
+            "type": "userMessage",
+            "id": "01a0c49c-8d1e-7b91-909a-410ff80bf349",
+            "clientId": null,
+            "content": [
+              {
+                "type": "text",
+                "text": "Run the probe command, then report its output.",
+                "text_elements": []
+              }
+            ]
+          },
+          {
+            "type": "agentMessage",
+            "id": "msg_commentary",
+            "text": "Running the probe command.",
+            "phase": "commentary",
+            "memoryCitation": null,
+            "delivery": null,
+            "questions": null
+          },
+          {
+            "type": "commandExecution",
+            "id": "call_probe",
+            "pluginId": null,
+            "scriptPath": null,
+            "command": "/bin/bash -lc \"printf 'tool-start\\\\n'; touch /tmp/history-probe/tool-started; sleep 8; printf 'tool-end\\\\n'; touch /tmp/history-probe/tool-finished\"",
+            "cwd": "/tmp/history-probe/work",
+            "processId": "35749",
+            "source": "unifiedExecStartup",
+            "status": "completed",
+            "commandActions": [
+              {
+                "type": "unknown",
+                "command": "printf 'tool-start\\n'; touch /tmp/history-probe/tool-started; sleep 8; printf 'tool-end\\n'; touch /tmp/history-probe/tool-finished"
+              }
+            ],
+            "aggregatedOutput": "tool-end\n",
+            "exitCode": 0,
+            "durationMs": 7879
+          },
+          {
+            "type": "userMessage",
+            "id": "01a0c49c-ad50-71d3-95b5-ecd7535647a8",
+            "clientId": null,
+            "content": [
+              {
+                "type": "text",
+                "text": "Also mention both output lines in your answer.",
+                "text_elements": []
+              }
+            ]
+          },
+          {
+            "type": "agentMessage",
+            "id": "msg_final_2",
+            "text": "Probe completed. Tool output was tool-start and tool-end.",
+            "phase": "final_answer",
+            "memoryCitation": null,
+            "delivery": null,
+            "questions": null
+          }
+        ],
+        "itemsView": "full",
+        "status": "completed",
+        "error": null,
+        "startedAt": 1790004988,
+        "completedAt": 1790004997,
+        "durationMs": 8525
+      }
+    ]
+  },
+  "records": [
+    {
+      "timestamp": "2026-09-21T15:36:29.023Z",
+      "ordinal": 1,
+      "type": "event_msg",
+      "payload": {
+        "type": "task_started",
+        "turn_id": "01a0c49c-8c28-72a0-8294-cad005b15daf",
+        "started_at": 1790004988,
+        "model_context_window": 258400,
+        "collaboration_mode_kind": "default"
+      }
+    },
+    {
+      "timestamp": "2026-09-21T15:36:29.215Z",
+      "ordinal": 7,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c49c-89e4-7f90-a3d2-7b77da9ffe7f",
+        "turn_id": "01a0c49c-8c28-72a0-8294-cad005b15daf",
+        "item": {
+          "type": "UserMessage",
+          "id": "01a0c49c-8d1e-7b91-909a-410ff80bf349",
+          "content": [
+            {
+              "type": "text",
+              "text": "Run the probe command, then report its output.",
+              "text_elements": []
+            }
+          ]
+        },
+        "started_at_ms": 1790004989215,
+        "completed_at_ms": 1790004989215
+      }
+    },
+    {
+      "timestamp": "2026-09-21T15:36:29.284Z",
+      "ordinal": 8,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c49c-89e4-7f90-a3d2-7b77da9ffe7f",
+        "turn_id": "01a0c49c-8c28-72a0-8294-cad005b15daf",
+        "item": {
+          "type": "AgentMessage",
+          "id": "msg_commentary",
+          "content": [
+            {
+              "type": "Text",
+              "text": "Running the probe command."
+            }
+          ],
+          "phase": "commentary"
+        },
+        "started_at_ms": 1790004989283,
+        "completed_at_ms": 1790004989284
+      }
+    },
+    {
+      "timestamp": "2026-09-21T15:36:29.290Z",
+      "ordinal": 10,
+      "type": "response_item",
+      "payload": {
+        "type": "function_call",
+        "id": "fc_probe",
+        "name": "exec_command",
+        "arguments": "{\"cmd\": \"printf 'tool-start\\\\n'; touch /tmp/history-probe/tool-started; sleep 8; printf 'tool-end\\\\n'; touch /tmp/history-probe/tool-finished\", \"yield_time_ms\": 10000, \"max_output_tokens\": 1000}",
+        "call_id": "call_probe",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "01a0c49c-8c28-72a0-8294-cad005b15daf"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-21T15:36:37.437Z",
+      "ordinal": 12,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c49c-89e4-7f90-a3d2-7b77da9ffe7f",
+        "turn_id": "01a0c49c-8c28-72a0-8294-cad005b15daf",
+        "item": {
+          "type": "CommandExecution",
+          "id": "call_probe",
+          "process_id": "35749",
+          "command": [
+            "/bin/bash",
+            "-lc",
+            "printf 'tool-start\\n'; touch /tmp/history-probe/tool-started; sleep 8; printf 'tool-end\\n'; touch /tmp/history-probe/tool-finished"
+          ],
+          "cwd": "file:///tmp/history-probe/work",
+          "parsed_cmd": [
+            {
+              "type": "unknown",
+              "cmd": "printf 'tool-start\\n'; touch /tmp/history-probe/tool-started; sleep 8; printf 'tool-end\\n'; touch /tmp/history-probe/tool-finished"
+            }
+          ],
+          "source": "unified_exec_startup",
+          "status": "completed",
+          "stdout": "tool-end\n",
+          "stderr": "",
+          "aggregated_output": "tool-end\n",
+          "exit_code": 0,
+          "duration": {
+            "secs": 7,
+            "nanos": 879651314
+          },
+          "formatted_output": "tool-end\n"
+        },
+        "started_at_ms": 1790004989556,
+        "completed_at_ms": 1790004997437
+      }
+    },
+    {
+      "timestamp": "2026-09-21T15:36:37.448Z",
+      "ordinal": 13,
+      "type": "response_item",
+      "payload": {
+        "type": "function_call_output",
+        "id": "fco_01a0c49c-ad47-78c1-9925-618a66d58109",
+        "call_id": "call_probe",
+        "output": "Chunk ID: bb24b2\nWall time: 7.8796 seconds\nProcess exited with code 0\nOriginal token count: 5\nOutput:\ntool-start\ntool-end\n",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "01a0c49c-8c28-72a0-8294-cad005b15daf",
+          "create_time": 1790004997.4478242
+        }
+      },
+      "metadata": {
+        "client_authored": false,
+        "fallback_token_limit_override": 12000
+      }
+    },
+    {
+      "timestamp": "2026-09-21T15:36:37.456Z",
+      "ordinal": 16,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c49c-89e4-7f90-a3d2-7b77da9ffe7f",
+        "turn_id": "01a0c49c-8c28-72a0-8294-cad005b15daf",
+        "item": {
+          "type": "UserMessage",
+          "id": "01a0c49c-ad50-71d3-95b5-ecd7535647a8",
+          "content": [
+            {
+              "type": "text",
+              "text": "Also mention both output lines in your answer.",
+              "text_elements": []
+            }
+          ]
+        },
+        "started_at_ms": 1790004997456,
+        "completed_at_ms": 1790004997456
+      }
+    },
+    {
+      "timestamp": "2026-09-21T15:36:37.489Z",
+      "ordinal": 17,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c49c-89e4-7f90-a3d2-7b77da9ffe7f",
+        "turn_id": "01a0c49c-8c28-72a0-8294-cad005b15daf",
+        "item": {
+          "type": "AgentMessage",
+          "id": "msg_final_2",
+          "content": [
+            {
+              "type": "Text",
+              "text": "Probe completed. Tool output was tool-start and tool-end."
+            }
+          ],
+          "phase": "final_answer"
+        },
+        "started_at_ms": 1790004997489,
+        "completed_at_ms": 1790004997489
+      }
+    },
+    {
+      "timestamp": "2026-09-21T15:36:37.500Z",
+      "ordinal": 21,
+      "type": "event_msg",
+      "payload": {
+        "type": "task_complete",
+        "turn_id": "01a0c49c-8c28-72a0-8294-cad005b15daf",
+        "last_agent_message": "Probe completed. Tool output was tool-start and tool-end.",
+        "started_at": 1790004988,
+        "completed_at": 1790004997,
+        "duration_ms": 8525,
+        "time_to_first_token_ms": 304
+      }
+    }
+  ]
+}

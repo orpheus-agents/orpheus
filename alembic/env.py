@@ -3,6 +3,7 @@ import asyncio
 from sqlalchemy import Connection, pool
 from sqlalchemy.ext.asyncio import create_async_engine
 
+import orpheus.models  # noqa: F401
 from alembic import context
 from orpheus.database import Base
 from orpheus.settings import Settings

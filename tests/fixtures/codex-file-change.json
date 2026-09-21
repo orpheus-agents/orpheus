@@ -1,0 +1,244 @@
+{
+  "version": "codex-cli 0.155.1",
+  "thread": {
+    "turns": [
+      {
+        "id": "01a0c560-9826-7da3-8258-23f5b7c4b708",
+        "items": [
+          {
+            "type": "userMessage",
+            "id": "01a0c560-9e1d-7b32-9b37-2a297ff3f7ef",
+            "clientId": null,
+            "content": [
+              {
+                "type": "text",
+                "text": "Create a file named orpheus-probe.txt in the current directory containing exactly ORPHEUS_OK. Then reply with exactly CREATED. Do not access other directories or networks.",
+                "text_elements": []
+              }
+            ]
+          },
+          {
+            "type": "reasoning",
+            "id": "rs_0623a2fdd7412856016ab1812f7e6887d286cae03a2cbede6d",
+            "summary": [],
+            "content": []
+          },
+          {
+            "type": "agentMessage",
+            "id": "msg_0623a2fdd7412856016ab18130426c87d2888b7a3331173caa",
+            "text": "Creating `orpheus-probe.txt` in the current directory with the exact requested contents.",
+            "phase": "commentary",
+            "memoryCitation": null,
+            "delivery": null,
+            "questions": null
+          },
+          {
+            "type": "fileChange",
+            "id": "call_gI7xzQKcVR2nzbAl6jkkCyPt",
+            "changes": [
+              {
+                "path": "/home/user/workspace/orpheus-probe.txt",
+                "kind": {
+                  "type": "add"
+                },
+                "diff": "ORPHEUS_OK\n"
+              }
+            ],
+            "status": "completed"
+          },
+          {
+            "type": "agentMessage",
+            "id": "msg_0623a2fdd7412856016ab18131926c87d2ac6097cafc54a70b",
+            "text": "CREATED",
+            "phase": "final_answer",
+            "memoryCitation": null,
+            "delivery": null,
+            "questions": null
+          }
+        ],
+        "itemsView": "full",
+        "status": "completed",
+        "error": null,
+        "startedAt": 1790017837,
+        "completedAt": 1790017841,
+        "durationMs": 4637
+      }
+    ]
+  },
+  "records": [
+    {
+      "timestamp": "2026-09-21T19:10:37.145Z",
+      "ordinal": 1,
+      "type": "event_msg",
+      "payload": {
+        "type": "task_started",
+        "turn_id": "01a0c560-9826-7da3-8258-23f5b7c4b708",
+        "started_at": 1790017837,
+        "model_context_window": 258400,
+        "collaboration_mode_kind": "default"
+      }
+    },
+    {
+      "timestamp": "2026-09-21T19:10:38.621Z",
+      "ordinal": 7,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c560-95be-7130-8b55-9fb1159f0dcf",
+        "turn_id": "01a0c560-9826-7da3-8258-23f5b7c4b708",
+        "item": {
+          "type": "UserMessage",
+          "id": "01a0c560-9e1d-7b32-9b37-2a297ff3f7ef",
+          "content": [
+            {
+              "type": "text",
+              "text": "Create a file named orpheus-probe.txt in the current directory containing exactly ORPHEUS_OK. Then reply with exactly CREATED. Do not access other directories or networks.",
+              "text_elements": []
+            }
+          ]
+        },
+        "started_at_ms": 1790017838621,
+        "completed_at_ms": 1790017838621
+      }
+    },
+    {
+      "timestamp": "2026-09-21T19:10:40.324Z",
+      "ordinal": 8,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c560-95be-7130-8b55-9fb1159f0dcf",
+        "turn_id": "01a0c560-9826-7da3-8258-23f5b7c4b708",
+        "item": {
+          "type": "Reasoning",
+          "id": "rs_0623a2fdd7412856016ab1812f7e6887d286cae03a2cbede6d",
+          "summary_text": [],
+          "raw_content": []
+        },
+        "started_at_ms": 1790017839562,
+        "completed_at_ms": 1790017840324
+      }
+    },
+    {
+      "timestamp": "2026-09-21T19:10:40.507Z",
+      "ordinal": 10,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c560-95be-7130-8b55-9fb1159f0dcf",
+        "turn_id": "01a0c560-9826-7da3-8258-23f5b7c4b708",
+        "item": {
+          "type": "AgentMessage",
+          "id": "msg_0623a2fdd7412856016ab18130426c87d2888b7a3331173caa",
+          "content": [
+            {
+              "type": "Text",
+              "text": "Creating `orpheus-probe.txt` in the current directory with the exact requested contents."
+            }
+          ],
+          "phase": "commentary"
+        },
+        "started_at_ms": 1790017840367,
+        "completed_at_ms": 1790017840507
+      }
+    },
+    {
+      "timestamp": "2026-09-21T19:10:41.014Z",
+      "ordinal": 12,
+      "type": "response_item",
+      "payload": {
+        "type": "custom_tool_call",
+        "id": "ctc_0623a2fdd7412856016ab18130659887d2ab8d871fc0408ef5",
+        "status": "completed",
+        "call_id": "call_gI7xzQKcVR2nzbAl6jkkCyPt",
+        "name": "apply_patch",
+        "input": "*** Begin Patch\n*** Add File: orpheus-probe.txt\n+ORPHEUS_OK\n*** End Patch\n",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "01a0c560-9826-7da3-8258-23f5b7c4b708",
+          "create_time": 1790017838.933658
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-21T19:10:41.035Z",
+      "ordinal": 13,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c560-95be-7130-8b55-9fb1159f0dcf",
+        "turn_id": "01a0c560-9826-7da3-8258-23f5b7c4b708",
+        "item": {
+          "type": "FileChange",
+          "id": "call_gI7xzQKcVR2nzbAl6jkkCyPt",
+          "changes": {
+            "/home/user/workspace/orpheus-probe.txt": {
+              "type": "add",
+              "content": "ORPHEUS_OK\n"
+            }
+          },
+          "status": "completed",
+          "stdout": "Success. Updated the following files:\nA orpheus-probe.txt\n",
+          "stderr": ""
+        },
+        "started_at_ms": 1790017841034,
+        "completed_at_ms": 1790017841035
+      }
+    },
+    {
+      "timestamp": "2026-09-21T19:10:41.057Z",
+      "ordinal": 15,
+      "type": "response_item",
+      "payload": {
+        "type": "custom_tool_call_output",
+        "id": "ctco_01a0c560-a7a1-7253-a066-1c0846e2ab3b",
+        "call_id": "call_gI7xzQKcVR2nzbAl6jkkCyPt",
+        "output": "Exit code: 0\nWall time: 0 seconds\nOutput:\nSuccess. Updated the following files:\nA orpheus-probe.txt\n",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "01a0c560-9826-7da3-8258-23f5b7c4b708",
+          "create_time": 1790017841.0575213
+        }
+      },
+      "metadata": {
+        "client_authored": false,
+        "fallback_token_limit_override": 12000
+      }
+    },
+    {
+      "timestamp": "2026-09-21T19:10:41.723Z",
+      "ordinal": 17,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c560-95be-7130-8b55-9fb1159f0dcf",
+        "turn_id": "01a0c560-9826-7da3-8258-23f5b7c4b708",
+        "item": {
+          "type": "AgentMessage",
+          "id": "msg_0623a2fdd7412856016ab18131926c87d2ac6097cafc54a70b",
+          "content": [
+            {
+              "type": "Text",
+              "text": "CREATED"
+            }
+          ],
+          "phase": "final_answer"
+        },
+        "started_at_ms": 1790017841637,
+        "completed_at_ms": 1790017841723
+      }
+    },
+    {
+      "timestamp": "2026-09-21T19:10:41.740Z",
+      "ordinal": 21,
+      "type": "event_msg",
+      "payload": {
+        "type": "task_complete",
+        "turn_id": "01a0c560-9826-7da3-8258-23f5b7c4b708",
+        "last_agent_message": "CREATED",
+        "started_at": 1790017837,
+        "completed_at": 1790017841,
+        "duration_ms": 4637,
+        "time_to_first_token_ms": 3265
+      }
+    }
+  ]
+}

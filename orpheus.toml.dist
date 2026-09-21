@@ -1,0 +1,20 @@
+[profiles.default]
+harness = "codex"
+# Set the model here or provide agent.model when creating a session.
+
+[profiles.default.auth]
+mode = "api_key"
+api_key_env = "OPENAI_API_KEY"
+
+# Account profile example:
+# [credential_stores.main]
+# type = "s3"
+# bucket = "orpheus-credentials"
+# region = "us-east-1"
+# [profiles.account]
+# harness = "codex"
+# model = "your-model"
+# [profiles.account.auth]
+# mode = "account"
+# store = "main"
+# key = "codex/team/auth.json"

@@ -1,0 +1,820 @@
+{
+  "version": "codex-cli 0.155.1",
+  "thread": {
+    "turns": [
+      {
+        "id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "items": [
+          {
+            "type": "userMessage",
+            "id": "01a0c554-211b-7123-b72c-88285eabe553",
+            "clientId": null,
+            "content": [
+              {
+                "type": "text",
+                "text": "Run two shell commands concurrently: first sleep 2 then print ORPHEUS_SLOW, second print ORPHEUS_FAST. Print only these markers. If a command is still running, wait for its result. Then reply DONE.",
+                "text_elements": []
+              }
+            ]
+          },
+          {
+            "type": "reasoning",
+            "id": "rs_0d560b11945c0870016ab17dfd11f487d2b81cb660fb289140",
+            "summary": [],
+            "content": []
+          },
+          {
+            "type": "agentMessage",
+            "id": "msg_0d560b11945c0870016ab17dfeac7087d2a59d3bfd9539e6e2",
+            "text": "Running both shell commands concurrently as requested.",
+            "phase": "commentary",
+            "memoryCitation": null,
+            "delivery": null,
+            "questions": null
+          },
+          {
+            "type": "commandExecution",
+            "id": "call_h9HXqzHLKlVL4CDjcfVoHdLk",
+            "pluginId": null,
+            "scriptPath": null,
+            "command": "/bin/bash -lc \"bash -lc 'echo ORPHEUS_FAST'\"",
+            "cwd": "/home/user/native-probe",
+            "processId": "78853",
+            "source": "unifiedExecStartup",
+            "status": "completed",
+            "commandActions": [
+              {
+                "type": "unknown",
+                "command": "bash -lc 'echo ORPHEUS_FAST'"
+              }
+            ],
+            "aggregatedOutput": "ORPHEUS_FAST\n",
+            "exitCode": 0,
+            "durationMs": 0
+          },
+          {
+            "type": "reasoning",
+            "id": "rs_0d560b11945c0870016ab17e0095fc87d28968ca0f19aaab31",
+            "summary": [],
+            "content": []
+          },
+          {
+            "type": "agentMessage",
+            "id": "msg_0d560b11945c0870016ab17e00aaf487d2a89c0f1e28527a2c",
+            "text": "Waiting for the slower command to finish.",
+            "phase": "commentary",
+            "memoryCitation": null,
+            "delivery": null,
+            "questions": null
+          },
+          {
+            "type": "commandExecution",
+            "id": "call_2daiEjjYqRJHX6zGGJu8VSjU",
+            "pluginId": null,
+            "scriptPath": null,
+            "command": "/bin/bash -lc \"bash -lc 'sleep 2; echo ORPHEUS_SLOW'\"",
+            "cwd": "/home/user/native-probe",
+            "processId": "22185",
+            "source": "unifiedExecStartup",
+            "status": "completed",
+            "commandActions": [
+              {
+                "type": "unknown",
+                "command": "bash -lc 'sleep 2; echo ORPHEUS_SLOW'"
+              }
+            ],
+            "aggregatedOutput": "ORPHEUS_SLOW\n",
+            "exitCode": 0,
+            "durationMs": 1891
+          },
+          {
+            "type": "agentMessage",
+            "id": "msg_0d560b11945c0870016ab17e023cac87d28b02faec0a23e5d0",
+            "text": "ORPHEUS_FAST\nORPHEUS_SLOW\nDONE",
+            "phase": "final_answer",
+            "memoryCitation": null,
+            "delivery": null,
+            "questions": null
+          }
+        ],
+        "itemsView": "full",
+        "status": "completed",
+        "error": null,
+        "startedAt": 1790017018,
+        "completedAt": 1790017026,
+        "durationMs": 7599
+      }
+    ]
+  },
+  "records": [
+    {
+      "timestamp": "2026-09-21T18:56:58.971Z",
+      "ordinal": 1,
+      "type": "event_msg",
+      "payload": {
+        "type": "task_started",
+        "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "started_at": 1790017018,
+        "model_context_window": 258400,
+        "collaboration_mode_kind": "default"
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:00.187Z",
+      "ordinal": 7,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "item": {
+          "type": "UserMessage",
+          "id": "01a0c554-211b-7123-b72c-88285eabe553",
+          "content": [
+            {
+              "type": "text",
+              "text": "Run two shell commands concurrently: first sleep 2 then print ORPHEUS_SLOW, second print ORPHEUS_FAST. Print only these markers. If a command is still running, wait for its result. Then reply DONE.",
+              "text_elements": []
+            }
+          ]
+        },
+        "started_at_ms": 1790017020187,
+        "completed_at_ms": 1790017020187
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:02.737Z",
+      "ordinal": 8,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "item": {
+          "type": "Reasoning",
+          "id": "rs_0d560b11945c0870016ab17dfd11f487d2b81cb660fb289140",
+          "summary_text": [],
+          "raw_content": []
+        },
+        "started_at_ms": 1790017021135,
+        "completed_at_ms": 1790017022737
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:03.529Z",
+      "ordinal": 10,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "item": {
+          "type": "AgentMessage",
+          "id": "msg_0d560b11945c0870016ab17dfeac7087d2a59d3bfd9539e6e2",
+          "content": [
+            {
+              "type": "Text",
+              "text": "Running both shell commands concurrently as requested."
+            }
+          ],
+          "phase": "commentary"
+        },
+        "started_at_ms": 1790017022785,
+        "completed_at_ms": 1790017023529
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:03.536Z",
+      "ordinal": 12,
+      "type": "response_item",
+      "payload": {
+        "type": "function_call",
+        "id": "fc_0d560b11945c0870016ab17dff6be887d2bfacf3e2d25f2a2b",
+        "name": "exec_command",
+        "arguments": "{\"cmd\":\"bash -lc 'sleep 2; echo ORPHEUS_SLOW'\",\"workdir\":\"/home/user/native-probe\",\"yield_time_ms\":100,\"max_output_tokens\":2000}",
+        "call_id": "call_2daiEjjYqRJHX6zGGJu8VSjU",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:03.538Z",
+      "ordinal": 13,
+      "type": "response_item",
+      "payload": {
+        "type": "function_call",
+        "id": "fc_0d560b11945c0870016ab17dff6c0087d29cf28577b5e6e5ff",
+        "name": "exec_command",
+        "arguments": "{\"cmd\":\"bash -lc 'echo ORPHEUS_FAST'\",\"workdir\":\"/home/user/native-probe\",\"yield_time_ms\":100,\"max_output_tokens\":2000}",
+        "call_id": "call_h9HXqzHLKlVL4CDjcfVoHdLk",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:03.682Z",
+      "ordinal": 15,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "item": {
+          "type": "CommandExecution",
+          "id": "call_h9HXqzHLKlVL4CDjcfVoHdLk",
+          "process_id": "78853",
+          "command": [
+            "/bin/bash",
+            "-lc",
+            "bash -lc 'echo ORPHEUS_FAST'"
+          ],
+          "cwd": "file:///home/user/native-probe",
+          "parsed_cmd": [
+            {
+              "type": "unknown",
+              "cmd": "bash -lc 'echo ORPHEUS_FAST'"
+            }
+          ],
+          "source": "unified_exec_startup",
+          "status": "completed",
+          "stdout": "ORPHEUS_FAST\n",
+          "stderr": "",
+          "aggregated_output": "ORPHEUS_FAST\n",
+          "exit_code": 0,
+          "duration": {
+            "secs": 0,
+            "nanos": 19855
+          },
+          "formatted_output": "ORPHEUS_FAST\n"
+        },
+        "started_at_ms": 1790017023682,
+        "completed_at_ms": 1790017023682
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:04.058Z",
+      "ordinal": 16,
+      "type": "response_item",
+      "payload": {
+        "type": "function_call_output",
+        "id": "fco_01a0c554-303a-77f3-9c2c-71d6c5912406",
+        "call_id": "call_2daiEjjYqRJHX6zGGJu8VSjU",
+        "output": "Chunk ID: 337e12\nWall time: 0.2512 seconds\nProcess running with session ID 22185\nOriginal token count: 0\nOutput:\n",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+          "create_time": 1790017024.0583885
+        }
+      },
+      "metadata": {
+        "client_authored": false,
+        "fallback_token_limit_override": 12000
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:04.061Z",
+      "ordinal": 17,
+      "type": "response_item",
+      "payload": {
+        "type": "function_call_output",
+        "id": "fco_01a0c554-303d-7e72-bbf3-44607a6331aa",
+        "call_id": "call_h9HXqzHLKlVL4CDjcfVoHdLk",
+        "output": "Chunk ID: 4c3fec\nWall time: 0.0000 seconds\nProcess exited with code 0\nOriginal token count: 4\nOutput:\nORPHEUS_FAST\n",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+          "create_time": 1790017024.0617518
+        }
+      },
+      "metadata": {
+        "client_authored": false,
+        "fallback_token_limit_override": 12000
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:04.736Z",
+      "ordinal": 19,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "item": {
+          "type": "Reasoning",
+          "id": "rs_0d560b11945c0870016ab17e0095fc87d28968ca0f19aaab31",
+          "summary_text": [],
+          "raw_content": []
+        },
+        "started_at_ms": 1790017024651,
+        "completed_at_ms": 1790017024736
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:04.866Z",
+      "ordinal": 21,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "item": {
+          "type": "AgentMessage",
+          "id": "msg_0d560b11945c0870016ab17e00aaf487d2a89c0f1e28527a2c",
+          "content": [
+            {
+              "type": "Text",
+              "text": "Waiting for the slower command to finish."
+            }
+          ],
+          "phase": "commentary"
+        },
+        "started_at_ms": 1790017024742,
+        "completed_at_ms": 1790017024866
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:05.038Z",
+      "ordinal": 23,
+      "type": "response_item",
+      "payload": {
+        "type": "function_call",
+        "id": "fc_0d560b11945c0870016ab17e00c90487d2b86aa4244bb1b9e6",
+        "name": "write_stdin",
+        "arguments": "{\"session_id\":22185,\"yield_time_ms\":2500,\"max_output_tokens\":2000}",
+        "call_id": "call_HXMyjdjedPVgg3Pg0h7zhZ4N",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+          "create_time": 1790017024.293074
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:05.699Z",
+      "ordinal": 25,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "item": {
+          "type": "CommandExecution",
+          "id": "call_2daiEjjYqRJHX6zGGJu8VSjU",
+          "process_id": "22185",
+          "command": [
+            "/bin/bash",
+            "-lc",
+            "bash -lc 'sleep 2; echo ORPHEUS_SLOW'"
+          ],
+          "cwd": "file:///home/user/native-probe",
+          "parsed_cmd": [
+            {
+              "type": "unknown",
+              "cmd": "bash -lc 'sleep 2; echo ORPHEUS_SLOW'"
+            }
+          ],
+          "source": "unified_exec_startup",
+          "status": "completed",
+          "stdout": "ORPHEUS_SLOW\n",
+          "stderr": "",
+          "aggregated_output": "ORPHEUS_SLOW\n",
+          "exit_code": 0,
+          "duration": {
+            "secs": 1,
+            "nanos": 891027733
+          },
+          "formatted_output": "ORPHEUS_SLOW\n"
+        },
+        "started_at_ms": 1790017023806,
+        "completed_at_ms": 1790017025697
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:05.702Z",
+      "ordinal": 26,
+      "type": "response_item",
+      "payload": {
+        "type": "function_call_output",
+        "id": "fco_01a0c554-36a6-7691-be8e-8c3a07ff45a4",
+        "call_id": "call_HXMyjdjedPVgg3Pg0h7zhZ4N",
+        "output": "Chunk ID: 11b112\nWall time: 0.6559 seconds\nProcess exited with code 0\nOriginal token count: 4\nOutput:\nORPHEUS_SLOW\n",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+          "create_time": 1790017025.7025104
+        }
+      },
+      "metadata": {
+        "client_authored": false,
+        "fallback_token_limit_override": 12000
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:06.485Z",
+      "ordinal": 28,
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "thread_id": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "item": {
+          "type": "AgentMessage",
+          "id": "msg_0d560b11945c0870016ab17e023cac87d28b02faec0a23e5d0",
+          "content": [
+            {
+              "type": "Text",
+              "text": "ORPHEUS_FAST\nORPHEUS_SLOW\nDONE"
+            }
+          ],
+          "phase": "final_answer"
+        },
+        "started_at_ms": 1790017026313,
+        "completed_at_ms": 1790017026485
+      }
+    },
+    {
+      "timestamp": "2026-09-21T18:57:06.508Z",
+      "ordinal": 32,
+      "type": "event_msg",
+      "payload": {
+        "type": "task_complete",
+        "turn_id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "last_agent_message": "ORPHEUS_FAST\nORPHEUS_SLOW\nDONE",
+        "started_at": 1790017018,
+        "completed_at": 1790017026,
+        "duration_ms": 7599,
+        "time_to_first_token_ms": 3877
+      }
+    }
+  ],
+  "notifications": [
+    {
+      "method": "turn/started",
+      "params": {
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turn": {
+          "id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+          "items": [],
+          "itemsView": "notLoaded",
+          "status": "inProgress",
+          "error": null,
+          "startedAt": 1790017018,
+          "completedAt": null,
+          "durationMs": null
+        }
+      },
+      "emittedAtMs": 1790017019042
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "01a0c554-211b-7123-b72c-88285eabe553",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "Run two shell commands concurrently: first sleep 2 then print ORPHEUS_SLOW, second print ORPHEUS_FAST. Print only these markers. If a command is still running, wait for its result. Then reply DONE.",
+              "text_elements": []
+            }
+          ]
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "startedAtMs": 1790017020187
+      },
+      "emittedAtMs": 1790017020187
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "01a0c554-211b-7123-b72c-88285eabe553",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "Run two shell commands concurrently: first sleep 2 then print ORPHEUS_SLOW, second print ORPHEUS_FAST. Print only these markers. If a command is still running, wait for its result. Then reply DONE.",
+              "text_elements": []
+            }
+          ]
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "completedAtMs": 1790017020187
+      },
+      "emittedAtMs": 1790017020194
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "rs_0d560b11945c0870016ab17dfd11f487d2b81cb660fb289140",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "startedAtMs": 1790017021135
+      },
+      "emittedAtMs": 1790017021136
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "rs_0d560b11945c0870016ab17dfd11f487d2b81cb660fb289140",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "completedAtMs": 1790017022737
+      },
+      "emittedAtMs": 1790017022740
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0d560b11945c0870016ab17dfeac7087d2a59d3bfd9539e6e2",
+          "text": "",
+          "phase": "commentary",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "startedAtMs": 1790017022785
+      },
+      "emittedAtMs": 1790017022785
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0d560b11945c0870016ab17dfeac7087d2a59d3bfd9539e6e2",
+          "text": "Running both shell commands concurrently as requested.",
+          "phase": "commentary",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "completedAtMs": 1790017023529
+      },
+      "emittedAtMs": 1790017023533
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "call_h9HXqzHLKlVL4CDjcfVoHdLk",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/bash -lc \"bash -lc 'echo ORPHEUS_FAST'\"",
+          "cwd": "/home/user/native-probe",
+          "processId": "78853",
+          "source": "unifiedExecStartup",
+          "status": "inProgress",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "bash -lc 'echo ORPHEUS_FAST'"
+            }
+          ],
+          "aggregatedOutput": null,
+          "exitCode": null,
+          "durationMs": null
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "startedAtMs": 1790017023682
+      },
+      "emittedAtMs": 1790017023707
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "call_h9HXqzHLKlVL4CDjcfVoHdLk",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/bash -lc \"bash -lc 'echo ORPHEUS_FAST'\"",
+          "cwd": "/home/user/native-probe",
+          "processId": "78853",
+          "source": "unifiedExecStartup",
+          "status": "completed",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "bash -lc 'echo ORPHEUS_FAST'"
+            }
+          ],
+          "aggregatedOutput": "ORPHEUS_FAST\n",
+          "exitCode": 0,
+          "durationMs": 0
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "completedAtMs": 1790017023682
+      },
+      "emittedAtMs": 1790017023709
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "call_2daiEjjYqRJHX6zGGJu8VSjU",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/bash -lc \"bash -lc 'sleep 2; echo ORPHEUS_SLOW'\"",
+          "cwd": "/home/user/native-probe",
+          "processId": "22185",
+          "source": "unifiedExecStartup",
+          "status": "inProgress",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "bash -lc 'sleep 2; echo ORPHEUS_SLOW'"
+            }
+          ],
+          "aggregatedOutput": null,
+          "exitCode": null,
+          "durationMs": null
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "startedAtMs": 1790017023806
+      },
+      "emittedAtMs": 1790017023806
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "rs_0d560b11945c0870016ab17e0095fc87d28968ca0f19aaab31",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "startedAtMs": 1790017024651
+      },
+      "emittedAtMs": 1790017024651
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "rs_0d560b11945c0870016ab17e0095fc87d28968ca0f19aaab31",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "completedAtMs": 1790017024736
+      },
+      "emittedAtMs": 1790017024740
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0d560b11945c0870016ab17e00aaf487d2a89c0f1e28527a2c",
+          "text": "",
+          "phase": "commentary",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "startedAtMs": 1790017024742
+      },
+      "emittedAtMs": 1790017024742
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0d560b11945c0870016ab17e00aaf487d2a89c0f1e28527a2c",
+          "text": "Waiting for the slower command to finish.",
+          "phase": "commentary",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "completedAtMs": 1790017024866
+      },
+      "emittedAtMs": 1790017024868
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "call_2daiEjjYqRJHX6zGGJu8VSjU",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/bash -lc \"bash -lc 'sleep 2; echo ORPHEUS_SLOW'\"",
+          "cwd": "/home/user/native-probe",
+          "processId": "22185",
+          "source": "unifiedExecStartup",
+          "status": "completed",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "bash -lc 'sleep 2; echo ORPHEUS_SLOW'"
+            }
+          ],
+          "aggregatedOutput": "ORPHEUS_SLOW\n",
+          "exitCode": 0,
+          "durationMs": 1891
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "completedAtMs": 1790017025697
+      },
+      "emittedAtMs": 1790017025702
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0d560b11945c0870016ab17e023cac87d28b02faec0a23e5d0",
+          "text": "",
+          "phase": "final_answer",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "startedAtMs": 1790017026313
+      },
+      "emittedAtMs": 1790017026313
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0d560b11945c0870016ab17e023cac87d28b02faec0a23e5d0",
+          "text": "ORPHEUS_FAST\nORPHEUS_SLOW\nDONE",
+          "phase": "final_answer",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null
+        },
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turnId": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+        "completedAtMs": 1790017026485
+      },
+      "emittedAtMs": 1790017026494
+    },
+    {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "01a0c554-19d4-7a00-97ea-20a16065ca66",
+        "turn": {
+          "id": "01a0c554-1c12-7cd0-8619-0d780f14d308",
+          "items": [
+            {
+              "type": "agentMessage",
+              "id": "msg_0d560b11945c0870016ab17e023cac87d28b02faec0a23e5d0",
+              "text": "ORPHEUS_FAST\nORPHEUS_SLOW\nDONE",
+              "phase": "final_answer",
+              "memoryCitation": null,
+              "delivery": null,
+              "questions": null
+            }
+          ],
+          "itemsView": "summary",
+          "status": "completed",
+          "error": null,
+          "startedAt": 1790017018,
+          "completedAt": 1790017026,
+          "durationMs": 7599
+        }
+      },
+      "emittedAtMs": 1790017026516
+    }
+  ]
+}
