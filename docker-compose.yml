@@ -1,0 +1,38 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: .docker/app/dev/Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=4)"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    stop_grace_period: 15s
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: orpheus
+      POSTGRES_USER: orpheus
+      POSTGRES_PASSWORD: orpheus
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orpheus -d orpheus"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  postgres-data:

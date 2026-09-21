@@ -1,0 +1,39 @@
+[project]
+name = "orpheus"
+version = "0.1.0"
+description = "The orchestrator of AI agents working in AgentBox sandboxes"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.14.7"
+dependencies = [
+    "alembic>=1.20.0,<2",
+    "click>=8.5.0,<9",
+    "fastapi>=0.141.1,<1",
+    "psycopg[binary]>=3.3.6,<4",
+    "pydantic>=2.13.5,<3",
+    "pydantic-settings>=2.15.0,<3",
+    "rich>=15.0.0,<16",
+    "sqlalchemy[asyncio]>=2.0.54,<3",
+    "uvicorn>=0.53.0,<1",
+]
+
+[project.scripts]
+orpheus = "orpheus.cli:cli"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1,<1",
+    "pytest>=9.1.1,<10",
+    "ruff==0.16.8",
+    "ty==0.0.82",
+]
+
+[build-system]
+requires = ["uv_build==0.12.17"]
+build-backend = "uv_build"
+
+[tool.uv]
+required-version = "==0.12.17"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
