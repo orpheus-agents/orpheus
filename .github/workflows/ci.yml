@@ -18,7 +18,9 @@ jobs:
           persist-credentials: false
 
       - name: Prepare environment
-        run: cp .env.dist .env
+        run: |
+          cp .env.dist .env
+          cp orpheus.toml.dist orpheus.toml
 
       - name: Lint
         run: make lint
@@ -30,3 +32,31 @@ jobs:
         run: |
           make openapi
           git diff --exit-code -- openapi.json
+
+  live:
+    needs: checks
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Prepare environment
+        run: |
+          cp .env.dist .env
+          cp orpheus.toml.dist orpheus.toml
+
+      - name: Live tests
+        env:
+          AGENTBOX_API_KEY: ${{ secrets.AGENTBOX_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: make test-live
+
+      - name: Stop test services
+        if: always()
+        run: make stop

@@ -22,7 +22,7 @@ def test_export_does_not_require_settings_or_database(
     result = runner.invoke(cli, ["openapi"])
     assert result.exit_code == 0, result.output
     first = Path("openapi.json").read_bytes()
-    assert set(json.loads(first)["paths"]) == {"/health", "/ready"}
+    assert {"/health", "/ready", "/api/v1/sessions"} <= set(json.loads(first)["paths"])
 
     assert runner.invoke(cli, ["openapi"]).exit_code == 0
     assert Path("openapi.json").read_bytes() == first

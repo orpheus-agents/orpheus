@@ -6,6 +6,9 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.14.7"
 dependencies = [
+    "abox-sdk==0.1.7",
+    "boto3>=1.40,<2",
+    "cryptography>=46,<47",
     "alembic>=1.20.0,<2",
     "click>=8.5.0,<9",
     "fastapi>=0.141.1,<1",
@@ -13,6 +16,7 @@ dependencies = [
     "pydantic>=2.13.5,<3",
     "pydantic-settings>=2.15.0,<3",
     "rich>=15.0.0,<16",
+    "sse-starlette>=3,<4",
     "sqlalchemy[asyncio]>=2.0.54,<3",
     "uvicorn>=0.53.0,<1",
 ]
@@ -22,7 +26,8 @@ orpheus = "orpheus.cli:cli"
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1,<1",
+    "httpx2>=2.13.0,<3",
+    "pytest-asyncio>=1.2,<2",
     "pytest>=9.1.1,<10",
     "ruff==0.16.8",
     "ty==0.0.82",
@@ -37,3 +42,6 @@ required-version = "==0.12.17"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["--strict-markers", "-m", "not live"]
+markers = ["live: requires real external services and their credentials"]
+asyncio_mode = "auto"

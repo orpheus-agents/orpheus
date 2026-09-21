@@ -8,6 +8,8 @@
 ###< IDE ###
 
 .env
+/orpheus.toml
+/KEYS
 .netrc
 auth.json
 

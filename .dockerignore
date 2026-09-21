@@ -1,5 +1,7 @@
 .git
 .env
+/orpheus.toml
+/KEYS
 .env.*
 !.env.dist
 .venv

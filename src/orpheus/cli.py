@@ -53,3 +53,20 @@ def openapi(output: Path) -> None:
     except OSError as error:
         raise click.ClickException(str(error)) from error
     console.print("OpenAPI schema written to", str(output), markup=False)
+
+
+@cli.command()
+def worker() -> None:
+    """Execute accepted agent sessions (one worker per deployment)."""
+    import asyncio
+    import logging
+
+    from orpheus.settings import Settings
+    from orpheus.worker import run_worker
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
+    console.print("Starting [bold]Orpheus worker[/bold]")
+    try:
+        asyncio.run(run_worker(Settings()))
+    except Exception as error:  # noqa: BLE001 - CLI must not print credentials from SDK errors
+        raise click.ClickException(f"Worker stopped ({type(error).__name__})") from None

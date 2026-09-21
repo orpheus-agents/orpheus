@@ -3,10 +3,12 @@ services:
     build:
       context: .
       dockerfile: .docker/app/dev/Dockerfile
+    image: orpheus-app
     env_file:
       - .env
     volumes:
       - .:/app
+      - ./orpheus.toml:/etc/orpheus/orpheus.toml:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -19,6 +21,52 @@ services:
       retries: 5
       start_period: 5s
     stop_grace_period: 15s
+
+  worker:
+    image: orpheus-app
+    command: ["orpheus", "worker"]
+    environment:
+      AGENTBOX_API_KEY: ${AGENTBOX_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - ./orpheus.toml:/etc/orpheus/orpheus.toml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    stop_grace_period: 15s
+
+  test-s3:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    profiles: [test]
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: orpheus-test
+      MINIO_ROOT_PASSWORD: orpheus-test-password
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 1s
+      timeout: 5s
+      retries: 20
+
+  test-db:
+    image: postgres:16
+    profiles: [test]
+    environment:
+      POSTGRES_DB: orpheus_test
+      POSTGRES_USER: orpheus
+      POSTGRES_PASSWORD: orpheus
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orpheus -d orpheus_test"]
+      interval: 1s
+      timeout: 5s
+      retries: 20
 
   db:
     image: postgres:16
