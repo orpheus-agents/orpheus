@@ -9,6 +9,7 @@ import (
 func sessionRecord(v db.Session, err error) (SessionRecord, error) { return SessionRecord(v), err }
 func runRecord(v db.Run, err error) (RunRecord, error) {
 	return RunRecord{
+		InputFingerprint:   v.InputFingerprint,
 		ID:                 v.ID,
 		SessionID:          v.SessionID,
 		Number:             v.Number,
@@ -30,6 +31,7 @@ func runRecord(v db.Run, err error) (RunRecord, error) {
 }
 func messageRecord(v db.Message, err error) (MessageRecord, error) {
 	return MessageRecord{
+		ExternalKey:        v.ExternalKey,
 		ID:                 v.ID,
 		SessionID:          v.SessionID,
 		RunID:              v.RunID,

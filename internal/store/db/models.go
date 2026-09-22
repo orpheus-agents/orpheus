@@ -36,6 +36,7 @@ type Message struct {
 	RegisteredSequence int64             `json:"registered_sequence"`
 	Position           *session.Position `json:"position"`
 	CreatedAt          time.Time         `json:"created_at"`
+	ExternalKey        *string           `json:"external_key"`
 }
 
 type Operation struct {
@@ -69,6 +70,7 @@ type Run struct {
 	NativeTurnID       *string        `json:"native_turn_id"`
 	NextDeliveryNumber int            `json:"next_delivery_number"`
 	FinalMessageID     *uuid.UUID     `json:"final_message_id"`
+	InputFingerprint   *string        `json:"input_fingerprint"`
 }
 
 type Session struct {
@@ -90,6 +92,8 @@ type Session struct {
 	SlotReserved          bool                          `json:"slot_reserved"`
 	NextRunNumber         int                           `json:"next_run_number"`
 	NextEventSequence     int64                         `json:"next_event_sequence"`
+	Namespace             *string                       `json:"namespace"`
+	ExternalKey           *string                       `json:"external_key"`
 }
 
 type SessionEvent struct {

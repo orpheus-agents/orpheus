@@ -88,9 +88,13 @@ func (s *Store) Run(ctx context.Context, sid, rid uuid.UUID) (session.Run, error
 	})
 	return out, err
 }
-func (s *Store) ListSessions(ctx context.Context, limit int, cursor string) (session.Page[session.Session], error) {
+func (s *Store) ListSessions(ctx context.Context, limit int, cursor string, filter ListFilter) (session.Page[session.Session], error) {
 	out := session.Page[session.Session]{Items: []session.Session{}}
 	if err := validLimit(limit); err != nil {
+		return out, err
+	}
+	scope, err := filter.scope("sessions")
+	if err != nil {
 		return out, err
 	}
 	type position struct {
@@ -99,15 +103,22 @@ func (s *Store) ListSessions(ctx context.Context, limit int, cursor string) (ses
 	}
 	var pos position
 	if cursor != "" {
-		if err := decodeCursor(cursor, "sessions", &pos); err != nil {
+		if err := decodeCursor(cursor, scope, &pos); err != nil {
 			return out, err
 		}
 		if pos.Date.IsZero() || pos.ID == uuid.Nil {
 			return out, invalidCursor()
 		}
 	}
-	err := s.Snapshot(ctx, func(tx pgx.Tx) error {
-		records, err := sessionRecords(db.New(tx).ListSessions(ctx, db.ListSessionsParams{FirstPage: cursor == "", AfterDate: pos.Date, AfterID: pos.ID, PageLimit: limit + 1}))
+	err = s.Snapshot(ctx, func(tx pgx.Tx) error {
+		args := db.ListSessionsParams{Namespace: filter.Namespace, ExternalKey: filter.ExternalKey, Status: filter.Status, FirstPage: cursor == "", AfterCreatedAt: pos.Date, AfterID: pos.ID, PageLimit: limit + 1}
+		var records []SessionRecord
+		var err error
+		if filter.Order == "desc" {
+			records, err = sessionRecords(db.New(tx).ListSessionsDesc(ctx, db.ListSessionsDescParams(args)))
+		} else {
+			records, err = sessionRecords(db.New(tx).ListSessions(ctx, args))
+		}
 		if err != nil {
 			return err
 		}
@@ -120,18 +131,70 @@ func (s *Store) ListSessions(ctx context.Context, limit int, cursor string) (ses
 		}
 		if len(records) > limit {
 			r := records[limit-1]
-			out.NextCursor = new(encodeCursor("sessions", position{r.CreatedAt, r.ID}))
+			out.NextCursor = new(encodeCursor(scope, position{r.CreatedAt, r.ID}))
 		}
 		return nil
 	})
 	return out, err
 }
-func (s *Store) ListRuns(ctx context.Context, sid uuid.UUID, limit int, cursor string) (session.Page[session.Run], error) {
+func (s *Store) ListAllRuns(ctx context.Context, limit int, cursor string, filter ListFilter) (session.Page[session.Run], error) {
 	out := session.Page[session.Run]{Items: []session.Run{}}
 	if err := validLimit(limit); err != nil {
 		return out, err
 	}
-	scope := "runs:" + sid.String()
+	scope, err := filter.scope("runs")
+	if err != nil {
+		return out, err
+	}
+	type position struct {
+		Date time.Time
+		ID   uuid.UUID
+	}
+	var pos position
+	if cursor != "" {
+		if err := decodeCursor(cursor, scope, &pos); err != nil {
+			return out, err
+		}
+		if pos.Date.IsZero() || pos.ID == uuid.Nil {
+			return out, invalidCursor()
+		}
+	}
+	err = s.Snapshot(ctx, func(tx pgx.Tx) error {
+		args := db.ListAllRunsParams{InputFingerprint: filter.InputFingerprint, Namespace: filter.Namespace, ExternalKey: filter.ExternalKey, Status: filter.Status, FirstPage: cursor == "", AfterCreatedAt: pos.Date, AfterID: pos.ID, PageLimit: limit + 1}
+		var records []RunRecord
+		var err error
+		if filter.Order == "desc" {
+			records, err = runRecords(db.New(tx).ListAllRunsDesc(ctx, db.ListAllRunsDescParams(args)))
+		} else {
+			records, err = runRecords(db.New(tx).ListAllRuns(ctx, args))
+		}
+		if err != nil {
+			return err
+		}
+		for _, r := range records[:min(limit, len(records))] {
+			v, err := RunView(ctx, tx, r)
+			if err != nil {
+				return err
+			}
+			out.Items = append(out.Items, v)
+		}
+		if len(records) > limit {
+			r := records[limit-1]
+			out.NextCursor = new(encodeCursor(scope, position{r.CreatedAt, r.ID}))
+		}
+		return nil
+	})
+	return out, err
+}
+func (s *Store) ListRuns(ctx context.Context, sid uuid.UUID, limit int, cursor string, filter ListFilter) (session.Page[session.Run], error) {
+	out := session.Page[session.Run]{Items: []session.Run{}}
+	if err := validLimit(limit); err != nil {
+		return out, err
+	}
+	scope, err := filter.scope("runs:" + sid.String())
+	if err != nil {
+		return out, err
+	}
 	position := 0
 	if cursor != "" {
 		if err := decodeCursor(cursor, scope, &position); err != nil {
@@ -141,11 +204,18 @@ func (s *Store) ListRuns(ctx context.Context, sid uuid.UUID, limit int, cursor s
 			return out, invalidCursor()
 		}
 	}
-	err := s.Snapshot(ctx, func(tx pgx.Tx) error {
+	err = s.Snapshot(ctx, func(tx pgx.Tx) error {
 		if _, err := GetSession(ctx, tx, sid, false); err != nil {
 			return err
 		}
-		records, err := runRecords(db.New(tx).ListRuns(ctx, db.ListRunsParams{SessionID: sid, Number: position, PageLimit: limit + 1}))
+		args := db.ListRunsParams{InputFingerprint: filter.InputFingerprint, Status: filter.Status, FirstPage: cursor == "", SessionID: sid, AfterNumber: position, PageLimit: limit + 1}
+		var records []RunRecord
+		var err error
+		if filter.Order == "desc" {
+			records, err = runRecords(db.New(tx).ListRunsDesc(ctx, db.ListRunsDescParams(args)))
+		} else {
+			records, err = runRecords(db.New(tx).ListRuns(ctx, args))
+		}
 		if err != nil {
 			return err
 		}
@@ -202,15 +272,15 @@ func (s *Store) Events(ctx context.Context, sid uuid.UUID, after string, limit i
 	})
 	return out, err
 }
-func (s *Store) History(ctx context.Context, sid uuid.UUID, rid *uuid.UUID, limit int, cursor string) (session.HistoryPage, error) {
+func (s *Store) History(ctx context.Context, sid uuid.UUID, rid *uuid.UUID, limit int, cursor string, messageExternalKey *string) (session.HistoryPage, error) {
 	out := session.HistoryPage{Page: session.Page[session.HistoryItem]{Items: []session.HistoryItem{}}}
 	if err := validLimit(limit); err != nil {
 		return out, err
 	}
-	scope := "history:" + sid.String() + ":"
-	if rid != nil {
-		scope += rid.String()
+	if err := session.ValidateExternal(messageExternalKey, session.ExternalKeyMaxBytes, "query", "message_external_key"); err != nil {
+		return out, err
 	}
+	scope := historyScope(sid, rid, messageExternalKey)
 	type position struct {
 		Watermark *int64
 		Last      []int64
@@ -247,7 +317,7 @@ func (s *Store) History(ctx context.Context, sid uuid.UUID, rid *uuid.UUID, limi
 			return invalidCursor()
 		}
 		out.EventCursor = strconv.FormatInt(*pos.Watermark, 10)
-		rows, err := db.New(tx).History(ctx, db.HistoryParams{
+		params := db.HistoryParams{
 			SessionID:     sid,
 			Watermark:     *pos.Watermark,
 			RunID:         rid,
@@ -257,7 +327,22 @@ func (s *Store) History(ctx context.Context, sid uuid.UUID, rid *uuid.UUID, limi
 			AfterIndex:    pos.Last[2],
 			AfterSequence: pos.Last[3],
 			PageLimit:     limit + 1,
-		})
+		}
+		var rows []db.HistoryRow
+		if messageExternalKey == nil {
+			rows, err = db.New(tx).History(ctx, params)
+		} else {
+			var filtered []db.HistoryByExternalKeyRow
+			filtered, err = db.New(tx).HistoryByExternalKey(ctx, db.HistoryByExternalKeyParams{
+				SessionID: sid, RunID: rid, MessageExternalKey: *messageExternalKey,
+				Watermark: params.Watermark, FirstPage: params.FirstPage, AfterRun: params.AfterRun,
+				AfterUnknown: params.AfterUnknown, AfterIndex: params.AfterIndex, AfterSequence: params.AfterSequence, PageLimit: params.PageLimit,
+			})
+			rows = make([]db.HistoryRow, len(filtered))
+			for i, row := range filtered {
+				rows[i] = db.HistoryRow(row)
+			}
+		}
 		if err != nil {
 			return err
 		}
@@ -288,4 +373,14 @@ func (s *Store) History(ctx context.Context, sid uuid.UUID, rid *uuid.UUID, limi
 		return nil
 	})
 	return out, err
+}
+
+func historyScope(sid uuid.UUID, rid *uuid.UUID, externalKey *string) string {
+	raw, _ := json.Marshal(struct {
+		Resource    string
+		SessionID   uuid.UUID
+		RunID       *uuid.UUID
+		ExternalKey *string
+	}{"history", sid, rid, externalKey})
+	return string(raw)
 }

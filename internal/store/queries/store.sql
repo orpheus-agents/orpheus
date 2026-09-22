@@ -68,8 +68,8 @@ INSERT INTO session_events(session_id, sequence, type, data)
 VALUES($1, $2, $3, $4);
 
 -- name: UpsertMessage :exec
-INSERT INTO messages(id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+INSERT INTO messages(id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 ON CONFLICT(id) DO UPDATE SET kind = EXCLUDED.kind,
     text = EXCLUDED.text,
     delivery_status = EXCLUDED.delivery_status,
@@ -95,8 +95,8 @@ FROM idempotency_keys
 WHERE operation = $1 AND resource = $2 AND key = $3;
 
 -- name: CreateSession :one
-INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved)
-VALUES($1, $2, $3, false)
+INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved, namespace, external_key)
+VALUES($1, $2, $3, false, $4, $5)
 RETURNING s.*;
 
 -- name: CountReserved :one
@@ -105,8 +105,8 @@ FROM sessions
 WHERE slot_reserved;
 
 -- name: CreateRun :one
-INSERT INTO runs AS r(id, session_id, number)
-VALUES($1, $2, $3)
+INSERT INTO runs AS r(id, session_id, number, input_fingerprint)
+VALUES($1, $2, $3, $4)
 RETURNING r.*;
 
 -- name: InsertIdempotency :exec

@@ -1,5 +1,8 @@
 components:
     schemas:
+        RunStatus:
+            type: string
+            enum: [accepted, starting, running, cancelling, completed, failed, cancelled]
         Accepted:
             properties:
                 message_id:
@@ -64,16 +67,7 @@ components:
                     title: Run Id
                     type: string
                 status:
-                    enum:
-                        - accepted
-                        - starting
-                        - running
-                        - cancelling
-                        - completed
-                        - failed
-                        - cancelled
-                    title: Status
-                    type: string
+                    $ref: '#/components/schemas/RunStatus'
             required:
                 - run_id
                 - status
@@ -111,6 +105,21 @@ components:
         CreateSession:
             additionalProperties: false
             properties:
+                namespace:
+                    description: Logical integration or workflow name. Opaque identifier, 1–128 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+                    type: string
+                    minLength: 1
+                    maxLength: 128
+                external_key:
+                    description: Source-qualified external object key; not unique across sessions. Opaque identifier, 1–512 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+                    type: string
+                    minLength: 1
+                    maxLength: 512
+                input_fingerprint:
+                    description: Opaque input snapshot version for the first run; does not deduplicate requests. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+                    type: string
+                    minLength: 1
+                    maxLength: 256
                 configuration:
                     $ref: '#/components/schemas/ConfigurationInput'
                 message:
@@ -281,6 +290,11 @@ components:
             type: object
         Message:
             properties:
+                external_key:
+                    description: External key supplied for an incoming message; null for agent messages. Opaque identifier, 1–512 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+                    anyOf:
+                        - type: string
+                        - type: "null"
                 created_at:
                     format: date-time
                     title: Created At
@@ -337,6 +351,7 @@ components:
                     title: Text
                     type: string
             required:
+                - external_key
                 - id
                 - session_id
                 - run_id
@@ -439,6 +454,11 @@ components:
             type: object
         Run:
             properties:
+                input_fingerprint:
+                    description: Input snapshot version supplied when the run was accepted. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+                    anyOf:
+                        - type: string
+                        - type: "null"
                 cancel_requested_at:
                     anyOf:
                         - format: date-time
@@ -496,16 +516,7 @@ components:
                     title: Session Id
                     type: string
                 status:
-                    enum:
-                        - accepted
-                        - starting
-                        - running
-                        - cancelling
-                        - completed
-                        - failed
-                        - cancelled
-                    title: Status
-                    type: string
+                    $ref: '#/components/schemas/RunStatus'
                 stop_method:
                     anyOf:
                         - enum:
@@ -523,6 +534,7 @@ components:
                         - type: "null"
                     title: Stop Reason
             required:
+                - input_fingerprint
                 - id
                 - session_id
                 - number
@@ -662,6 +674,20 @@ components:
                 - error
             title: SandboxState
             type: object
+        CreateRun:
+            additionalProperties: false
+            properties:
+                input_fingerprint:
+                    description: Opaque input snapshot version for this run; does not deduplicate requests. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+                    type: string
+                    minLength: 1
+                    maxLength: 256
+                message:
+                    $ref: '#/components/schemas/TextMessage'
+            required:
+                - message
+            title: CreateRun
+            type: object
         SendMessage:
             additionalProperties: false
             properties:
@@ -673,6 +699,16 @@ components:
             type: object
         Session:
             properties:
+                namespace:
+                    description: Logical integration or workflow name. Opaque identifier, 1–128 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+                    anyOf:
+                        - type: string
+                        - type: "null"
+                external_key:
+                    description: Source-qualified external object key; not unique across sessions. Opaque identifier, 1–512 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+                    anyOf:
+                        - type: string
+                        - type: "null"
                 active_run_id:
                     anyOf:
                         - format: uuid
@@ -704,17 +740,10 @@ components:
                 sandbox:
                     $ref: '#/components/schemas/SandboxState'
                 status:
-                    enum:
-                        - accepted
-                        - starting
-                        - running
-                        - cancelling
-                        - completed
-                        - failed
-                        - cancelled
-                    title: Status
-                    type: string
+                    $ref: '#/components/schemas/RunStatus'
             required:
+                - namespace
+                - external_key
                 - id
                 - created_at
                 - configuration
@@ -729,6 +758,11 @@ components:
         TextMessage:
             additionalProperties: false
             properties:
+                external_key:
+                    description: External message or event key; not unique and not sent to the harness. Opaque identifier, 1–512 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+                    type: string
+                    minLength: 1
+                    maxLength: 512
                 text:
                     minLength: 1
                     title: Text
@@ -951,11 +985,155 @@ info:
     version: 0.1.0
 openapi: 3.1.0
 paths:
+    /api/v1/runs:
+        get:
+            description: List All Runs
+            operationId: list_all_runs
+            parameters:
+                - in: query
+                  name: namespace
+                  required: false
+                  schema:
+                    type: string
+                    minLength: 1
+                    maxLength: 128
+                    description: Exact match; 1–128 UTF-8 bytes, no NUL or whitespace-only value.
+                - in: query
+                  name: external_key
+                  required: false
+                  schema:
+                    type: string
+                    minLength: 1
+                    maxLength: 512
+                    description: Exact match; 1–512 UTF-8 bytes, no NUL or whitespace-only value.
+                - in: query
+                  name: input_fingerprint
+                  required: false
+                  schema:
+                    type: string
+                    minLength: 1
+                    maxLength: 256
+                    description: Exact match; 1–256 UTF-8 bytes, no NUL or whitespace-only value.
+                - in: query
+                  name: status
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/RunStatus'
+                - in: query
+                  name: order
+                  required: false
+                  schema:
+                    type: string
+                    enum: [asc, desc]
+                    default: asc
+                - in: query
+                  name: limit
+                  required: false
+                  schema:
+                    default: 50
+                    maximum: 200
+                    minimum: 1
+                    title: Limit
+                    type: integer
+                - in: query
+                  name: cursor
+                  required: false
+                  schema:
+                    anyOf:
+                        - type: string
+                        - type: "null"
+                    title: Cursor
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RunPage'
+                    description: Successful Response
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Conflict
+                "413":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Content Too Large
+                "415":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Unsupported Media Type
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Unprocessable Content
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                    description: Service Unavailable
+            security:
+                - HTTPBearer: []
+            summary: List All Runs
     /api/v1/sessions:
         get:
             description: List Sessions
             operationId: list_sessions
             parameters:
+                - in: query
+                  name: namespace
+                  required: false
+                  schema:
+                    type: string
+                    minLength: 1
+                    maxLength: 128
+                    description: Exact match; 1–128 UTF-8 bytes, no NUL or whitespace-only value.
+                - in: query
+                  name: external_key
+                  required: false
+                  schema:
+                    type: string
+                    minLength: 1
+                    maxLength: 512
+                    description: Exact match; 1–512 UTF-8 bytes, no NUL or whitespace-only value.
+                - in: query
+                  name: status
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/RunStatus'
+                - in: query
+                  name: order
+                  required: false
+                  schema:
+                    type: string
+                    enum: [asc, desc]
+                    default: asc
                 - in: query
                   name: limit
                   required: false
@@ -1359,6 +1537,14 @@ paths:
             description: History
             operationId: get_history
             parameters:
+                - in: query
+                  name: message_external_key
+                  required: false
+                  schema:
+                    type: string
+                    minLength: 1
+                    maxLength: 512
+                    description: Exact match; 1–512 UTF-8 bytes, no NUL or whitespace-only value.
                 - in: path
                   name: sid
                   required: true
@@ -1455,6 +1641,26 @@ paths:
             description: List Runs
             operationId: list_runs
             parameters:
+                - in: query
+                  name: input_fingerprint
+                  required: false
+                  schema:
+                    type: string
+                    minLength: 1
+                    maxLength: 256
+                    description: Exact match; 1–256 UTF-8 bytes, no NUL or whitespace-only value.
+                - in: query
+                  name: status
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/RunStatus'
+                - in: query
+                  name: order
+                  required: false
+                  schema:
+                    type: string
+                    enum: [asc, desc]
+                    default: asc
                 - in: path
                   name: sid
                   required: true
@@ -1560,7 +1766,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/SendMessage'
+                            $ref: '#/components/schemas/CreateRun'
                 required: true
             responses:
                 "202":

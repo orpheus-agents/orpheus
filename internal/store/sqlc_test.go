@@ -105,7 +105,7 @@ func TestTypedStoragePreservesNullableFieldsAndLargeSequences(t *testing.T) {
 	if err != nil || len(events.Items) != 1 || events.Items[0].ID != message.RegisteredSequence {
 		t.Fatalf("event sequence changed: %+v, %v", events, err)
 	}
-	history, err := s.History(t.Context(), a.SessionID, &a.RunID, 10, "")
+	history, err := s.History(t.Context(), a.SessionID, &a.RunID, 10, "", nil)
 	if err != nil || len(history.Items) != 2 || history.EventCursor != message.RegisteredSequence {
 		t.Fatalf("history sequence changed: %+v, %v", history, err)
 	}
