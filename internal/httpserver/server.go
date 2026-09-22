@@ -93,7 +93,7 @@ func (s *Server) CreateRun(ctx context.Context, r api.CreateRunRequestObject) (a
 	if r.Body == nil {
 		return nil, session.Problem(422, "validation_error", "Request body is required.")
 	}
-	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, Text: r.Body.Message.Text, Key: id})
+	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, Text: r.Body.Message.Text, MessageExternalKey: r.Body.Message.ExternalKey, InputFingerprint: r.Body.InputFingerprint, Key: id})
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (s *Server) SendMessage(ctx context.Context, r api.SendMessageRequestObject
 	if r.Body == nil {
 		return nil, session.Problem(422, "validation_error", "Request body is required.")
 	}
-	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, RunID: r.Rid, Text: r.Body.Message.Text, Key: id})
+	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, RunID: r.Rid, Text: r.Body.Message.Text, MessageExternalKey: r.Body.Message.ExternalKey, Key: id})
 	if err != nil {
 		return nil, err
 	}
@@ -146,14 +146,14 @@ func (s *Server) GetRun(ctx context.Context, r api.GetRunRequestObject) (api.Get
 	return mapResponse[api.GetRun200JSONResponse](v)
 }
 func (s *Server) ListSessions(ctx context.Context, r api.ListSessionsRequestObject) (api.ListSessionsResponseObject, error) {
-	v, err := s.Store.ListSessions(ctx, value(r.Params.Limit, 50), value(r.Params.Cursor, ""))
+	v, err := s.Store.ListSessions(ctx, value(r.Params.Limit, 50), value(r.Params.Cursor, ""), store.ListFilter{Namespace: r.Params.Namespace, ExternalKey: r.Params.ExternalKey, Status: stringPointer(r.Params.Status), Order: string(value(r.Params.Order, "asc"))})
 	if err != nil {
 		return nil, err
 	}
 	return mapResponse[api.ListSessions200JSONResponse](v)
 }
 func (s *Server) ListRuns(ctx context.Context, r api.ListRunsRequestObject) (api.ListRunsResponseObject, error) {
-	v, err := s.Store.ListRuns(ctx, r.Sid, value(r.Params.Limit, 50), value(r.Params.Cursor, ""))
+	v, err := s.Store.ListRuns(ctx, r.Sid, value(r.Params.Limit, 50), value(r.Params.Cursor, ""), store.ListFilter{InputFingerprint: r.Params.InputFingerprint, Status: stringPointer(r.Params.Status), Order: string(value(r.Params.Order, "asc"))})
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func (s *Server) GetEvents(ctx context.Context, r api.GetEventsRequestObject) (a
 	return mapResponse[api.GetEvents200JSONResponse](v)
 }
 func (s *Server) GetHistory(ctx context.Context, r api.GetHistoryRequestObject) (api.GetHistoryResponseObject, error) {
-	v, err := s.Store.History(ctx, r.Sid, r.Params.RunID, value(r.Params.Limit, 50), value(r.Params.Cursor, ""))
+	v, err := s.Store.History(ctx, r.Sid, r.Params.RunID, value(r.Params.Limit, 50), value(r.Params.Cursor, ""), r.Params.MessageExternalKey)
 	if err != nil {
 		return nil, err
 	}
@@ -259,4 +259,18 @@ func (e *eventStream) VisitStreamEventsResponse(w http.ResponseWriter) error {
 			}
 		}
 	}
+}
+
+func stringPointer[T ~string](p *T) *string {
+	if p == nil {
+		return nil
+	}
+	return new(string(*p))
+}
+func (s *Server) ListAllRuns(ctx context.Context, r api.ListAllRunsRequestObject) (api.ListAllRunsResponseObject, error) {
+	v, err := s.Store.ListAllRuns(ctx, value(r.Params.Limit, 50), value(r.Params.Cursor, ""), store.ListFilter{Namespace: r.Params.Namespace, ExternalKey: r.Params.ExternalKey, InputFingerprint: r.Params.InputFingerprint, Status: stringPointer(r.Params.Status), Order: string(value(r.Params.Order, "asc"))})
+	if err != nil {
+		return nil, err
+	}
+	return mapResponse[api.ListAllRuns200JSONResponse](v)
 }

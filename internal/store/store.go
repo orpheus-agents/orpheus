@@ -113,7 +113,7 @@ func SessionView(ctx context.Context, q db.DBTX, s SessionRecord) (session.Sessi
 	if err != nil {
 		return session.Session{}, err
 	}
-	out := session.Session{ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, Status: r.Status, FinalMessage: v.FinalMessage, Error: r.Error}
+	out := session.Session{Namespace: s.Namespace, ExternalKey: s.ExternalKey, ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, Status: r.Status, FinalMessage: v.FinalMessage, Error: r.Error}
 	if !r.Status.Terminal() {
 		out.ActiveRunID = &r.ID
 	}
@@ -239,6 +239,7 @@ func PublishMessage(ctx context.Context, tx db.DBTX, s *SessionRecord, m *Messag
 		return err
 	}
 	err = db.New(tx).UpsertMessage(ctx, db.UpsertMessageParams{
+		ExternalKey:        m.ExternalKey,
 		ID:                 m.ID,
 		SessionID:          m.SessionID,
 		RunID:              m.RunID,
@@ -342,15 +343,17 @@ func Finish(ctx context.Context, tx pgx.Tx, s *SessionRecord, r *RunRecord, stat
 }
 
 type Admission struct {
-	Create    *session.CreateSession
-	Text      string
-	Key       uuid.UUID
-	SessionID uuid.UUID
-	RunID     uuid.UUID
+	InputFingerprint   *string
+	MessageExternalKey *string
+	Create             *session.CreateSession
+	Text               string
+	Key                uuid.UUID
+	SessionID          uuid.UUID
+	RunID              uuid.UUID
 }
 
 func fingerprint(a Admission) (string, error) {
-	var value any = session.SendMessage{Message: session.TextMessage{Text: a.Text}}
+	var value any = session.CreateRun{InputFingerprint: a.InputFingerprint, Message: session.TextMessage{Text: a.Text, ExternalKey: a.MessageExternalKey}}
 	if a.Create != nil {
 		c := a.Create.Configuration
 		if c.Sandbox.EnvFrom == nil {
@@ -361,9 +364,12 @@ func fingerprint(a Admission) (string, error) {
 			names = []string{}
 		}
 		value = struct {
-			Configuration any                 `json:"configuration"`
-			Message       session.TextMessage `json:"message"`
-		}{Configuration: struct {
+			Namespace        *string             `json:"namespace,omitzero"`
+			ExternalKey      *string             `json:"external_key,omitzero"`
+			InputFingerprint *string             `json:"input_fingerprint,omitzero"`
+			Configuration    any                 `json:"configuration"`
+			Message          session.TextMessage `json:"message"`
+		}{Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, InputFingerprint: a.Create.InputFingerprint, Configuration: struct {
 			Agent   session.AgentInput `json:"agent"`
 			Sandbox any                `json:"sandbox"`
 			Limits  session.Limits     `json:"limits"`
@@ -387,6 +393,11 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 	var result session.Acceptance
 	if a.Create != nil {
 		a.Text = a.Create.Message.Text
+		a.InputFingerprint = a.Create.InputFingerprint
+		a.MessageExternalKey = a.Create.Message.ExternalKey
+	}
+	if err := a.validateExternal(); err != nil {
+		return result, err
 	}
 	if err := config.ValidateText(a.Text); err != nil {
 		return result, err
@@ -445,7 +456,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			if err != nil {
 				return err
 			}
-			record, err = sessionRecord(db.New(tx).CreateSession(ctx, db.CreateSessionParams{ID: id, Configuration: resolved, EnvCiphertext: token}))
+			record, err = sessionRecord(db.New(tx).CreateSession(ctx, db.CreateSessionParams{Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, ID: id, Configuration: resolved, EnvCiphertext: token}))
 			if err != nil {
 				return err
 			}
@@ -485,14 +496,14 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 				}
 				record.SlotReserved = true
 			}
-			run, err = runRecord(db.New(tx).CreateRun(ctx, db.CreateRunParams{ID: uuid.New(), SessionID: record.ID, Number: record.NextRunNumber}))
+			run, err = runRecord(db.New(tx).CreateRun(ctx, db.CreateRunParams{InputFingerprint: a.InputFingerprint, ID: uuid.New(), SessionID: record.ID, Number: record.NextRunNumber}))
 			if err != nil {
 				return err
 			}
 			record.NextRunNumber++
 		}
 		m := MessageRecord{
-			ID:             uuid.New(),
+			ExternalKey: a.MessageExternalKey, ID: uuid.New(),
 			SessionID:      record.ID,
 			RunID:          run.ID,
 			Role:           "user",

@@ -117,7 +117,11 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	pool, err := pgxpool.New(ctx, settings.DatabaseURL)
+	poolConfig, err := config.DatabasePoolConfig(settings.DatabaseURL)
+	if err != nil {
+		return errors.New("invalid database configuration")
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return errors.New("invalid database configuration")
 	}

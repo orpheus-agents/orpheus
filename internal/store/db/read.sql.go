@@ -87,8 +87,226 @@ func (q *Queries) History(ctx context.Context, arg HistoryParams) ([]HistoryRow,
 	return items, nil
 }
 
+const historyByExternalKey = `-- name: HistoryByExternalKey :many
+WITH objects AS (
+   SELECT e.type, e.data FROM messages m
+   CROSS JOIN LATERAL (
+     SELECT type, data FROM session_events
+     WHERE session_events.session_id = $7 AND type = 'message.updated'
+       AND data->>'id' = m.id::text AND sequence <= $8::bigint
+     ORDER BY sequence DESC LIMIT 1
+   ) e
+   WHERE m.session_id = $7 AND m.role = 'user'
+     AND m.external_key = $9::text
+  ), positioned AS (
+   SELECT objects.type, objects.data, runs.number AS rn,
+    CASE WHEN objects.data->'position' = 'null'::jsonb THEN 1 ELSE 0 END AS unknown,
+    COALESCE((objects.data->'position'->>'item_index')::bigint,0)::bigint AS idx,
+    (objects.data->>'registered_sequence')::bigint AS seq
+   FROM objects JOIN runs ON runs.id = (objects.data->>'run_id')::uuid
+   WHERE ($10::uuid IS NULL OR runs.id = $10::uuid)
+  ) SELECT type, data, rn, unknown, idx, seq FROM positioned
+  WHERE ($1::boolean OR (rn, unknown, idx, seq)>($2::bigint, $3::bigint, $4::bigint, $5::bigint)) ORDER BY rn, unknown, idx, seq LIMIT $6::int
+`
+
+type HistoryByExternalKeyParams struct {
+	FirstPage          bool       `json:"first_page"`
+	AfterRun           int64      `json:"after_run"`
+	AfterUnknown       int64      `json:"after_unknown"`
+	AfterIndex         int64      `json:"after_index"`
+	AfterSequence      int64      `json:"after_sequence"`
+	PageLimit          int        `json:"page_limit"`
+	SessionID          uuid.UUID  `json:"session_id"`
+	Watermark          int64      `json:"watermark"`
+	MessageExternalKey string     `json:"message_external_key"`
+	RunID              *uuid.UUID `json:"run_id"`
+}
+
+type HistoryByExternalKeyRow struct {
+	Type    string          `json:"type"`
+	Data    json.RawMessage `json:"data"`
+	Rn      int             `json:"rn"`
+	Unknown int32           `json:"unknown"`
+	Idx     int64           `json:"idx"`
+	Seq     int64           `json:"seq"`
+}
+
+func (q *Queries) HistoryByExternalKey(ctx context.Context, arg HistoryByExternalKeyParams) ([]HistoryByExternalKeyRow, error) {
+	rows, err := q.db.Query(ctx, historyByExternalKey,
+		arg.FirstPage,
+		arg.AfterRun,
+		arg.AfterUnknown,
+		arg.AfterIndex,
+		arg.AfterSequence,
+		arg.PageLimit,
+		arg.SessionID,
+		arg.Watermark,
+		arg.MessageExternalKey,
+		arg.RunID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []HistoryByExternalKeyRow{}
+	for rows.Next() {
+		var i HistoryByExternalKeyRow
+		if err := rows.Scan(
+			&i.Type,
+			&i.Data,
+			&i.Rn,
+			&i.Unknown,
+			&i.Idx,
+			&i.Seq,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllRuns = `-- name: ListAllRuns :many
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint FROM runs r JOIN sessions s ON s.id=r.session_id
+WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
+AND ($3::text IS NULL OR r.input_fingerprint = $3::text) AND ($4::text IS NULL OR r.status = $4::text)
+AND (r.created_at, r.id) > (CASE WHEN $5::boolean THEN '-infinity'::timestamptz ELSE $6::timestamptz END, $7::uuid)
+ORDER BY r.created_at ASC, r.id ASC
+LIMIT $8::int
+`
+
+type ListAllRunsParams struct {
+	Namespace        *string   `json:"namespace"`
+	ExternalKey      *string   `json:"external_key"`
+	InputFingerprint *string   `json:"input_fingerprint"`
+	Status           *string   `json:"status"`
+	FirstPage        bool      `json:"first_page"`
+	AfterCreatedAt   time.Time `json:"after_created_at"`
+	AfterID          uuid.UUID `json:"after_id"`
+	PageLimit        int       `json:"page_limit"`
+}
+
+func (q *Queries) ListAllRuns(ctx context.Context, arg ListAllRunsParams) ([]Run, error) {
+	rows, err := q.db.Query(ctx, listAllRuns,
+		arg.Namespace,
+		arg.ExternalKey,
+		arg.InputFingerprint,
+		arg.Status,
+		arg.FirstPage,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Run{}
+	for rows.Next() {
+		var i Run
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.Number,
+			&i.Status,
+			&i.Observation,
+			&i.CreatedAt,
+			&i.ExecutionStartedAt,
+			&i.DeadlineAt,
+			&i.FinishedAt,
+			&i.CancelRequestedAt,
+			&i.CancelAttemptedAt,
+			&i.StopReason,
+			&i.StopMethod,
+			&i.Error,
+			&i.NativeTurnID,
+			&i.NextDeliveryNumber,
+			&i.FinalMessageID,
+			&i.InputFingerprint,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllRunsDesc = `-- name: ListAllRunsDesc :many
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint FROM runs r JOIN sessions s ON s.id=r.session_id
+WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
+AND ($3::text IS NULL OR r.input_fingerprint = $3::text) AND ($4::text IS NULL OR r.status = $4::text)
+AND (r.created_at, r.id) < (CASE WHEN $5::boolean THEN 'infinity'::timestamptz ELSE $6::timestamptz END, $7::uuid)
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT $8::int
+`
+
+type ListAllRunsDescParams struct {
+	Namespace        *string   `json:"namespace"`
+	ExternalKey      *string   `json:"external_key"`
+	InputFingerprint *string   `json:"input_fingerprint"`
+	Status           *string   `json:"status"`
+	FirstPage        bool      `json:"first_page"`
+	AfterCreatedAt   time.Time `json:"after_created_at"`
+	AfterID          uuid.UUID `json:"after_id"`
+	PageLimit        int       `json:"page_limit"`
+}
+
+func (q *Queries) ListAllRunsDesc(ctx context.Context, arg ListAllRunsDescParams) ([]Run, error) {
+	rows, err := q.db.Query(ctx, listAllRunsDesc,
+		arg.Namespace,
+		arg.ExternalKey,
+		arg.InputFingerprint,
+		arg.Status,
+		arg.FirstPage,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Run{}
+	for rows.Next() {
+		var i Run
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.Number,
+			&i.Status,
+			&i.Observation,
+			&i.CreatedAt,
+			&i.ExecutionStartedAt,
+			&i.DeadlineAt,
+			&i.FinishedAt,
+			&i.CancelRequestedAt,
+			&i.CancelAttemptedAt,
+			&i.StopReason,
+			&i.StopMethod,
+			&i.Error,
+			&i.NativeTurnID,
+			&i.NextDeliveryNumber,
+			&i.FinalMessageID,
+			&i.InputFingerprint,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEvents = `-- name: ListEvents :many
-SELECT sequence::text, session_id, type, created_at, data FROM session_events WHERE session_id = $1 AND sequence>$2 ORDER BY sequence LIMIT $3::int
+SELECT sequence::text, session_id, type, created_at, data FROM session_events WHERE session_id = $1 AND sequence>$2 ORDER BY session_events.sequence LIMIT $3::int
 `
 
 type ListEventsParams struct {
@@ -132,17 +350,31 @@ func (q *Queries) ListEvents(ctx context.Context, arg ListEventsParams) ([]ListE
 }
 
 const listRuns = `-- name: ListRuns :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id FROM runs r WHERE session_id = $1 AND number>$2 ORDER BY number LIMIT $3::int
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint FROM runs r WHERE r.session_id = $1
+AND ($2::text IS NULL OR r.input_fingerprint = $2::text) AND ($3::text IS NULL OR r.status = $3::text)
+AND ($4::boolean OR (r.number) > ($5::int))
+ORDER BY r.number ASC
+LIMIT $6::int
 `
 
 type ListRunsParams struct {
-	SessionID uuid.UUID `json:"session_id"`
-	Number    int       `json:"number"`
-	PageLimit int       `json:"page_limit"`
+	SessionID        uuid.UUID `json:"session_id"`
+	InputFingerprint *string   `json:"input_fingerprint"`
+	Status           *string   `json:"status"`
+	FirstPage        bool      `json:"first_page"`
+	AfterNumber      int       `json:"after_number"`
+	PageLimit        int       `json:"page_limit"`
 }
 
 func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]Run, error) {
-	rows, err := q.db.Query(ctx, listRuns, arg.SessionID, arg.Number, arg.PageLimit)
+	rows, err := q.db.Query(ctx, listRuns,
+		arg.SessionID,
+		arg.InputFingerprint,
+		arg.Status,
+		arg.FirstPage,
+		arg.AfterNumber,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -168,6 +400,70 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]Run, erro
 			&i.NativeTurnID,
 			&i.NextDeliveryNumber,
 			&i.FinalMessageID,
+			&i.InputFingerprint,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRunsDesc = `-- name: ListRunsDesc :many
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint FROM runs r WHERE r.session_id = $1
+AND ($2::text IS NULL OR r.input_fingerprint = $2::text) AND ($3::text IS NULL OR r.status = $3::text)
+AND ($4::boolean OR (r.number) < ($5::int))
+ORDER BY r.number DESC
+LIMIT $6::int
+`
+
+type ListRunsDescParams struct {
+	SessionID        uuid.UUID `json:"session_id"`
+	InputFingerprint *string   `json:"input_fingerprint"`
+	Status           *string   `json:"status"`
+	FirstPage        bool      `json:"first_page"`
+	AfterNumber      int       `json:"after_number"`
+	PageLimit        int       `json:"page_limit"`
+}
+
+func (q *Queries) ListRunsDesc(ctx context.Context, arg ListRunsDescParams) ([]Run, error) {
+	rows, err := q.db.Query(ctx, listRunsDesc,
+		arg.SessionID,
+		arg.InputFingerprint,
+		arg.Status,
+		arg.FirstPage,
+		arg.AfterNumber,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Run{}
+	for rows.Next() {
+		var i Run
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.Number,
+			&i.Status,
+			&i.Observation,
+			&i.CreatedAt,
+			&i.ExecutionStartedAt,
+			&i.DeadlineAt,
+			&i.FinishedAt,
+			&i.CancelRequestedAt,
+			&i.CancelAttemptedAt,
+			&i.StopReason,
+			&i.StopMethod,
+			&i.Error,
+			&i.NativeTurnID,
+			&i.NextDeliveryNumber,
+			&i.FinalMessageID,
+			&i.InputFingerprint,
 		); err != nil {
 			return nil, err
 		}
@@ -180,20 +476,33 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]Run, erro
 }
 
 const listSessions = `-- name: ListSessions :many
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence FROM sessions s WHERE ($1::boolean OR (created_at, id)>($2::timestamptz, $3::uuid)) ORDER BY created_at, id LIMIT $4::int
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key FROM sessions s
+JOIN runs latest ON latest.session_id = s.id
+WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
+AND ($3::text IS NULL OR latest.status = $3::text)
+AND NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
+AND (s.created_at, s.id) > (CASE WHEN $4::boolean THEN '-infinity'::timestamptz ELSE $5::timestamptz END, $6::uuid)
+ORDER BY s.created_at ASC, s.id ASC
+LIMIT $7::int
 `
 
 type ListSessionsParams struct {
-	FirstPage bool      `json:"first_page"`
-	AfterDate time.Time `json:"after_date"`
-	AfterID   uuid.UUID `json:"after_id"`
-	PageLimit int       `json:"page_limit"`
+	Namespace      *string   `json:"namespace"`
+	ExternalKey    *string   `json:"external_key"`
+	Status         *string   `json:"status"`
+	FirstPage      bool      `json:"first_page"`
+	AfterCreatedAt time.Time `json:"after_created_at"`
+	AfterID        uuid.UUID `json:"after_id"`
+	PageLimit      int       `json:"page_limit"`
 }
 
 func (q *Queries) ListSessions(ctx context.Context, arg ListSessionsParams) ([]Session, error) {
 	rows, err := q.db.Query(ctx, listSessions,
+		arg.Namespace,
+		arg.ExternalKey,
+		arg.Status,
 		arg.FirstPage,
-		arg.AfterDate,
+		arg.AfterCreatedAt,
 		arg.AfterID,
 		arg.PageLimit,
 	)
@@ -223,6 +532,78 @@ func (q *Queries) ListSessions(ctx context.Context, arg ListSessionsParams) ([]S
 			&i.SlotReserved,
 			&i.NextRunNumber,
 			&i.NextEventSequence,
+			&i.Namespace,
+			&i.ExternalKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSessionsDesc = `-- name: ListSessionsDesc :many
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key FROM sessions s
+JOIN runs latest ON latest.session_id = s.id
+WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
+AND ($3::text IS NULL OR latest.status = $3::text)
+AND NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
+AND (s.created_at, s.id) < (CASE WHEN $4::boolean THEN 'infinity'::timestamptz ELSE $5::timestamptz END, $6::uuid)
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT $7::int
+`
+
+type ListSessionsDescParams struct {
+	Namespace      *string   `json:"namespace"`
+	ExternalKey    *string   `json:"external_key"`
+	Status         *string   `json:"status"`
+	FirstPage      bool      `json:"first_page"`
+	AfterCreatedAt time.Time `json:"after_created_at"`
+	AfterID        uuid.UUID `json:"after_id"`
+	PageLimit      int       `json:"page_limit"`
+}
+
+func (q *Queries) ListSessionsDesc(ctx context.Context, arg ListSessionsDescParams) ([]Session, error) {
+	rows, err := q.db.Query(ctx, listSessionsDesc,
+		arg.Namespace,
+		arg.ExternalKey,
+		arg.Status,
+		arg.FirstPage,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Session{}
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.Configuration,
+			&i.EnvCiphertext,
+			&i.SandboxState,
+			&i.SandboxLastKnownState,
+			&i.SandboxError,
+			&i.SandboxID,
+			&i.ProcessID,
+			&i.LaunchID,
+			&i.ThreadID,
+			&i.HistoryPath,
+			&i.HistoryOffset,
+			&i.Workspace,
+			&i.HarnessHome,
+			&i.SlotReserved,
+			&i.NextRunNumber,
+			&i.NextEventSequence,
+			&i.Namespace,
+			&i.ExternalKey,
 		); err != nil {
 			return nil, err
 		}

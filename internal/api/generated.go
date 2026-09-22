@@ -25,39 +25,6 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for CancelledStatus.
-const (
-	CancelledStatusAccepted   CancelledStatus = "accepted"
-	CancelledStatusCancelled  CancelledStatus = "cancelled"
-	CancelledStatusCancelling CancelledStatus = "cancelling"
-	CancelledStatusCompleted  CancelledStatus = "completed"
-	CancelledStatusFailed     CancelledStatus = "failed"
-	CancelledStatusRunning    CancelledStatus = "running"
-	CancelledStatusStarting   CancelledStatus = "starting"
-)
-
-// Valid indicates whether the value is a known member of the CancelledStatus enum.
-func (e CancelledStatus) Valid() bool {
-	switch e {
-	case CancelledStatusAccepted:
-		return true
-	case CancelledStatusCancelled:
-		return true
-	case CancelledStatusCancelling:
-		return true
-	case CancelledStatusCompleted:
-		return true
-	case CancelledStatusFailed:
-		return true
-	case CancelledStatusRunning:
-		return true
-	case CancelledStatusStarting:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ErrorPhase.
 const (
 	Execution   ErrorPhase = "execution"
@@ -247,39 +214,6 @@ func (e RunObservation) Valid() bool {
 	}
 }
 
-// Defines values for RunStatus.
-const (
-	RunStatusAccepted   RunStatus = "accepted"
-	RunStatusCancelled  RunStatus = "cancelled"
-	RunStatusCancelling RunStatus = "cancelling"
-	RunStatusCompleted  RunStatus = "completed"
-	RunStatusFailed     RunStatus = "failed"
-	RunStatusRunning    RunStatus = "running"
-	RunStatusStarting   RunStatus = "starting"
-)
-
-// Valid indicates whether the value is a known member of the RunStatus enum.
-func (e RunStatus) Valid() bool {
-	switch e {
-	case RunStatusAccepted:
-		return true
-	case RunStatusCancelled:
-		return true
-	case RunStatusCancelling:
-		return true
-	case RunStatusCompleted:
-		return true
-	case RunStatusFailed:
-		return true
-	case RunStatusRunning:
-		return true
-	case RunStatusStarting:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for RunStopMethod.
 const (
 	Forced   RunStopMethod = "forced"
@@ -331,6 +265,39 @@ func (e RunEventType) Valid() bool {
 	}
 }
 
+// Defines values for RunStatus.
+const (
+	RunStatusAccepted   RunStatus = "accepted"
+	RunStatusCancelled  RunStatus = "cancelled"
+	RunStatusCancelling RunStatus = "cancelling"
+	RunStatusCompleted  RunStatus = "completed"
+	RunStatusFailed     RunStatus = "failed"
+	RunStatusRunning    RunStatus = "running"
+	RunStatusStarting   RunStatus = "starting"
+)
+
+// Valid indicates whether the value is a known member of the RunStatus enum.
+func (e RunStatus) Valid() bool {
+	switch e {
+	case RunStatusAccepted:
+		return true
+	case RunStatusCancelled:
+		return true
+	case RunStatusCancelling:
+		return true
+	case RunStatusCompleted:
+		return true
+	case RunStatusFailed:
+		return true
+	case RunStatusRunning:
+		return true
+	case RunStatusStarting:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SandboxEventType.
 const (
 	SandboxUpdated SandboxEventType = "sandbox.updated"
@@ -373,39 +340,6 @@ func (e SandboxStateState) Valid() bool {
 	case SandboxStateStateResuming:
 		return true
 	case SandboxStateStateUnavailable:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SessionStatus.
-const (
-	SessionStatusAccepted   SessionStatus = "accepted"
-	SessionStatusCancelled  SessionStatus = "cancelled"
-	SessionStatusCancelling SessionStatus = "cancelling"
-	SessionStatusCompleted  SessionStatus = "completed"
-	SessionStatusFailed     SessionStatus = "failed"
-	SessionStatusRunning    SessionStatus = "running"
-	SessionStatusStarting   SessionStatus = "starting"
-)
-
-// Valid indicates whether the value is a known member of the SessionStatus enum.
-func (e SessionStatus) Valid() bool {
-	switch e {
-	case SessionStatusAccepted:
-		return true
-	case SessionStatusCancelled:
-		return true
-	case SessionStatusCancelling:
-		return true
-	case SessionStatusCompleted:
-		return true
-	case SessionStatusFailed:
-		return true
-	case SessionStatusRunning:
-		return true
-	case SessionStatusStarting:
 		return true
 	default:
 		return false
@@ -574,6 +508,60 @@ func (e UnavailableResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for ListAllRunsParamsOrder.
+const (
+	ListAllRunsParamsOrderAsc  ListAllRunsParamsOrder = "asc"
+	ListAllRunsParamsOrderDesc ListAllRunsParamsOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListAllRunsParamsOrder enum.
+func (e ListAllRunsParamsOrder) Valid() bool {
+	switch e {
+	case ListAllRunsParamsOrderAsc:
+		return true
+	case ListAllRunsParamsOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListSessionsParamsOrder.
+const (
+	ListSessionsParamsOrderAsc  ListSessionsParamsOrder = "asc"
+	ListSessionsParamsOrderDesc ListSessionsParamsOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListSessionsParamsOrder enum.
+func (e ListSessionsParamsOrder) Valid() bool {
+	switch e {
+	case ListSessionsParamsOrderAsc:
+		return true
+	case ListSessionsParamsOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListRunsParamsOrder.
+const (
+	ListRunsParamsOrderAsc  ListRunsParamsOrder = "asc"
+	ListRunsParamsOrderDesc ListRunsParamsOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListRunsParamsOrder enum.
+func (e ListRunsParamsOrder) Valid() bool {
+	switch e {
+	case ListRunsParamsOrderAsc:
+		return true
+	case ListRunsParamsOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Accepted defines model for Accepted.
 type Accepted struct {
 	MessageID openapi_types.UUID `json:"message_id"`
@@ -598,11 +586,8 @@ type AgentInput struct {
 // Cancelled defines model for Cancelled.
 type Cancelled struct {
 	RunID  openapi_types.UUID `json:"run_id"`
-	Status CancelledStatus    `json:"status"`
+	Status RunStatus          `json:"status"`
 }
-
-// CancelledStatus defines model for Cancelled.Status.
-type CancelledStatus string
 
 // Configuration defines model for Configuration.
 type Configuration struct {
@@ -618,10 +603,26 @@ type ConfigurationInput struct {
 	Sandbox SandboxInput `json:"sandbox"`
 }
 
+// CreateRun defines model for CreateRun.
+type CreateRun struct {
+	// InputFingerprint Opaque input snapshot version for this run; does not deduplicate requests. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+	InputFingerprint *string     `json:"input_fingerprint,omitempty"`
+	Message          TextMessage `json:"message"`
+}
+
 // CreateSession defines model for CreateSession.
 type CreateSession struct {
 	Configuration ConfigurationInput `json:"configuration"`
-	Message       TextMessage        `json:"message"`
+
+	// ExternalKey Source-qualified external object key; not unique across sessions. Opaque identifier, 1–512 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+	ExternalKey *string `json:"external_key,omitempty"`
+
+	// InputFingerprint Opaque input snapshot version for the first run; does not deduplicate requests. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+	InputFingerprint *string     `json:"input_fingerprint,omitempty"`
+	Message          TextMessage `json:"message"`
+
+	// Namespace Logical integration or workflow name. Opaque identifier, 1–128 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+	Namespace *string `json:"namespace,omitempty"`
 }
 
 // Error defines model for Error.
@@ -709,17 +710,20 @@ type Limits struct {
 
 // Message defines model for Message.
 type Message struct {
-	CreatedAt          time.Time              `json:"created_at"`
-	DeliveryStatus     *MessageDeliveryStatus `json:"delivery_status"`
-	Error              *Error                 `json:"error"`
-	ID                 openapi_types.UUID     `json:"id"`
-	Kind               *MessageKind           `json:"kind"`
-	Position           *Position              `json:"position"`
-	RegisteredSequence string                 `json:"registered_sequence"`
-	Role               MessageRole            `json:"role"`
-	RunID              openapi_types.UUID     `json:"run_id"`
-	SessionID          openapi_types.UUID     `json:"session_id"`
-	Text               string                 `json:"text"`
+	CreatedAt      time.Time              `json:"created_at"`
+	DeliveryStatus *MessageDeliveryStatus `json:"delivery_status"`
+	Error          *Error                 `json:"error"`
+
+	// ExternalKey External key supplied for an incoming message; null for agent messages. Opaque identifier, 1–512 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+	ExternalKey        *string            `json:"external_key"`
+	ID                 openapi_types.UUID `json:"id"`
+	Kind               *MessageKind       `json:"kind"`
+	Position           *Position          `json:"position"`
+	RegisteredSequence string             `json:"registered_sequence"`
+	Role               MessageRole        `json:"role"`
+	RunID              openapi_types.UUID `json:"run_id"`
+	SessionID          openapi_types.UUID `json:"session_id"`
+	Text               string             `json:"text"`
 }
 
 // MessageDeliveryStatus defines model for Message.DeliveryStatus.
@@ -768,19 +772,19 @@ type Run struct {
 	FinalMessage       *Message           `json:"final_message"`
 	FinishedAt         *time.Time         `json:"finished_at"`
 	ID                 openapi_types.UUID `json:"id"`
-	Number             int                `json:"number"`
-	Observation        *RunObservation    `json:"observation"`
-	SessionID          openapi_types.UUID `json:"session_id"`
-	Status             RunStatus          `json:"status"`
-	StopMethod         *RunStopMethod     `json:"stop_method"`
-	StopReason         *RunStopReason     `json:"stop_reason"`
+
+	// InputFingerprint Input snapshot version supplied when the run was accepted. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+	InputFingerprint *string            `json:"input_fingerprint"`
+	Number           int                `json:"number"`
+	Observation      *RunObservation    `json:"observation"`
+	SessionID        openapi_types.UUID `json:"session_id"`
+	Status           RunStatus          `json:"status"`
+	StopMethod       *RunStopMethod     `json:"stop_method"`
+	StopReason       *RunStopReason     `json:"stop_reason"`
 }
 
 // RunObservation defines model for Run.Observation.
 type RunObservation string
-
-// RunStatus defines model for Run.Status.
-type RunStatus string
 
 // RunStopMethod defines model for Run.StopMethod.
 type RunStopMethod string
@@ -805,6 +809,9 @@ type RunPage struct {
 	Items      []Run   `json:"items"`
 	NextCursor *string `json:"next_cursor"`
 }
+
+// RunStatus defines model for RunStatus.
+type RunStatus string
 
 // SandboxConfiguration defines model for SandboxConfiguration.
 type SandboxConfiguration struct {
@@ -853,15 +860,18 @@ type Session struct {
 	Configuration Configuration       `json:"configuration"`
 	CreatedAt     time.Time           `json:"created_at"`
 	Error         *Error              `json:"error"`
-	FinalMessage  *Message            `json:"final_message"`
-	ID            openapi_types.UUID  `json:"id"`
-	LastRunID     openapi_types.UUID  `json:"last_run_id"`
-	Sandbox       SandboxState        `json:"sandbox"`
-	Status        SessionStatus       `json:"status"`
-}
 
-// SessionStatus defines model for Session.Status.
-type SessionStatus string
+	// ExternalKey Source-qualified external object key; not unique across sessions. Opaque identifier, 1–512 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+	ExternalKey  *string            `json:"external_key"`
+	FinalMessage *Message           `json:"final_message"`
+	ID           openapi_types.UUID `json:"id"`
+	LastRunID    openapi_types.UUID `json:"last_run_id"`
+
+	// Namespace Logical integration or workflow name. Opaque identifier, 1–128 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+	Namespace *string      `json:"namespace"`
+	Sandbox   SandboxState `json:"sandbox"`
+	Status    RunStatus    `json:"status"`
+}
 
 // SessionPage defines model for SessionPage.
 type SessionPage struct {
@@ -871,7 +881,9 @@ type SessionPage struct {
 
 // TextMessage defines model for TextMessage.
 type TextMessage struct {
-	Text string `json:"text"`
+	// ExternalKey External message or event key; not unique and not sent to the harness. Opaque identifier, 1–512 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
+	ExternalKey *string `json:"external_key,omitempty"`
+	Text        string  `json:"text"`
 }
 
 // TextResult defines model for TextResult.
@@ -960,11 +972,32 @@ type UnavailableResponse struct {
 // UnavailableResponseStatus defines model for UnavailableResponse.Status.
 type UnavailableResponseStatus string
 
+// ListAllRunsParams defines parameters for ListAllRuns.
+type ListAllRunsParams struct {
+	Namespace        *string                 `form:"namespace,omitempty" json:"namespace,omitempty"`
+	ExternalKey      *string                 `form:"external_key,omitempty" json:"external_key,omitempty"`
+	InputFingerprint *string                 `form:"input_fingerprint,omitempty" json:"input_fingerprint,omitempty"`
+	Status           *RunStatus              `form:"status,omitempty" json:"status,omitempty"`
+	Order            *ListAllRunsParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Limit            *int                    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor           *string                 `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ListAllRunsParamsOrder defines parameters for ListAllRuns.
+type ListAllRunsParamsOrder string
+
 // ListSessionsParams defines parameters for ListSessions.
 type ListSessionsParams struct {
-	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Namespace   *string                  `form:"namespace,omitempty" json:"namespace,omitempty"`
+	ExternalKey *string                  `form:"external_key,omitempty" json:"external_key,omitempty"`
+	Status      *RunStatus               `form:"status,omitempty" json:"status,omitempty"`
+	Order       *ListSessionsParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Limit       *int                     `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor      *string                  `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
+
+// ListSessionsParamsOrder defines parameters for ListSessions.
+type ListSessionsParamsOrder string
 
 // CreateSessionParams defines parameters for CreateSession.
 type CreateSessionParams struct {
@@ -985,16 +1018,23 @@ type StreamEventsParams struct {
 
 // GetHistoryParams defines parameters for GetHistory.
 type GetHistoryParams struct {
-	Limit  *int                `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor *string             `form:"cursor,omitempty" json:"cursor,omitempty"`
-	RunID  *openapi_types.UUID `form:"run_id,omitempty" json:"run_id,omitempty"`
+	MessageExternalKey *string             `form:"message_external_key,omitempty" json:"message_external_key,omitempty"`
+	Limit              *int                `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor             *string             `form:"cursor,omitempty" json:"cursor,omitempty"`
+	RunID              *openapi_types.UUID `form:"run_id,omitempty" json:"run_id,omitempty"`
 }
 
 // ListRunsParams defines parameters for ListRuns.
 type ListRunsParams struct {
-	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+	InputFingerprint *string              `form:"input_fingerprint,omitempty" json:"input_fingerprint,omitempty"`
+	Status           *RunStatus           `form:"status,omitempty" json:"status,omitempty"`
+	Order            *ListRunsParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Limit            *int                 `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor           *string              `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
+
+// ListRunsParamsOrder defines parameters for ListRuns.
+type ListRunsParamsOrder string
 
 // CreateRunParams defines parameters for CreateRun.
 type CreateRunParams struct {
@@ -1010,7 +1050,7 @@ type SendMessageParams struct {
 type CreateSessionJSONRequestBody = CreateSession
 
 // CreateRunJSONRequestBody defines body for CreateRun for application/json ContentType.
-type CreateRunJSONRequestBody = SendMessage
+type CreateRunJSONRequestBody = CreateRun
 
 // SendMessageJSONRequestBody defines body for SendMessage for application/json ContentType.
 type SendMessageJSONRequestBody = SendMessage
@@ -1490,6 +1530,9 @@ func (t *ToolResult) UnmarshalJSON(b []byte) error {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ListAllRuns List All Runs
+	// (GET /api/v1/runs)
+	ListAllRuns(w http.ResponseWriter, r *http.Request, params ListAllRunsParams)
 	// ListSessions List Sessions
 	// (GET /api/v1/sessions)
 	ListSessions(w http.ResponseWriter, r *http.Request, params ListSessionsParams)
@@ -1540,6 +1583,117 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
+// ListAllRuns operation middleware
+func (siw *ServerInterfaceWrapper) ListAllRuns(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAllRunsParams
+
+	// ------------- Optional query parameter "namespace" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "namespace", r.URL.Query(), &params.Namespace, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "namespace"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespace", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "external_key" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "external_key", r.URL.Query(), &params.ExternalKey, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "external_key"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "external_key", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "input_fingerprint" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "input_fingerprint", r.URL.Query(), &params.InputFingerprint, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "input_fingerprint"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "input_fingerprint", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "order" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "order", r.URL.Query(), &params.Order, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "order"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "order", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAllRuns(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListSessions operation middleware
 func (siw *ServerInterfaceWrapper) ListSessions(w http.ResponseWriter, r *http.Request) {
 
@@ -1548,6 +1702,58 @@ func (siw *ServerInterfaceWrapper) ListSessions(w http.ResponseWriter, r *http.R
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListSessionsParams
+
+	// ------------- Optional query parameter "namespace" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "namespace", r.URL.Query(), &params.Namespace, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "namespace"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "namespace", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "external_key" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "external_key", r.URL.Query(), &params.ExternalKey, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "external_key"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "external_key", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "order" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "order", r.URL.Query(), &params.Order, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "order"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "order", Err: err})
+		}
+		return
+	}
 
 	// ------------- Optional query parameter "limit" -------------
 
@@ -1789,6 +1995,19 @@ func (siw *ServerInterfaceWrapper) GetHistory(w http.ResponseWriter, r *http.Req
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetHistoryParams
 
+	// ------------- Optional query parameter "message_external_key" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "message_external_key", r.URL.Query(), &params.MessageExternalKey, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "message_external_key"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "message_external_key", Err: err})
+		}
+		return
+	}
+
 	// ------------- Optional query parameter "limit" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
@@ -1856,6 +2075,45 @@ func (siw *ServerInterfaceWrapper) ListRuns(w http.ResponseWriter, r *http.Reque
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListRunsParams
+
+	// ------------- Optional query parameter "input_fingerprint" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "input_fingerprint", r.URL.Query(), &params.InputFingerprint, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "input_fingerprint"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "input_fingerprint", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "order" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "order", r.URL.Query(), &params.Order, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "order"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "order", Err: err})
+		}
+		return
+	}
 
 	// ------------- Optional query parameter "limit" -------------
 
@@ -2221,6 +2479,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/runs", wrapper.ListAllRuns)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/sessions", wrapper.ListSessions)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/sessions", wrapper.CreateSession)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/sessions/{sid}", wrapper.GetSession)
@@ -2236,6 +2495,140 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/ready", wrapper.Ready)
 
 	return m
+}
+
+type ListAllRunsRequestObject struct {
+	Params ListAllRunsParams
+}
+
+type ListAllRunsResponseObject interface {
+	VisitListAllRunsResponse(w http.ResponseWriter) error
+}
+
+type ListAllRuns200JSONResponse RunPage
+
+func (response ListAllRuns200JSONResponse) VisitListAllRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAllRuns400JSONResponse ErrorResponse
+
+func (response ListAllRuns400JSONResponse) VisitListAllRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAllRuns401JSONResponse ErrorResponse
+
+func (response ListAllRuns401JSONResponse) VisitListAllRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAllRuns404JSONResponse ErrorResponse
+
+func (response ListAllRuns404JSONResponse) VisitListAllRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAllRuns409JSONResponse ErrorResponse
+
+func (response ListAllRuns409JSONResponse) VisitListAllRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAllRuns413JSONResponse ErrorResponse
+
+func (response ListAllRuns413JSONResponse) VisitListAllRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAllRuns415JSONResponse ErrorResponse
+
+func (response ListAllRuns415JSONResponse) VisitListAllRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAllRuns422JSONResponse ErrorResponse
+
+func (response ListAllRuns422JSONResponse) VisitListAllRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAllRuns503JSONResponse ErrorResponse
+
+func (response ListAllRuns503JSONResponse) VisitListAllRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type ListSessionsRequestObject struct {
@@ -3849,6 +4242,9 @@ func (response Ready503JSONResponse) VisitReadyResponse(w http.ResponseWriter) e
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// ListAllRuns List All Runs
+	// (GET /api/v1/runs)
+	ListAllRuns(ctx context.Context, request ListAllRunsRequestObject) (ListAllRunsResponseObject, error)
 	// ListSessions List Sessions
 	// (GET /api/v1/sessions)
 	ListSessions(ctx context.Context, request ListSessionsRequestObject) (ListSessionsResponseObject, error)
@@ -3927,6 +4323,32 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ListAllRuns operation middleware
+func (sh *strictHandler) ListAllRuns(w http.ResponseWriter, r *http.Request, params ListAllRunsParams) {
+	var request ListAllRunsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAllRuns(ctx, request.(ListAllRunsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAllRuns")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAllRunsResponseObject); ok {
+		if err := validResponse.VisitListAllRunsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // ListSessions operation middleware
@@ -4298,67 +4720,77 @@ func (sh *strictHandler) Ready(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

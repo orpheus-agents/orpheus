@@ -142,7 +142,7 @@ func ValidateSandbox(s session.SandboxInput) error {
 	return nil
 }
 func ValidateText(text string) error {
-	if strings.TrimSpace(text) == "" || strings.ContainsRune(text, 0) {
+	if !session.ValidText(text) {
 		return invalid("A nonblank text without NUL is required.", "message", "text")
 	}
 	return nil

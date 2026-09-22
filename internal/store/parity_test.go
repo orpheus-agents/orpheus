@@ -38,7 +38,7 @@ func TestLargeIntegerProjectionChanges(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		page, err := s.History(t.Context(), a.SessionID, nil, 50, "")
+		page, err := s.History(t.Context(), a.SessionID, nil, 50, "", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -70,13 +70,17 @@ func TestMalformedCursorComponents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	scope, err := (ListFilter{}).scope("runs:" + a.SessionID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, position := range []string{"null", "true", "1.0", "-1"} {
-		_, err := s.ListRuns(t.Context(), a.SessionID, 50, encodeCursor("runs:"+a.SessionID.String(), json.RawMessage(position)))
+		_, err := s.ListRuns(t.Context(), a.SessionID, 50, encodeCursor(scope, json.RawMessage(position)), ListFilter{})
 		requireCode(t, err, "invalid_cursor")
 	}
 	for i, position := range []string{`{"Last":[0,0,0,0]}`, `{"Watermark":null,"Last":[0,0,0,0]}`, `{"Watermark":0,"Last":[null,0,0,0]}`, `{"Watermark":0,"Last":[0,0,0]}`, `{"Watermark":true,"Last":[0,0,0,0]}`} {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			_, err := s.History(t.Context(), a.SessionID, nil, 50, encodeCursor("history:"+a.SessionID.String()+":", json.RawMessage(position)))
+			_, err := s.History(t.Context(), a.SessionID, nil, 50, encodeCursor(historyScope(a.SessionID, nil, nil), json.RawMessage(position)), nil)
 			requireCode(t, err, "invalid_cursor")
 		})
 	}

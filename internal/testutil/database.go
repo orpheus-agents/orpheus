@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/skillum-ai/orpheus/internal/config"
 	"github.com/skillum-ai/orpheus/internal/migrate"
 )
 
@@ -37,7 +38,7 @@ func Database(t *testing.T) *pgxpool.Pool {
 		_, _ = admin.Exec(context.Background(), "DROP SCHEMA "+quoted+" CASCADE")
 		_ = admin.Close(context.Background())
 	})
-	cfg, err := pgxpool.ParseConfig(url)
+	cfg, err := config.DatabasePoolConfig(url)
 	if err != nil {
 		t.Fatal(err)
 	}

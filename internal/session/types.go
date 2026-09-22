@@ -20,6 +20,15 @@ const (
 	Cancelled  Status = "cancelled"
 )
 
+func (s Status) Valid() bool {
+	switch s {
+	case Accepted, Starting, Running, Cancelling, Completed, Failed, Cancelled:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s Status) Terminal() bool { return s == Completed || s == Failed || s == Cancelled }
 
 type Error struct {
@@ -96,14 +105,19 @@ type ResolvedConfiguration struct {
 	Credentials Credentials   `json:"credentials"`
 }
 type TextMessage struct {
-	Text string `json:"text"`
+	ExternalKey *string `json:"external_key,omitzero"`
+	Text        string  `json:"text"`
 }
 type CreateSession struct {
-	Configuration ConfigurationInput `json:"configuration"`
-	Message       TextMessage        `json:"message"`
+	Namespace        *string            `json:"namespace,omitzero"`
+	ExternalKey      *string            `json:"external_key,omitzero"`
+	InputFingerprint *string            `json:"input_fingerprint,omitzero"`
+	Configuration    ConfigurationInput `json:"configuration"`
+	Message          TextMessage        `json:"message"`
 }
-type SendMessage struct {
-	Message TextMessage `json:"message"`
+type CreateRun struct {
+	Message          TextMessage `json:"message"`
+	InputFingerprint *string     `json:"input_fingerprint,omitzero"`
 }
 type Acceptance struct {
 	SessionID uuid.UUID `json:"session_id"`
@@ -115,6 +129,7 @@ type Position struct {
 	ItemIndex int `json:"item_index"`
 }
 type Message struct {
+	ExternalKey        *string   `json:"external_key"`
 	ID                 uuid.UUID `json:"id"`
 	SessionID          uuid.UUID `json:"session_id"`
 	RunID              uuid.UUID `json:"run_id"`
@@ -142,6 +157,7 @@ type ToolCall struct {
 	CreatedAt          time.Time       `json:"created_at"`
 }
 type Run struct {
+	InputFingerprint   *string    `json:"input_fingerprint"`
 	ID                 uuid.UUID  `json:"id"`
 	SessionID          uuid.UUID  `json:"session_id"`
 	Number             int        `json:"number"`
@@ -163,6 +179,8 @@ type SandboxState struct {
 	Error          *Error  `json:"error"`
 }
 type Session struct {
+	Namespace     *string       `json:"namespace"`
+	ExternalKey   *string       `json:"external_key"`
 	ID            uuid.UUID     `json:"id"`
 	CreatedAt     time.Time     `json:"created_at"`
 	Configuration Configuration `json:"configuration"`

@@ -15,7 +15,7 @@ import (
 )
 
 const activeRun = `-- name: ActiveRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint
 FROM runs r
 WHERE session_id = $1 AND status IN ('accepted', 'starting', 'running', 'cancelling')
 `
@@ -41,6 +41,7 @@ func (q *Queries) ActiveRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 		&i.NativeTurnID,
 		&i.NextDeliveryNumber,
 		&i.FinalMessageID,
+		&i.InputFingerprint,
 	)
 	return i, err
 }
@@ -68,19 +69,25 @@ func (q *Queries) CountReserved(ctx context.Context) (int64, error) {
 }
 
 const createRun = `-- name: CreateRun :one
-INSERT INTO runs AS r(id, session_id, number)
-VALUES($1, $2, $3)
-RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id
+INSERT INTO runs AS r(id, session_id, number, input_fingerprint)
+VALUES($1, $2, $3, $4)
+RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint
 `
 
 type CreateRunParams struct {
-	ID        uuid.UUID `json:"id"`
-	SessionID uuid.UUID `json:"session_id"`
-	Number    int       `json:"number"`
+	ID               uuid.UUID `json:"id"`
+	SessionID        uuid.UUID `json:"session_id"`
+	Number           int       `json:"number"`
+	InputFingerprint *string   `json:"input_fingerprint"`
 }
 
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, error) {
-	row := q.db.QueryRow(ctx, createRun, arg.ID, arg.SessionID, arg.Number)
+	row := q.db.QueryRow(ctx, createRun,
+		arg.ID,
+		arg.SessionID,
+		arg.Number,
+		arg.InputFingerprint,
+	)
 	var i Run
 	err := row.Scan(
 		&i.ID,
@@ -100,24 +107,33 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		&i.NativeTurnID,
 		&i.NextDeliveryNumber,
 		&i.FinalMessageID,
+		&i.InputFingerprint,
 	)
 	return i, err
 }
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved)
-VALUES($1, $2, $3, false)
-RETURNING s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence
+INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved, namespace, external_key)
+VALUES($1, $2, $3, false, $4, $5)
+RETURNING s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key
 `
 
 type CreateSessionParams struct {
 	ID            uuid.UUID                     `json:"id"`
 	Configuration session.ResolvedConfiguration `json:"configuration"`
 	EnvCiphertext *string                       `json:"env_ciphertext"`
+	Namespace     *string                       `json:"namespace"`
+	ExternalKey   *string                       `json:"external_key"`
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
-	row := q.db.QueryRow(ctx, createSession, arg.ID, arg.Configuration, arg.EnvCiphertext)
+	row := q.db.QueryRow(ctx, createSession,
+		arg.ID,
+		arg.Configuration,
+		arg.EnvCiphertext,
+		arg.Namespace,
+		arg.ExternalKey,
+	)
 	var i Session
 	err := row.Scan(
 		&i.ID,
@@ -138,6 +154,8 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.SlotReserved,
 		&i.NextRunNumber,
 		&i.NextEventSequence,
+		&i.Namespace,
+		&i.ExternalKey,
 	)
 	return i, err
 }
@@ -174,7 +192,7 @@ func (q *Queries) GetIdempotency(ctx context.Context, arg GetIdempotencyParams) 
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at
+SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key
 FROM messages
 WHERE id = $1
 `
@@ -196,12 +214,13 @@ func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 		&i.RegisteredSequence,
 		&i.Position,
 		&i.CreatedAt,
+		&i.ExternalKey,
 	)
 	return i, err
 }
 
 const getRun = `-- name: GetRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint
 FROM runs r
 WHERE session_id = $1 AND id = $2
 `
@@ -232,12 +251,13 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (Run, error) {
 		&i.NativeTurnID,
 		&i.NextDeliveryNumber,
 		&i.FinalMessageID,
+		&i.InputFingerprint,
 	)
 	return i, err
 }
 
 const getSession = `-- name: GetSession :one
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key
 FROM sessions s
 WHERE id = $1
 `
@@ -264,6 +284,8 @@ func (q *Queries) GetSession(ctx context.Context, id uuid.UUID) (Session, error)
 		&i.SlotReserved,
 		&i.NextRunNumber,
 		&i.NextEventSequence,
+		&i.Namespace,
+		&i.ExternalKey,
 	)
 	return i, err
 }
@@ -319,7 +341,7 @@ func (q *Queries) InsertIdempotency(ctx context.Context, arg InsertIdempotencyPa
 }
 
 const latestRun = `-- name: LatestRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint
 FROM runs r
 WHERE session_id = $1
 ORDER BY number DESC
@@ -347,12 +369,13 @@ func (q *Queries) LatestRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 		&i.NativeTurnID,
 		&i.NextDeliveryNumber,
 		&i.FinalMessageID,
+		&i.InputFingerprint,
 	)
 	return i, err
 }
 
 const lockSession = `-- name: LockSession :one
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key
 FROM sessions s
 WHERE id = $1 FOR UPDATE
 `
@@ -379,12 +402,14 @@ func (q *Queries) LockSession(ctx context.Context, id uuid.UUID) (Session, error
 		&i.SlotReserved,
 		&i.NextRunNumber,
 		&i.NextEventSequence,
+		&i.Namespace,
+		&i.ExternalKey,
 	)
 	return i, err
 }
 
 const messages = `-- name: Messages :many
-SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at
+SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key
 FROM messages
 WHERE run_id = $1
 ORDER BY delivery_number, registered_sequence
@@ -413,6 +438,7 @@ func (q *Queries) Messages(ctx context.Context, runID uuid.UUID) ([]Message, err
 			&i.RegisteredSequence,
 			&i.Position,
 			&i.CreatedAt,
+			&i.ExternalKey,
 		); err != nil {
 			return nil, err
 		}
@@ -575,8 +601,8 @@ func (q *Queries) TryWorkerLock(ctx context.Context, lockKey int64) (bool, error
 }
 
 const upsertMessage = `-- name: UpsertMessage :exec
-INSERT INTO messages(id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+INSERT INTO messages(id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 ON CONFLICT(id) DO UPDATE SET kind = EXCLUDED.kind,
     text = EXCLUDED.text,
     delivery_status = EXCLUDED.delivery_status,
@@ -599,6 +625,7 @@ type UpsertMessageParams struct {
 	RegisteredSequence int64             `json:"registered_sequence"`
 	Position           *session.Position `json:"position"`
 	CreatedAt          time.Time         `json:"created_at"`
+	ExternalKey        *string           `json:"external_key"`
 }
 
 func (q *Queries) UpsertMessage(ctx context.Context, arg UpsertMessageParams) error {
@@ -616,6 +643,7 @@ func (q *Queries) UpsertMessage(ctx context.Context, arg UpsertMessageParams) er
 		arg.RegisteredSequence,
 		arg.Position,
 		arg.CreatedAt,
+		arg.ExternalKey,
 	)
 	return err
 }

@@ -111,6 +111,16 @@ func Handler(s *store.Store, streams context.Context) (http.Handler, error) {
 			}
 			route, params, err := router.FindRoute(r)
 			if err == nil {
+				query := r.URL.Query()
+				for _, parameter := range route.Operation.Parameters {
+					p := parameter.Value
+					if p != nil && p.In == "query" && len(query[p.Name]) > 1 {
+						problem := session.Problem(422, "validation_error", "Query parameters must occur once.")
+						problem.Problem.Details = []session.Detail{{Path: []any{"query", p.Name}, Code: "invalid_value"}}
+						writeError(w, problem)
+						return
+					}
+				}
 				input := &openapi3filter.RequestValidationInput{Request: r, PathParams: params, Route: route, Options: &openapi3filter.Options{AuthenticationFunc: openapi3filter.NoopAuthenticationFunc, SkipSettingDefaults: true}}
 				if err := openapi3filter.ValidateRequest(r.Context(), input); err != nil {
 					validationError(w, r, err)

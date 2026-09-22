@@ -151,7 +151,7 @@ func TestSnapshotAndHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	page, err := s.History(t.Context(), a.SessionID, nil, 1, "")
+	page, err := s.History(t.Context(), a.SessionID, nil, 1, "", nil)
 	if err != nil || page.NextCursor == nil {
 		t.Fatal(page, err)
 	}
@@ -166,7 +166,7 @@ func TestSnapshotAndHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, err := s.History(t.Context(), a.SessionID, nil, 1, *page.NextCursor)
+	next, err := s.History(t.Context(), a.SessionID, nil, 1, *page.NextCursor, nil)
 	if err != nil || next.EventCursor != page.EventCursor || next.Items[0].Message.Text != "1" {
 		t.Fatal(next, err)
 	}
@@ -182,7 +182,7 @@ func TestSnapshotAndHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.History(t.Context(), other.SessionID, nil, 1, *page.NextCursor)
+	_, err = s.History(t.Context(), other.SessionID, nil, 1, *page.NextCursor, nil)
 	requireCode(t, err, "invalid_cursor")
 }
 func TestSteerAndFinish(t *testing.T) {
