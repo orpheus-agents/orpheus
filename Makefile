@@ -1,40 +1,122 @@
 COMPOSE = docker compose
-RUN = $(COMPOSE) run --rm --no-deps app
+RUN = $(COMPOSE) --profile tools run --rm --no-deps tools
+# The tools image has no local COPY inputs; its Dockerfile defines all tools.
+# POSIX cksum works on macOS and Linux without requiring host Go or Python.
+export ORPHEUS_UID ?= $(shell if [ "$$(uname -s)" = Linux ]; then id -u; else echo 1000; fi)
+export ORPHEUS_GID ?= $(shell if [ "$$(uname -s)" = Linux ]; then id -g; else echo 1000; fi)
+export ORPHEUS_TOOLS_IMAGE := orpheus-tools:$(shell cksum < .docker/tools/Dockerfile | awk '{print $$1 "-" $$2}')-$(ORPHEUS_UID)-$(ORPHEUS_GID)
 
-.PHONY: start stop lint format migrate openapi test test-live
+.PHONY: tools tools-build start stop generate generate-check sqlc-check fix format gofix gofix-check tidy-check deadcode lint lint-go lint-api lint-docker lint-reader test test-go test-reader test-integration test-migrations test-go-race test-live vuln build docker-build migrate check
+
+tools:
+	@docker image inspect "$(ORPHEUS_TOOLS_IMAGE)" >/dev/null 2>&1 || $(COMPOSE) build tools
+
+tools-build:
+	$(COMPOSE) build tools
 
 start: migrate
 	$(COMPOSE) up -d --wait app worker
 
 stop:
-	$(COMPOSE) --profile test down
-
-lint:
-	$(COMPOSE) build app
-	$(RUN) ruff check .
-	$(RUN) ruff format --check .
-	$(RUN) ty check --python /opt/venv/bin/python
-
-format:
-	$(COMPOSE) build app
-	$(RUN) ruff check --fix .
-	$(RUN) ruff format .
+	$(COMPOSE) --profile tools --profile test down
 
 migrate:
 	$(COMPOSE) build app
 	$(COMPOSE) up -d --wait db
-	$(RUN) alembic upgrade head
+	$(COMPOSE) run --rm --no-deps app go run ./cmd/orpheus migrate up
 
-openapi:
-	$(COMPOSE) build app
-	$(RUN) orpheus openapi
+generate: tools
+	$(RUN) go run ./tools/generate
 
-test:
-	$(COMPOSE) build app
+generate-check: tools
+	$(RUN) go run ./tools/generate -check
+
+sqlc-check: tools
 	$(COMPOSE) --profile test up -d --wait test-db
-	$(COMPOSE) run --rm --no-deps -e TEST_DATABASE_URL=postgresql+psycopg://orpheus:orpheus@test-db:5432/orpheus_test app pytest -m "not live"
+	$(RUN) go test -tags integration -count=1 ./tools/sqlcheck
 
-test-live:
-	$(COMPOSE) build app
+fix format: tools
+	$(RUN) sh -ec 'gofmt -w cmd internal tools; goimports -w cmd internal tools'
+
+gofix: tools
+	$(RUN) go fix ./...
+
+gofix-check: tools
+	$(RUN) sh -ec 'f=$$(mktemp); trap '\''rm -f "$$f"'\'' EXIT; go fix -diff ./... > "$$f"; if test -s "$$f"; then cat "$$f"; exit 1; fi'
+
+tidy-check: tools
+	$(RUN) go mod tidy -diff
+
+# deadcode reports findings on stdout but exits successfully; fail on any finding.
+# Include test entrypoints and both build tags so test-only helpers remain reachable.
+deadcode: tools
+	$(RUN) sh -ec 'f=$$(mktemp); trap '\''rm -f "$$f"'\'' EXIT; go tool deadcode -test -tags=integration,live ./... > "$$f"; if test -s "$$f"; then cat "$$f"; exit 1; fi'
+
+lint-go: tools
+	$(RUN) sh -ec 'files=$$(gofmt -l cmd internal tools); if test -n "$$files"; then printf "%s\n" "$$files"; exit 1; fi'
+	$(RUN) go vet ./...
+	$(RUN) golangci-lint run --build-tags integration ./...
+	$(RUN) golangci-lint run --build-tags live ./...
+
+lint-api: tools
+	$(RUN) redocly lint --config redocly.yaml api/openapi.yaml
+
+lint-docker: tools
+	$(RUN) hadolint .docker/app/dev/Dockerfile .docker/app/prod/Dockerfile .docker/tools/Dockerfile
+
+lint-reader: tools
+	$(RUN) ruff check internal/harness/codex/native_reader.py tests/reader
+	$(RUN) ruff format --check internal/harness/codex/native_reader.py tests/reader
+
+lint: lint-go lint-api lint-docker lint-reader
+
+test-go: tools
+	$(RUN) go test ./...
+
+test-reader: tools
+	$(RUN) python3 -m unittest discover -s tests/reader
+
+test-integration: tools
 	$(COMPOSE) --profile test up -d --wait test-db test-s3
-	$(COMPOSE) run --rm --no-deps -e AGENTBOX_API_KEY -e OPENAI_API_KEY -e TEST_S3_ENDPOINT=http://test-s3:9000 -e TEST_DATABASE_URL=postgresql+psycopg://orpheus:orpheus@test-db:5432/orpheus_test app pytest -m live
+	$(RUN) go test -tags integration ./internal/... ./cmd/...
+
+test-migrations: tools
+	$(COMPOSE) --profile test up -d --wait test-db
+	$(RUN) go test -tags integration ./internal/migrate
+
+test: test-go test-reader test-integration test-migrations
+
+test-go-race: tools
+	$(COMPOSE) --profile test up -d --wait test-db test-s3
+	$(RUN) go test -race -tags integration ./...
+
+test-live: tools
+	$(COMPOSE) --profile test up -d --wait test-db test-s3
+	$(COMPOSE) --profile tools run --rm --no-deps -e AGENTBOX_API_KEY -e OPENAI_API_KEY -e ORPHEUS_TEST_MODEL tools go test -tags live -count=1 -timeout=15m ./...
+
+vuln: tools
+	$(RUN) govulncheck ./...
+	$(RUN) trivy fs --no-progress --db-repository ghcr.io/aquasecurity/trivy-db:2 --db-repository mirror.gcr.io/aquasec/trivy-db:2 --scanners vuln,misconfig --exit-code 1 --severity HIGH,CRITICAL --skip-dirs .git --skip-dirs bin .
+
+build: tools
+	$(RUN) go build -trimpath -o /tmp/orpheus ./cmd/orpheus
+
+docker-build:
+	$(COMPOSE) build app
+	docker build -f .docker/app/prod/Dockerfile -t orpheus:local .
+
+check: generate-check
+	$(MAKE) tidy-check
+	$(MAKE) gofix-check
+	$(MAKE) lint
+	$(MAKE) deadcode
+	$(MAKE) sqlc-check
+	$(MAKE) test
+	$(MAKE) test-go-race
+	$(MAKE) vuln
+	$(MAKE) build
+
+.PHONY: smoke
+smoke: docker-build
+	$(COMPOSE) --profile test up -d --wait test-db
+	sh tools/smoke.sh

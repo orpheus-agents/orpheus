@@ -3,10 +3,7 @@
 Read [README.md](README.md).
 
 # Environment
-* Python 3.14.7, `uv`
-* Lint and Type Checking – `ruff`, `ty`
-* CLI configuration - `click`
-* CLI output - `rich`
+* Go 1.27
 
 # General rules
 * Do not preserve backward compatibility.
@@ -17,5 +14,15 @@ Read [README.md](README.md).
 
 # Development workflow
 * Always write a comprehensive test suite covering the implementation alongside the implementation itself.
-* Run `make openapi` to update `openapi.json` whenever the API changes.
-* Run `make lint test` after completing the implementation.
+* API-first workflow: spec, `make generate`, implementation, tests.
+* Run `make fix gofix check` after completing the implementation.
+
+# Database and migrations
+* Use sqlc for database queries and Goose for migrations.
+* Edit SQL in `internal/store/queries/`, then run `make generate`; do not edit `internal/store/db/` by hand.
+* Keep data changes and DDL operations in separate migrations.
+* Test new migrations in both directions against the test database.
+
+# Docs
+* Follow the principles of Maxim Ilyakhov's "Write, Cut": be concise without losing substance.
+* Prefer clear structure, diagrams, and lists over long blocks of text.

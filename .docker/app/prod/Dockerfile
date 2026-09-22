@@ -1,32 +1,16 @@
-FROM python:3.14.7-slim AS builder
-
-COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /bin/
-
-ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
-    UV_LINK_MODE=copy \
-    UV_PYTHON_DOWNLOADS=never
-
+FROM golang:1.27.1-bookworm AS build
 WORKDIR /app
-COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-install-project
-
-COPY README.md LICENSE ./
-COPY src ./src
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-editable
-
-FROM python:3.14.7-slim AS runtime
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:$PATH"
-
-RUN groupadd --gid 10001 orpheus && useradd --uid 10001 --gid orpheus --no-create-home orpheus
-
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -o /orpheus ./cmd/orpheus
+FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
-COPY --from=builder /opt/venv /opt/venv
-COPY alembic.ini ./
-COPY alembic ./alembic
-
-USER 10001:10001
+COPY --from=build /orpheus /orpheus
+COPY --from=build /app/migrations ./migrations
+USER 65532:65532
 EXPOSE 8000
-CMD ["orpheus", "serve"]
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s CMD ["/orpheus", "healthcheck"]
+ENTRYPOINT ["/orpheus"]
+CMD ["serve"]

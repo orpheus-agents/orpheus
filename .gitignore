@@ -1,11 +1,8 @@
-###> IDE ###
+# Local workspace
 .idea
 .data
-.venv
 .vscode
-/*.xml
-*.DS_Store
-###< IDE ###
+.DS_Store
 
 .env
 /orpheus.toml
@@ -15,20 +12,7 @@ auth.json
 
 *.log
 
-# Python cache
+# Embedded reader and its tests
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.pyc
-*.pkl
-*.joblib
-*.cache
-.mypy_cache/
-.pytest_cache/
-.coverage
-coverage.xml
-htmlcov/
-
 .ruff_cache/
-dist/
