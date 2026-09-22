@@ -1,86 +1,125 @@
+x-go-volumes: &go-volumes
+  - .:/app
+  - go-mod:/go/pkg/mod
+  - tools-cache:/home/orpheus/.cache
+  - go-build:/home/orpheus/.cache/go-build
+x-user-args: &user-args
+  ORPHEUS_UID: ${ORPHEUS_UID:-1000}
+  ORPHEUS_GID: ${ORPHEUS_GID:-1000}
+
 services:
   app:
     build:
       context: .
       dockerfile: .docker/app/dev/Dockerfile
+      args: *user-args
     image: orpheus-app
+    init: true
     env_file:
-      - .env
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://orpheus:orpheus@db:5432/orpheus
+      ORPHEUS_CONFIG_FILE: /etc/orpheus/orpheus.toml
     volumes:
       - .:/app
       - ./orpheus.toml:/etc/orpheus/orpheus.toml:ro
+      - go-mod:/go/pkg/mod
+      - go-build:/home/orpheus/.cache/go-build
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=4)"]
+      test: [CMD, go, run, ./cmd/orpheus, healthcheck]
       interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 5s
+      retries: 10
+      start_period: 30s
     stop_grace_period: 15s
 
   worker:
     image: orpheus-app
-    command: ["orpheus", "worker"]
+    init: true
+    command: [go, run, ./cmd/orpheus, worker]
+    env_file:
+      - path: .env
+        required: false
     environment:
+      DATABASE_URL: postgres://orpheus:orpheus@db:5432/orpheus
+      ORPHEUS_CONFIG_FILE: /etc/orpheus/orpheus.toml
       AGENTBOX_API_KEY: ${AGENTBOX_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-    env_file:
-      - .env
     volumes:
       - .:/app
       - ./orpheus.toml:/etc/orpheus/orpheus.toml:ro
+      - go-mod:/go/pkg/mod
+      - go-build:/home/orpheus/.cache/go-build
     depends_on:
       db:
         condition: service_healthy
     stop_grace_period: 15s
 
+  tools:
+    build:
+      context: .
+      dockerfile: .docker/tools/Dockerfile
+      args: *user-args
+    image: ${ORPHEUS_TOOLS_IMAGE:-orpheus-tools}
+    profiles: [tools]
+    init: true
+    working_dir: /app
+    volumes: *go-volumes
+    environment:
+      TEST_DATABASE_URL: postgres://orpheus:orpheus@test-db:5432/orpheus_test
+      TEST_S3_ENDPOINT: http://test-s3:9000
+
   test-s3:
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     profiles: [test]
-    command: ["server", "/data"]
+    command: [server, /data]
     environment:
       MINIO_ROOT_USER: orpheus-test
       MINIO_ROOT_PASSWORD: orpheus-test-password
-    tmpfs:
-      - /data
+    tmpfs: [/data]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [CMD, curl, -f, http://localhost:9000/minio/health/live]
       interval: 1s
       timeout: 5s
       retries: 20
 
   test-db:
-    image: postgres:16
+    image: postgres:16.10
     profiles: [test]
     environment:
       POSTGRES_DB: orpheus_test
       POSTGRES_USER: orpheus
       POSTGRES_PASSWORD: orpheus
-    tmpfs:
-      - /var/lib/postgresql/data
+    tmpfs: [/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U orpheus -d orpheus_test"]
+      test: [CMD-SHELL, pg_isready -U orpheus -d orpheus_test]
       interval: 1s
       timeout: 5s
       retries: 20
 
   db:
-    image: postgres:16
+    image: postgres:16.10
     environment:
       POSTGRES_DB: orpheus
       POSTGRES_USER: orpheus
       POSTGRES_PASSWORD: orpheus
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+    volumes: [postgres-go-data:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U orpheus -d orpheus"]
+      test: [CMD-SHELL, pg_isready -U orpheus -d orpheus]
       interval: 2s
       timeout: 5s
       retries: 15
-
 volumes:
-  postgres-data:
+  postgres-go-data:
+  go-mod:
+    name: ${COMPOSE_PROJECT_NAME:-orpheus}-go-mod-${ORPHEUS_UID:-1000}-${ORPHEUS_GID:-1000}
+  go-build:
+    name: ${COMPOSE_PROJECT_NAME:-orpheus}-go-build-${ORPHEUS_UID:-1000}-${ORPHEUS_GID:-1000}
+  tools-cache:
+    name: ${COMPOSE_PROJECT_NAME:-orpheus}-tools-cache-${ORPHEUS_UID:-1000}-${ORPHEUS_GID:-1000}

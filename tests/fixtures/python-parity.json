@@ -1,0 +1,2692 @@
+{
+  "source": "skillum-ai/orpheus@705b13c9a0cd572d1204c2473d28005eb1d66051",
+  "commands": [
+    {
+      "display": "",
+      "expected": []
+    },
+    {
+      "display": "echo # literal comment",
+      "expected": [
+        "echo",
+        "#",
+        "literal",
+        "comment"
+      ]
+    },
+    {
+      "display": "echo a#b",
+      "expected": [
+        "echo",
+        "a#b"
+      ]
+    },
+    {
+      "display": "printf \"\" ''",
+      "expected": [
+        "printf",
+        "",
+        ""
+      ]
+    },
+    {
+      "display": "printf \"a\\qb\"",
+      "expected": [
+        "printf",
+        "a\\qb"
+      ]
+    },
+    {
+      "display": "printf \"\\$HOME\"",
+      "expected": [
+        "printf",
+        "\\$HOME"
+      ]
+    },
+    {
+      "display": "echo escaped\\ space",
+      "expected": [
+        "echo",
+        "escaped space"
+      ]
+    },
+    {
+      "display": "a\n b\t c",
+      "expected": [
+        "a",
+        "b",
+        "c"
+      ]
+    },
+    {
+      "display": "echo \"unterminated",
+      "expected": "echo \"unterminated"
+    },
+    {
+      "display": "echo trailing\\",
+      "expected": "echo trailing\\"
+    },
+    {
+      "display": "echo Привет",
+      "expected": [
+        "echo",
+        "Привет"
+      ]
+    },
+    {
+      "display": "echo \"a\\\\b\\\"c\"",
+      "expected": [
+        "echo",
+        "a\\b\"c"
+      ]
+    }
+  ],
+  "bounded": [
+    {
+      "value": null,
+      "limit": 21,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": null,
+          "original_bytes": 4
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": null,
+      "limit": 21,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": null,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": null,
+      "limit": 1024,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": null,
+          "original_bytes": 4
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": null,
+      "limit": 1024,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": null,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": false,
+      "limit": 21,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": false,
+          "original_bytes": 5
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": false,
+      "limit": 21,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": false,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": false,
+      "limit": 1024,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": false,
+          "original_bytes": 5
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": false,
+      "limit": 1024,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": false,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": 9007199254740993,
+      "limit": 21,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": 9007199254740993,
+          "original_bytes": 16
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": 9007199254740993,
+      "limit": 21,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": 9007199254740993,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": 9007199254740993,
+      "limit": 1024,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": 9007199254740993,
+          "original_bytes": 16
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": 9007199254740993,
+      "limit": 1024,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": 9007199254740993,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": "",
+      "limit": 21,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "text",
+          "text": "",
+          "exit_code": null,
+          "original_bytes": 0
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": "",
+      "limit": 21,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "text",
+          "text": "",
+          "exit_code": null,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": "",
+      "limit": 1024,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "text",
+          "text": "",
+          "exit_code": null,
+          "original_bytes": 0
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": "",
+      "limit": 1024,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "text",
+          "text": "",
+          "exit_code": null,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя",
+      "limit": 21,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "truncated_text",
+          "head": "яяяяя",
+          "tail": "яяяяя",
+          "source_type": "text",
+          "exit_code": null,
+          "original_bytes": 80
+        },
+        "completeness": "truncated",
+        "reason": "orpheus_limit"
+      }
+    },
+    {
+      "value": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя",
+      "limit": 21,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "truncated_text",
+          "head": "яяяяя",
+          "tail": "яяяяя",
+          "source_type": "text",
+          "exit_code": null,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "orpheus_limit"
+      }
+    },
+    {
+      "value": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя",
+      "limit": 1024,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "text",
+          "text": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя",
+          "exit_code": null,
+          "original_bytes": 80
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя",
+      "limit": 1024,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "text",
+          "text": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя",
+          "exit_code": null,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": {
+        "x": "я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&"
+      },
+      "limit": 21,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "truncated_text",
+          "head": "{\"x\":\"я<>",
+          "tail": "<>&я<>&\"}",
+          "source_type": "json",
+          "exit_code": null,
+          "original_bytes": 108
+        },
+        "completeness": "truncated",
+        "reason": "orpheus_limit"
+      }
+    },
+    {
+      "value": {
+        "x": "я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&"
+      },
+      "limit": 21,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "truncated_text",
+          "head": "{\"x\":\"я<>",
+          "tail": "<>&я<>&\"}",
+          "source_type": "json",
+          "exit_code": null,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "orpheus_limit"
+      }
+    },
+    {
+      "value": {
+        "x": "я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&"
+      },
+      "limit": 1024,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": {
+            "x": "я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&"
+          },
+          "original_bytes": 108
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": {
+        "x": "я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&"
+      },
+      "limit": 1024,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": {
+            "x": "я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&я<>&"
+          },
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": {
+        "n": 9007199254740993
+      },
+      "limit": 21,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "truncated_text",
+          "head": "{\"n\":90071",
+          "tail": "9254740993}",
+          "source_type": "json",
+          "exit_code": null,
+          "original_bytes": 22
+        },
+        "completeness": "truncated",
+        "reason": "orpheus_limit"
+      }
+    },
+    {
+      "value": {
+        "n": 9007199254740993
+      },
+      "limit": 21,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "truncated_text",
+          "head": "{\"n\":90071",
+          "tail": "9254740993}",
+          "source_type": "json",
+          "exit_code": null,
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "orpheus_limit"
+      }
+    },
+    {
+      "value": {
+        "n": 9007199254740993
+      },
+      "limit": 1024,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": {
+            "n": 9007199254740993
+          },
+          "original_bytes": 22
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": {
+        "n": 9007199254740993
+      },
+      "limit": 1024,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": {
+            "n": 9007199254740993
+          },
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": [
+        1,
+        null,
+        true
+      ],
+      "limit": 21,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": [
+            1,
+            null,
+            true
+          ],
+          "original_bytes": 13
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": [
+        1,
+        null,
+        true
+      ],
+      "limit": 21,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": [
+            1,
+            null,
+            true
+          ],
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    },
+    {
+      "value": [
+        1,
+        null,
+        true
+      ],
+      "limit": 1024,
+      "incomplete": false,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": [
+            1,
+            null,
+            true
+          ],
+          "original_bytes": 13
+        },
+        "completeness": "complete",
+        "reason": null
+      }
+    },
+    {
+      "value": [
+        1,
+        null,
+        true
+      ],
+      "limit": 1024,
+      "incomplete": true,
+      "expected": {
+        "result": {
+          "type": "json",
+          "value": [
+            1,
+            null,
+            true
+          ],
+          "original_bytes": null
+        },
+        "completeness": "truncated",
+        "reason": "harness_limit"
+      }
+    }
+  ],
+  "normalization": [
+    {
+      "thread": {
+        "id": "thread",
+        "turns": [
+          {
+            "id": "turn",
+            "status": "inProgress",
+            "items": [
+              {
+                "id": "user",
+                "type": "userMessage",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "a"
+                  },
+                  {
+                    "type": "text",
+                    "text": "b"
+                  }
+                ]
+              },
+              {
+                "id": "progress",
+                "type": "agentMessage",
+                "phase": "commentary",
+                "text": "working"
+              },
+              {
+                "id": "answer",
+                "type": "agentMessage",
+                "text": "done"
+              },
+              {
+                "id": "item-0",
+                "type": "commandExecution",
+                "status": "inProgress",
+                "arguments": "printf \"a\\qb\"",
+                "aggregatedOutput": "native tail",
+                "exitCode": 0
+              },
+              {
+                "id": "item-1",
+                "type": "fileChange",
+                "status": "completed",
+                "arguments": [
+                  {
+                    "path": "b"
+                  },
+                  {
+                    "path": "a"
+                  }
+                ]
+              },
+              {
+                "id": "item-2",
+                "type": "mcpToolCall",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-3",
+                "type": "dynamicToolCall",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-4",
+                "type": "collabAgentToolCall",
+                "status": "future",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-5",
+                "type": "webSearch",
+                "status": "inProgress",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-6",
+                "type": "imageView",
+                "status": "completed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-7",
+                "type": "imageGeneration",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-8",
+                "type": "reasoning",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-9",
+                "type": "plan",
+                "status": "future",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-10",
+                "type": "contextCompaction",
+                "status": "inProgress",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-11",
+                "type": "enteredReviewMode",
+                "status": "completed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-12",
+                "type": "exitedReviewMode",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-13",
+                "type": "unknownFuture",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              }
+            ],
+            "error": null
+          }
+        ]
+      },
+      "completed": [
+        "progress",
+        "item-4"
+      ],
+      "orders": {
+        "item-2": 1,
+        "item-1": 1,
+        "user": 0
+      },
+      "expected": {
+        "Turns": [
+          {
+            "NativeID": "turn",
+            "Status": "running",
+            "Items": [
+              {
+                "NativeID": "user",
+                "Type": "user",
+                "Index": 0,
+                "Text": "ab",
+                "Kind": null,
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-1",
+                "Type": "tool",
+                "Index": 1,
+                "Text": "",
+                "Kind": null,
+                "Name": "fileChange",
+                "Input": [
+                  {
+                    "path": "a"
+                  },
+                  {
+                    "path": "b"
+                  }
+                ],
+                "Status": "completed",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-2",
+                "Type": "tool",
+                "Index": 2,
+                "Text": "",
+                "Kind": null,
+                "Name": "mcpToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "failed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "progress",
+                "Type": "assistant",
+                "Index": 3,
+                "Text": "working",
+                "Kind": "progress",
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-0",
+                "Type": "tool",
+                "Index": 5,
+                "Text": "",
+                "Kind": null,
+                "Name": "commandExecution",
+                "Input": [
+                  "printf",
+                  "a\\qb"
+                ],
+                "Status": "running",
+                "Result": {
+                  "type": "text",
+                  "text": "native tail",
+                  "exit_code": 0,
+                  "original_bytes": null
+                },
+                "Completeness": "truncated",
+                "TruncationReason": "harness_limit"
+              },
+              {
+                "NativeID": "item-3",
+                "Type": "tool",
+                "Index": 6,
+                "Text": "",
+                "Kind": null,
+                "Name": "dynamicToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "cancelled",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-4",
+                "Type": "tool",
+                "Index": 7,
+                "Text": "",
+                "Kind": null,
+                "Name": "collabAgentToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "completed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-5",
+                "Type": "tool",
+                "Index": 8,
+                "Text": "",
+                "Kind": null,
+                "Name": "webSearch",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "running",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-6",
+                "Type": "tool",
+                "Index": 9,
+                "Text": "",
+                "Kind": null,
+                "Name": "imageView",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "completed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-7",
+                "Type": "tool",
+                "Index": 10,
+                "Text": "",
+                "Kind": null,
+                "Name": "imageGeneration",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "failed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              }
+            ],
+            "ErrorCode": ""
+          }
+        ],
+        "Path": null,
+        "Offset": 0
+      }
+    },
+    {
+      "thread": {
+        "id": "thread",
+        "turns": [
+          {
+            "id": "turn",
+            "status": "completed",
+            "items": [
+              {
+                "id": "user",
+                "type": "userMessage",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "a"
+                  },
+                  {
+                    "type": "text",
+                    "text": "b"
+                  }
+                ]
+              },
+              {
+                "id": "progress",
+                "type": "agentMessage",
+                "phase": "commentary",
+                "text": "working"
+              },
+              {
+                "id": "answer",
+                "type": "agentMessage",
+                "text": "done"
+              },
+              {
+                "id": "item-0",
+                "type": "commandExecution",
+                "status": "inProgress",
+                "arguments": "printf \"a\\qb\"",
+                "aggregatedOutput": "native tail",
+                "exitCode": 0
+              },
+              {
+                "id": "item-1",
+                "type": "fileChange",
+                "status": "completed",
+                "arguments": [
+                  {
+                    "path": "b"
+                  },
+                  {
+                    "path": "a"
+                  }
+                ]
+              },
+              {
+                "id": "item-2",
+                "type": "mcpToolCall",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-3",
+                "type": "dynamicToolCall",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-4",
+                "type": "collabAgentToolCall",
+                "status": "future",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-5",
+                "type": "webSearch",
+                "status": "inProgress",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-6",
+                "type": "imageView",
+                "status": "completed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-7",
+                "type": "imageGeneration",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-8",
+                "type": "reasoning",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-9",
+                "type": "plan",
+                "status": "future",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-10",
+                "type": "contextCompaction",
+                "status": "inProgress",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-11",
+                "type": "enteredReviewMode",
+                "status": "completed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-12",
+                "type": "exitedReviewMode",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-13",
+                "type": "unknownFuture",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              }
+            ],
+            "error": null
+          }
+        ]
+      },
+      "completed": [
+        "progress",
+        "item-4"
+      ],
+      "orders": {
+        "item-2": 1,
+        "item-1": 1,
+        "user": 0
+      },
+      "expected": {
+        "Turns": [
+          {
+            "NativeID": "turn",
+            "Status": "completed",
+            "Items": [
+              {
+                "NativeID": "user",
+                "Type": "user",
+                "Index": 0,
+                "Text": "ab",
+                "Kind": null,
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-1",
+                "Type": "tool",
+                "Index": 1,
+                "Text": "",
+                "Kind": null,
+                "Name": "fileChange",
+                "Input": [
+                  {
+                    "path": "a"
+                  },
+                  {
+                    "path": "b"
+                  }
+                ],
+                "Status": "completed",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-2",
+                "Type": "tool",
+                "Index": 2,
+                "Text": "",
+                "Kind": null,
+                "Name": "mcpToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "failed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "progress",
+                "Type": "assistant",
+                "Index": 3,
+                "Text": "working",
+                "Kind": "progress",
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "answer",
+                "Type": "assistant",
+                "Index": 4,
+                "Text": "done",
+                "Kind": "answer",
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-0",
+                "Type": "tool",
+                "Index": 5,
+                "Text": "",
+                "Kind": null,
+                "Name": "commandExecution",
+                "Input": [
+                  "printf",
+                  "a\\qb"
+                ],
+                "Status": "unknown",
+                "Result": {
+                  "type": "text",
+                  "text": "native tail",
+                  "exit_code": 0,
+                  "original_bytes": null
+                },
+                "Completeness": "truncated",
+                "TruncationReason": "harness_limit"
+              },
+              {
+                "NativeID": "item-3",
+                "Type": "tool",
+                "Index": 6,
+                "Text": "",
+                "Kind": null,
+                "Name": "dynamicToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "cancelled",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-4",
+                "Type": "tool",
+                "Index": 7,
+                "Text": "",
+                "Kind": null,
+                "Name": "collabAgentToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "completed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-5",
+                "Type": "tool",
+                "Index": 8,
+                "Text": "",
+                "Kind": null,
+                "Name": "webSearch",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "unknown",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-6",
+                "Type": "tool",
+                "Index": 9,
+                "Text": "",
+                "Kind": null,
+                "Name": "imageView",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "completed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-7",
+                "Type": "tool",
+                "Index": 10,
+                "Text": "",
+                "Kind": null,
+                "Name": "imageGeneration",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "failed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              }
+            ],
+            "ErrorCode": ""
+          }
+        ],
+        "Path": null,
+        "Offset": 0
+      }
+    },
+    {
+      "thread": {
+        "id": "thread",
+        "turns": [
+          {
+            "id": "turn",
+            "status": "failed",
+            "items": [
+              {
+                "id": "user",
+                "type": "userMessage",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "a"
+                  },
+                  {
+                    "type": "text",
+                    "text": "b"
+                  }
+                ]
+              },
+              {
+                "id": "progress",
+                "type": "agentMessage",
+                "phase": "commentary",
+                "text": "working"
+              },
+              {
+                "id": "answer",
+                "type": "agentMessage",
+                "text": "done"
+              },
+              {
+                "id": "item-0",
+                "type": "commandExecution",
+                "status": "inProgress",
+                "arguments": "printf \"a\\qb\"",
+                "aggregatedOutput": "native tail",
+                "exitCode": 0
+              },
+              {
+                "id": "item-1",
+                "type": "fileChange",
+                "status": "completed",
+                "arguments": [
+                  {
+                    "path": "b"
+                  },
+                  {
+                    "path": "a"
+                  }
+                ]
+              },
+              {
+                "id": "item-2",
+                "type": "mcpToolCall",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-3",
+                "type": "dynamicToolCall",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-4",
+                "type": "collabAgentToolCall",
+                "status": "future",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-5",
+                "type": "webSearch",
+                "status": "inProgress",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-6",
+                "type": "imageView",
+                "status": "completed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-7",
+                "type": "imageGeneration",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-8",
+                "type": "reasoning",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-9",
+                "type": "plan",
+                "status": "future",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-10",
+                "type": "contextCompaction",
+                "status": "inProgress",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-11",
+                "type": "enteredReviewMode",
+                "status": "completed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-12",
+                "type": "exitedReviewMode",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-13",
+                "type": "unknownFuture",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              }
+            ],
+            "error": {
+              "message": "token_expired"
+            }
+          }
+        ]
+      },
+      "completed": [
+        "progress",
+        "item-4"
+      ],
+      "orders": {
+        "item-2": 1,
+        "item-1": 1,
+        "user": 0
+      },
+      "expected": {
+        "Turns": [
+          {
+            "NativeID": "turn",
+            "Status": "failed",
+            "Items": [
+              {
+                "NativeID": "user",
+                "Type": "user",
+                "Index": 0,
+                "Text": "ab",
+                "Kind": null,
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-1",
+                "Type": "tool",
+                "Index": 1,
+                "Text": "",
+                "Kind": null,
+                "Name": "fileChange",
+                "Input": [
+                  {
+                    "path": "a"
+                  },
+                  {
+                    "path": "b"
+                  }
+                ],
+                "Status": "completed",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-2",
+                "Type": "tool",
+                "Index": 2,
+                "Text": "",
+                "Kind": null,
+                "Name": "mcpToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "failed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "progress",
+                "Type": "assistant",
+                "Index": 3,
+                "Text": "working",
+                "Kind": "progress",
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "answer",
+                "Type": "assistant",
+                "Index": 4,
+                "Text": "done",
+                "Kind": "answer",
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-0",
+                "Type": "tool",
+                "Index": 5,
+                "Text": "",
+                "Kind": null,
+                "Name": "commandExecution",
+                "Input": [
+                  "printf",
+                  "a\\qb"
+                ],
+                "Status": "unknown",
+                "Result": {
+                  "type": "text",
+                  "text": "native tail",
+                  "exit_code": 0,
+                  "original_bytes": null
+                },
+                "Completeness": "truncated",
+                "TruncationReason": "harness_limit"
+              },
+              {
+                "NativeID": "item-3",
+                "Type": "tool",
+                "Index": 6,
+                "Text": "",
+                "Kind": null,
+                "Name": "dynamicToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "cancelled",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-4",
+                "Type": "tool",
+                "Index": 7,
+                "Text": "",
+                "Kind": null,
+                "Name": "collabAgentToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "completed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-5",
+                "Type": "tool",
+                "Index": 8,
+                "Text": "",
+                "Kind": null,
+                "Name": "webSearch",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "unknown",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-6",
+                "Type": "tool",
+                "Index": 9,
+                "Text": "",
+                "Kind": null,
+                "Name": "imageView",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "completed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-7",
+                "Type": "tool",
+                "Index": 10,
+                "Text": "",
+                "Kind": null,
+                "Name": "imageGeneration",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "failed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              }
+            ],
+            "ErrorCode": "authentication_failed"
+          }
+        ],
+        "Path": null,
+        "Offset": 0
+      }
+    },
+    {
+      "thread": {
+        "id": "thread",
+        "turns": [
+          {
+            "id": "turn",
+            "status": "interrupted",
+            "items": [
+              {
+                "id": "user",
+                "type": "userMessage",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "a"
+                  },
+                  {
+                    "type": "text",
+                    "text": "b"
+                  }
+                ]
+              },
+              {
+                "id": "progress",
+                "type": "agentMessage",
+                "phase": "commentary",
+                "text": "working"
+              },
+              {
+                "id": "answer",
+                "type": "agentMessage",
+                "text": "done"
+              },
+              {
+                "id": "item-0",
+                "type": "commandExecution",
+                "status": "inProgress",
+                "arguments": "printf \"a\\qb\"",
+                "aggregatedOutput": "native tail",
+                "exitCode": 0
+              },
+              {
+                "id": "item-1",
+                "type": "fileChange",
+                "status": "completed",
+                "arguments": [
+                  {
+                    "path": "b"
+                  },
+                  {
+                    "path": "a"
+                  }
+                ]
+              },
+              {
+                "id": "item-2",
+                "type": "mcpToolCall",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-3",
+                "type": "dynamicToolCall",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-4",
+                "type": "collabAgentToolCall",
+                "status": "future",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-5",
+                "type": "webSearch",
+                "status": "inProgress",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-6",
+                "type": "imageView",
+                "status": "completed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-7",
+                "type": "imageGeneration",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-8",
+                "type": "reasoning",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-9",
+                "type": "plan",
+                "status": "future",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-10",
+                "type": "contextCompaction",
+                "status": "inProgress",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-11",
+                "type": "enteredReviewMode",
+                "status": "completed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-12",
+                "type": "exitedReviewMode",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-13",
+                "type": "unknownFuture",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              }
+            ],
+            "error": null
+          }
+        ]
+      },
+      "completed": [
+        "progress",
+        "item-4"
+      ],
+      "orders": {
+        "item-2": 1,
+        "item-1": 1,
+        "user": 0
+      },
+      "expected": {
+        "Turns": [
+          {
+            "NativeID": "turn",
+            "Status": "cancelled",
+            "Items": [
+              {
+                "NativeID": "user",
+                "Type": "user",
+                "Index": 0,
+                "Text": "ab",
+                "Kind": null,
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-1",
+                "Type": "tool",
+                "Index": 1,
+                "Text": "",
+                "Kind": null,
+                "Name": "fileChange",
+                "Input": [
+                  {
+                    "path": "a"
+                  },
+                  {
+                    "path": "b"
+                  }
+                ],
+                "Status": "completed",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-2",
+                "Type": "tool",
+                "Index": 2,
+                "Text": "",
+                "Kind": null,
+                "Name": "mcpToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "failed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "progress",
+                "Type": "assistant",
+                "Index": 3,
+                "Text": "working",
+                "Kind": "progress",
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "answer",
+                "Type": "assistant",
+                "Index": 4,
+                "Text": "done",
+                "Kind": "answer",
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-0",
+                "Type": "tool",
+                "Index": 5,
+                "Text": "",
+                "Kind": null,
+                "Name": "commandExecution",
+                "Input": [
+                  "printf",
+                  "a\\qb"
+                ],
+                "Status": "unknown",
+                "Result": {
+                  "type": "text",
+                  "text": "native tail",
+                  "exit_code": 0,
+                  "original_bytes": null
+                },
+                "Completeness": "truncated",
+                "TruncationReason": "harness_limit"
+              },
+              {
+                "NativeID": "item-3",
+                "Type": "tool",
+                "Index": 6,
+                "Text": "",
+                "Kind": null,
+                "Name": "dynamicToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "cancelled",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-4",
+                "Type": "tool",
+                "Index": 7,
+                "Text": "",
+                "Kind": null,
+                "Name": "collabAgentToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "completed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-5",
+                "Type": "tool",
+                "Index": 8,
+                "Text": "",
+                "Kind": null,
+                "Name": "webSearch",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "unknown",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-6",
+                "Type": "tool",
+                "Index": 9,
+                "Text": "",
+                "Kind": null,
+                "Name": "imageView",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "completed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-7",
+                "Type": "tool",
+                "Index": 10,
+                "Text": "",
+                "Kind": null,
+                "Name": "imageGeneration",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "failed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              }
+            ],
+            "ErrorCode": ""
+          }
+        ],
+        "Path": null,
+        "Offset": 0
+      }
+    },
+    {
+      "thread": {
+        "id": "thread",
+        "turns": [
+          {
+            "id": "turn",
+            "status": "future",
+            "items": [
+              {
+                "id": "user",
+                "type": "userMessage",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "a"
+                  },
+                  {
+                    "type": "text",
+                    "text": "b"
+                  }
+                ]
+              },
+              {
+                "id": "progress",
+                "type": "agentMessage",
+                "phase": "commentary",
+                "text": "working"
+              },
+              {
+                "id": "answer",
+                "type": "agentMessage",
+                "text": "done"
+              },
+              {
+                "id": "item-0",
+                "type": "commandExecution",
+                "status": "inProgress",
+                "arguments": "printf \"a\\qb\"",
+                "aggregatedOutput": "native tail",
+                "exitCode": 0
+              },
+              {
+                "id": "item-1",
+                "type": "fileChange",
+                "status": "completed",
+                "arguments": [
+                  {
+                    "path": "b"
+                  },
+                  {
+                    "path": "a"
+                  }
+                ]
+              },
+              {
+                "id": "item-2",
+                "type": "mcpToolCall",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-3",
+                "type": "dynamicToolCall",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-4",
+                "type": "collabAgentToolCall",
+                "status": "future",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-5",
+                "type": "webSearch",
+                "status": "inProgress",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-6",
+                "type": "imageView",
+                "status": "completed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-7",
+                "type": "imageGeneration",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-8",
+                "type": "reasoning",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-9",
+                "type": "plan",
+                "status": "future",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-10",
+                "type": "contextCompaction",
+                "status": "inProgress",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-11",
+                "type": "enteredReviewMode",
+                "status": "completed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-12",
+                "type": "exitedReviewMode",
+                "status": "failed",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              },
+              {
+                "id": "item-13",
+                "type": "unknownFuture",
+                "status": "declined",
+                "arguments": {
+                  "n": 9007199254740993
+                },
+                "result": {
+                  "answer": "привет"
+                }
+              }
+            ],
+            "error": null
+          }
+        ]
+      },
+      "completed": [
+        "progress",
+        "item-4"
+      ],
+      "orders": {
+        "item-2": 1,
+        "item-1": 1,
+        "user": 0
+      },
+      "expected": {
+        "Turns": [
+          {
+            "NativeID": "turn",
+            "Status": "unknown",
+            "Items": [
+              {
+                "NativeID": "user",
+                "Type": "user",
+                "Index": 0,
+                "Text": "ab",
+                "Kind": null,
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-1",
+                "Type": "tool",
+                "Index": 1,
+                "Text": "",
+                "Kind": null,
+                "Name": "fileChange",
+                "Input": [
+                  {
+                    "path": "a"
+                  },
+                  {
+                    "path": "b"
+                  }
+                ],
+                "Status": "completed",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-2",
+                "Type": "tool",
+                "Index": 2,
+                "Text": "",
+                "Kind": null,
+                "Name": "mcpToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "failed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "progress",
+                "Type": "assistant",
+                "Index": 3,
+                "Text": "working",
+                "Kind": "progress",
+                "Name": "",
+                "Input": null,
+                "Status": "unknown",
+                "Result": null,
+                "Completeness": "unknown",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-0",
+                "Type": "tool",
+                "Index": 5,
+                "Text": "",
+                "Kind": null,
+                "Name": "commandExecution",
+                "Input": [
+                  "printf",
+                  "a\\qb"
+                ],
+                "Status": "running",
+                "Result": {
+                  "type": "text",
+                  "text": "native tail",
+                  "exit_code": 0,
+                  "original_bytes": null
+                },
+                "Completeness": "truncated",
+                "TruncationReason": "harness_limit"
+              },
+              {
+                "NativeID": "item-3",
+                "Type": "tool",
+                "Index": 6,
+                "Text": "",
+                "Kind": null,
+                "Name": "dynamicToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "cancelled",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-4",
+                "Type": "tool",
+                "Index": 7,
+                "Text": "",
+                "Kind": null,
+                "Name": "collabAgentToolCall",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "completed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-5",
+                "Type": "tool",
+                "Index": 8,
+                "Text": "",
+                "Kind": null,
+                "Name": "webSearch",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "running",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-6",
+                "Type": "tool",
+                "Index": 9,
+                "Text": "",
+                "Kind": null,
+                "Name": "imageView",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "completed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              },
+              {
+                "NativeID": "item-7",
+                "Type": "tool",
+                "Index": 10,
+                "Text": "",
+                "Kind": null,
+                "Name": "imageGeneration",
+                "Input": {
+                  "n": 9007199254740993
+                },
+                "Status": "failed",
+                "Result": {
+                  "type": "json",
+                  "value": {
+                    "answer": "привет"
+                  },
+                  "original_bytes": 25
+                },
+                "Completeness": "complete",
+                "TruncationReason": null
+              }
+            ],
+            "ErrorCode": ""
+          }
+        ],
+        "Path": null,
+        "Offset": 0
+      }
+    }
+  ]
+}

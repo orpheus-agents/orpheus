@@ -1,20 +1,14 @@
-FROM python:3.14.7-slim
-
-COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /uvx /bin/
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    UV_PROJECT_ENVIRONMENT=/opt/venv \
-    UV_LINK_MODE=copy \
-    UV_PYTHON_DOWNLOADS=never \
-    PATH="/opt/venv/bin:$PATH"
-
+FROM golang:1.27.1-bookworm
+ARG ORPHEUS_UID=1000
+ARG ORPHEUS_GID=1000
+RUN (getent group "${ORPHEUS_GID}" || groupadd --gid "${ORPHEUS_GID}" orpheus) && \
+    useradd --create-home --uid "${ORPHEUS_UID}" --gid "${ORPHEUS_GID}" orpheus && \
+    mkdir -p /go/pkg/mod /home/orpheus/.cache/go-build && chown -R "${ORPHEUS_UID}:${ORPHEUS_GID}" /go /home/orpheus
+ENV GOCACHE=/home/orpheus/.cache/go-build
 WORKDIR /app
-COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-install-project
-
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked
-
 EXPOSE 8000
-CMD ["orpheus", "serve", "--reload"]
+USER ${ORPHEUS_UID}:${ORPHEUS_GID}
+CMD ["go", "run", "./cmd/orpheus", "serve"]

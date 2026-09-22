@@ -1,0 +1,204 @@
+// Package session defines the durable, harness-neutral session model.
+package session
+
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type Status string
+
+const (
+	Accepted   Status = "accepted"
+	Starting   Status = "starting"
+	Running    Status = "running"
+	Cancelling Status = "cancelling"
+	Completed  Status = "completed"
+	Failed     Status = "failed"
+	Cancelled  Status = "cancelled"
+)
+
+func (s Status) Terminal() bool { return s == Completed || s == Failed || s == Cancelled }
+
+type Error struct {
+	Code    string   `json:"code"`
+	Message string   `json:"message"`
+	Phase   *string  `json:"phase"`
+	Details []Detail `json:"details"`
+}
+
+type Detail struct {
+	Path []any  `json:"path"`
+	Code string `json:"code"`
+}
+
+type APIError struct {
+	Status  int
+	Problem Error
+}
+
+func (e *APIError) Error() string { return e.Problem.Code }
+func Problem(status int, code, message string) *APIError {
+	return &APIError{Status: status, Problem: Error{Code: code, Message: message}}
+}
+
+type AgentInput struct {
+	Profile      string  `json:"profile"`
+	Model        *string `json:"model,omitzero"`
+	Instructions *string `json:"instructions,omitzero"`
+}
+type SandboxInput struct {
+	Template string            `json:"template"`
+	Env      map[string]string `json:"env"`
+	EnvFrom  []string          `json:"env_from"`
+}
+type Limits struct {
+	RunTimeoutSeconds int `json:"run_timeout_seconds"`
+}
+type ConfigurationInput struct {
+	Agent   AgentInput   `json:"agent"`
+	Sandbox SandboxInput `json:"sandbox"`
+	Limits  Limits       `json:"limits"`
+}
+type AgentConfiguration struct {
+	Profile      string `json:"profile"`
+	Model        string `json:"model"`
+	Instructions string `json:"instructions"`
+}
+type SandboxConfiguration struct {
+	Template string   `json:"template"`
+	EnvNames []string `json:"env_names"`
+	EnvFrom  []string `json:"env_from"`
+}
+type Configuration struct {
+	Agent   AgentConfiguration   `json:"agent"`
+	Sandbox SandboxConfiguration `json:"sandbox"`
+	Limits  Limits               `json:"limits"`
+}
+type CredentialStore struct {
+	Type        string  `json:"type" toml:"type"`
+	Bucket      string  `json:"bucket" toml:"bucket"`
+	Region      string  `json:"region" toml:"region"`
+	EndpointURL *string `json:"endpoint_url" toml:"endpoint_url"`
+}
+type Credentials struct {
+	Mode      string           `json:"mode" toml:"mode"`
+	APIKeyEnv string           `json:"api_key_env" toml:"api_key_env"`
+	Store     *CredentialStore `json:"store" toml:"-"`
+	Key       string           `json:"key" toml:"key"`
+}
+type ResolvedConfiguration struct {
+	Version     int           `json:"version"`
+	Harness     string        `json:"harness"`
+	Public      Configuration `json:"public"`
+	Credentials Credentials   `json:"credentials"`
+}
+type TextMessage struct {
+	Text string `json:"text"`
+}
+type CreateSession struct {
+	Configuration ConfigurationInput `json:"configuration"`
+	Message       TextMessage        `json:"message"`
+}
+type SendMessage struct {
+	Message TextMessage `json:"message"`
+}
+type Acceptance struct {
+	SessionID uuid.UUID `json:"session_id"`
+	RunID     uuid.UUID `json:"run_id"`
+	MessageID uuid.UUID `json:"message_id"`
+}
+type Position struct {
+	RunNumber int `json:"run_number"`
+	ItemIndex int `json:"item_index"`
+}
+type Message struct {
+	ID                 uuid.UUID `json:"id"`
+	SessionID          uuid.UUID `json:"session_id"`
+	RunID              uuid.UUID `json:"run_id"`
+	Role               string    `json:"role"`
+	Kind               *string   `json:"kind"`
+	Text               string    `json:"text"`
+	DeliveryStatus     *string   `json:"delivery_status"`
+	Error              *Error    `json:"error"`
+	RegisteredSequence string    `json:"registered_sequence"`
+	Position           *Position `json:"position"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+type ToolCall struct {
+	ID                 uuid.UUID       `json:"id"`
+	SessionID          uuid.UUID       `json:"session_id"`
+	RunID              uuid.UUID       `json:"run_id"`
+	Name               string          `json:"name"`
+	Input              json.RawMessage `json:"input"`
+	Status             string          `json:"status"`
+	Result             json.RawMessage `json:"result"`
+	OutputCompleteness string          `json:"output_completeness"`
+	TruncationReason   *string         `json:"truncation_reason"`
+	RegisteredSequence string          `json:"registered_sequence"`
+	Position           *Position       `json:"position"`
+	CreatedAt          time.Time       `json:"created_at"`
+}
+type Run struct {
+	ID                 uuid.UUID  `json:"id"`
+	SessionID          uuid.UUID  `json:"session_id"`
+	Number             int        `json:"number"`
+	Status             Status     `json:"status"`
+	Observation        *string    `json:"observation"`
+	CreatedAt          time.Time  `json:"created_at"`
+	ExecutionStartedAt *time.Time `json:"execution_started_at"`
+	DeadlineAt         *time.Time `json:"deadline_at"`
+	FinishedAt         *time.Time `json:"finished_at"`
+	CancelRequestedAt  *time.Time `json:"cancel_requested_at"`
+	StopReason         *string    `json:"stop_reason"`
+	StopMethod         *string    `json:"stop_method"`
+	FinalMessage       *Message   `json:"final_message"`
+	Error              *Error     `json:"error"`
+}
+type SandboxState struct {
+	State          string  `json:"state"`
+	LastKnownState *string `json:"last_known_state"`
+	Error          *Error  `json:"error"`
+}
+type Session struct {
+	ID            uuid.UUID     `json:"id"`
+	CreatedAt     time.Time     `json:"created_at"`
+	Configuration Configuration `json:"configuration"`
+	Sandbox       SandboxState  `json:"sandbox"`
+	ActiveRunID   *uuid.UUID    `json:"active_run_id"`
+	LastRunID     uuid.UUID     `json:"last_run_id"`
+	Status        Status        `json:"status"`
+	FinalMessage  *Message      `json:"final_message"`
+	Error         *Error        `json:"error"`
+}
+type Cancellation struct {
+	RunID  uuid.UUID `json:"run_id"`
+	Status Status    `json:"status"`
+}
+type Page[T any] struct {
+	Items      []T     `json:"items"`
+	NextCursor *string `json:"next_cursor"`
+}
+type HistoryItem struct {
+	Type     string    `json:"type"`
+	Message  *Message  `json:"message,omitzero"`
+	ToolCall *ToolCall `json:"tool_call,omitzero"`
+}
+type HistoryPage struct {
+	Page[HistoryItem]
+	EventCursor string `json:"event_cursor"`
+}
+type Event struct {
+	ID        string          `json:"id"`
+	SessionID uuid.UUID       `json:"session_id"`
+	Type      string          `json:"type"`
+	CreatedAt time.Time       `json:"created_at"`
+	Data      json.RawMessage `json:"data"`
+}
+type EventPage struct {
+	Items      []Event `json:"items"`
+	NextCursor string  `json:"next_cursor"`
+	HasMore    bool    `json:"has_more"`
+}

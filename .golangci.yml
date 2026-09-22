@@ -1,0 +1,47 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  enable:
+    - bodyclose
+    - copyloopvar
+    - depguard
+    - durationcheck
+    - errorlint
+    - gocritic
+    - loggercheck
+    - misspell
+    - nilerr
+    - nolintlint
+    - sloglint
+    - unconvert
+  settings:
+    depguard:
+      rules:
+        business:
+          list-mode: lax
+          files:
+            - "**/internal/store/**/*.go"
+            - "**/internal/harness/**/*.go"
+            - "**/internal/credentials/*.go"
+            - "**/internal/worker/*.go"
+            - "**/internal/config/*.go"
+            - "!**/*_test.go"
+          deny:
+            - pkg: github.com/skillum-ai/orpheus/internal/api
+              desc: business logic must not depend on HTTP DTOs
+            - pkg: github.com/abox-dev/sdk
+              desc: use the AgentBox adapter through harness interfaces
+        session:
+          list-mode: lax
+          files:
+            - "**/internal/session/*.go"
+          deny:
+            - pkg: github.com/skillum-ai/orpheus/internal/api
+              desc: domain must not depend on HTTP DTOs
+            - pkg: github.com/jackc/pgx
+              desc: domain must not depend on storage
+            - pkg: github.com/abox-dev/sdk
+              desc: domain must not depend on SDK
+formatters:
+  enable: [gofmt, goimports]

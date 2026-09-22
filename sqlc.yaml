@@ -1,0 +1,90 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/store/queries"
+    gen:
+      go:
+        package: "db"
+        out: "internal/store/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        emit_empty_slices: true
+        emit_json_tags: true
+        overrides:
+          - db_type: "uuid"
+            go_type:
+              type: "UUID"
+              import: "github.com/google/uuid"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              type: "UUID"
+              import: "github.com/google/uuid"
+              pointer: true
+          - db_type: "timestamptz"
+            go_type:
+              type: "Time"
+              import: "time"
+          - db_type: "timestamptz"
+            nullable: true
+            go_type:
+              type: "Time"
+              import: "time"
+              pointer: true
+          - db_type: "pg_catalog.int4"
+            go_type:
+              type: "int"
+          - db_type: "pg_catalog.int4"
+            nullable: true
+            go_type:
+              type: "int"
+              pointer: true
+          - db_type: "jsonb"
+            go_type:
+              type: "RawMessage"
+              import: "encoding/json"
+          - db_type: "jsonb"
+            nullable: true
+            go_type:
+              type: "RawMessage"
+              import: "encoding/json"
+          - column: "sessions.configuration"
+            go_type:
+              import: "github.com/skillum-ai/orpheus/internal/session"
+              type: "ResolvedConfiguration"
+          - column: "sessions.sandbox_error"
+            go_type:
+              import: "github.com/skillum-ai/orpheus/internal/session"
+              type: "Error"
+              pointer: true
+          - column: "runs.error"
+            go_type:
+              import: "github.com/skillum-ai/orpheus/internal/session"
+              type: "Error"
+              pointer: true
+          - column: "runs.status"
+            go_type:
+              import: "github.com/skillum-ai/orpheus/internal/session"
+              type: "Status"
+          - column: "messages.error"
+            go_type:
+              import: "github.com/skillum-ai/orpheus/internal/session"
+              type: "Error"
+              pointer: true
+          - column: "messages.position"
+            go_type:
+              import: "github.com/skillum-ai/orpheus/internal/session"
+              type: "Position"
+              pointer: true
+          - column: "tool_calls.position"
+            go_type:
+              import: "github.com/skillum-ai/orpheus/internal/session"
+              type: "Position"
+              pointer: true
+    rules:
+      - "sqlc/db-prepare"
+    database:
+      uri: "${SQLC_DATABASE_URL}"
+    analyzer:
+      database: false
