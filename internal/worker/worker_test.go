@@ -5,6 +5,7 @@ package worker
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -247,6 +248,61 @@ func TestFullCyclePauseResume(t *testing.T) {
 	tick(t, e)
 	if r.creates != 1 || r.launches != 1 || r.starts != 2 || r.opens != 1 {
 		t.Fatalf("cycle create=%d launch=%d starts=%d opens=%d", r.creates, r.launches, r.starts, r.opens)
+	}
+}
+func TestSandboxAccessProjectionAndEvents(t *testing.T) {
+	s, _, a, e := setup(t)
+	initial, err := s.Session(t.Context(), a.SessionID)
+	if err != nil || initial.Sandbox.ID != nil || initial.Sandbox.Workspace != nil {
+		t.Fatal(initial.Sandbox, err)
+	}
+	tick(t, e)
+	view, err := s.Session(t.Context(), a.SessionID)
+	if err != nil || view.Sandbox.ID == nil || *view.Sandbox.ID != "sandbox" || view.Sandbox.Workspace == nil || *view.Sandbox.Workspace != "/home/template/workspace" {
+		t.Fatal(view.Sandbox, err)
+	}
+	events, err := s.Events(t.Context(), a.SessionID, "0", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var snapshots []session.SandboxState
+	for _, event := range events.Items {
+		if event.Type != "sandbox.updated" {
+			continue
+		}
+		var snapshot session.SandboxState
+		if err := json.Unmarshal(event.Data, &snapshot); err != nil {
+			t.Fatal(err)
+		}
+		snapshots = append(snapshots, snapshot)
+	}
+	if len(snapshots) < 3 || snapshots[0].ID != nil || snapshots[0].Workspace != nil || snapshots[1].ID == nil || *snapshots[1].ID != "sandbox" || snapshots[1].Workspace != nil {
+		t.Fatal("missing incremental sandbox events", snapshots)
+	}
+	last := snapshots[len(snapshots)-1]
+	if last.ID == nil || *last.ID != "sandbox" || last.Workspace == nil || *last.Workspace != "/home/template/workspace" {
+		t.Fatal("workspace event missing", snapshots)
+	}
+	tick(t, e)
+	again, err := s.Events(t.Context(), a.SessionID, "0", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sandboxEvents int
+	for _, event := range again.Items {
+		if event.Type == "sandbox.updated" {
+			sandboxEvents++
+		}
+	}
+	if sandboxEvents != len(snapshots) {
+		t.Fatal("unchanged sandbox emitted an event", len(snapshots), sandboxEvents)
+	}
+	if err := e.state(t.Context(), "unavailable", &session.Error{Code: "sandbox_lost", Message: "gone"}); err != nil {
+		t.Fatal(err)
+	}
+	view, err = s.Session(t.Context(), a.SessionID)
+	if err != nil || view.Sandbox.State != "unavailable" || view.Sandbox.ID == nil || *view.Sandbox.ID != "sandbox" || view.Sandbox.Workspace == nil || *view.Sandbox.Workspace != "/home/template/workspace" {
+		t.Fatal("last known address lost", view.Sandbox, err)
 	}
 }
 func TestLostAcknowledgements(t *testing.T) {

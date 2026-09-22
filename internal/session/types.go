@@ -177,6 +177,8 @@ type SandboxState struct {
 	State          string  `json:"state"`
 	LastKnownState *string `json:"last_known_state"`
 	Error          *Error  `json:"error"`
+	ID             *string `json:"id"`
+	Workspace      *string `json:"workspace"`
 }
 type Session struct {
 	Namespace     *string       `json:"namespace"`

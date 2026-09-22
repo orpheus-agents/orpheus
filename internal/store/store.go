@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
+	"reflect"
 	"slices"
 	"strconv"
 	"time"
@@ -35,7 +36,18 @@ type Store struct {
 type SessionRecord db.Session
 
 func (s SessionRecord) Sandbox() session.SandboxState {
-	return session.SandboxState{State: s.SandboxState, LastKnownState: s.SandboxLastKnownState, Error: s.SandboxError}
+	return session.SandboxState{State: s.SandboxState, LastKnownState: s.SandboxLastKnownState, Error: s.SandboxError, ID: s.SandboxID, Workspace: s.Workspace}
+}
+
+// UpdateSandbox publishes the complete snapshot only when public sandbox data changes.
+// The caller's Mutate transaction commits the event and session update together.
+func UpdateSandbox(ctx context.Context, tx pgx.Tx, r *SessionRecord, change func(*SessionRecord)) error {
+	before := r.Sandbox()
+	change(r)
+	if reflect.DeepEqual(before, r.Sandbox()) {
+		return nil
+	}
+	return Emit(ctx, tx, r, "sandbox.updated", r.Sandbox())
 }
 
 type RunRecord struct {
