@@ -2,6 +2,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*.*.*']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -24,6 +25,48 @@ jobs:
       - name: Stop test services
         if: always()
         run: make stop
+  publish-image:
+    needs: [checks, live]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Docker image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: retailcrm/orpheus
+          tags: type=semver,pattern={{version}}
+      - name: Check publishing configuration
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          test -n "$IMAGE_TAGS" || { echo 'A valid version tag such as v1.2.3 is required.' >&2; exit 1; }
+          test -n "$DOCKERHUB_USERNAME" || { echo 'Set the DOCKERHUB_USERNAME repository variable.' >&2; exit 1; }
+          test -n "$DOCKERHUB_TOKEN" || { echo 'Set the DOCKERHUB_TOKEN repository secret.' >&2; exit 1; }
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and publish production image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: .docker/app/prod/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=release-image
+          cache-to: type=gha,mode=max,scope=release-image
   live:
     if: >-
       github.actor != 'dependabot[bot]' &&
