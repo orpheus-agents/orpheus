@@ -57,7 +57,11 @@ func (e *Executor) ensureSandbox(ctx context.Context, record *store.SessionRecor
 			return harness.ErrUncertain
 		}
 		record.SandboxID = &result.SandboxID
-		if err := e.Store.Mutate(ctx, e.ID, false, func(_ pgx.Tx, r *store.SessionRecord) error { r.SandboxID = record.SandboxID; return nil }); err != nil {
+		if err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
+			return store.UpdateSandbox(ctx, tx, r, func(r *store.SessionRecord) {
+				r.SandboxID = record.SandboxID
+			})
+		}); err != nil {
 			return err
 		}
 	}
@@ -117,10 +121,11 @@ func (e *Executor) preparePaths(ctx context.Context, record *store.SessionRecord
 	}
 	record.Workspace = &paths[0]
 	record.HarnessHome = &paths[1]
-	return e.Store.Mutate(ctx, e.ID, false, func(_ pgx.Tx, r *store.SessionRecord) error {
-		r.Workspace = record.Workspace
-		r.HarnessHome = record.HarnessHome
-		return nil
+	return e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
+		return store.UpdateSandbox(ctx, tx, r, func(r *store.SessionRecord) {
+			r.Workspace = record.Workspace
+			r.HarnessHome = record.HarnessHome
+		})
 	})
 }
 func matching(processes []harness.Process, pid *int, launch *uuid.UUID) *harness.Process {

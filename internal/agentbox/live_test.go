@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +17,74 @@ import (
 
 	"github.com/skillum-ai/orpheus/internal/harness"
 )
+
+func TestLiveSandboxAccessSDK(t *testing.T) {
+	if os.Getenv("AGENTBOX_API_KEY") == "" {
+		t.Fatal("AGENTBOX_API_KEY is required")
+	}
+	platform, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	box, err := platform.Create(ctx, "codex", 3*time.Minute, map[string]string{"purpose": "orpheus-sandbox-access-test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if _, err := platform.client.Sandboxes.Kill(cleanup, box.ID()); err != nil {
+			t.Error("sandbox cleanup failed")
+		}
+	})
+	workspace, err := box.Run(ctx, `mkdir -p "$HOME/workspace"; printf '%s' "$HOME/workspace"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := box.Pause(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// An integration uses its own SDK client and only the public sandbox address.
+	client, err := sdk.NewClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+	external, err := client.Sandboxes.Connect(ctx, box.ID(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := path.Join(string(workspace), "plugin-probe.txt")
+	if _, err := external.Files.WriteBytes(ctx, file, []byte("from-plugin"), &sdk.WriteFileOptions{User: "user"}); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := external.Files.Read(ctx, file, &sdk.FileOptions{User: "user"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := io.ReadAll(reader)
+	_ = reader.Close()
+	if err != nil || string(content) != "from-plugin" {
+		t.Fatal(string(content), err)
+	}
+	if err := external.Pause(ctx, &sdk.PauseOptions{Memory: new(true)}); err != nil {
+		t.Fatal(err)
+	}
+	resumed, err := platform.Connect(ctx, box.ID(), 3*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err = resumed.Read(ctx, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err = io.ReadAll(reader)
+	_ = reader.Close()
+	if err != nil || string(content) != "from-plugin" {
+		t.Fatal("file lost across plugin pause", string(content), err)
+	}
+}
 
 func TestLiveStreamingDetachReconnect(t *testing.T) {
 	if os.Getenv("AGENTBOX_API_KEY") == "" {

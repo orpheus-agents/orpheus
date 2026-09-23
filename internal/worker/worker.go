@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"reflect"
 	"sync"
 	"time"
 
@@ -54,16 +53,13 @@ func (e *Executor) state(ctx context.Context, state string, problem *session.Err
 		if r.SandboxState == "unavailable" && state != "unavailable" {
 			return nil
 		}
-		before := r.Sandbox()
-		r.SandboxState = state
-		if state == "ready" || state == "paused" || state == "unavailable" {
-			r.SandboxLastKnownState = &state
-		}
-		r.SandboxError = problem
-		if !reflect.DeepEqual(before, r.Sandbox()) {
-			return store.Emit(ctx, tx, r, "sandbox.updated", r.Sandbox())
-		}
-		return nil
+		return store.UpdateSandbox(ctx, tx, r, func(r *store.SessionRecord) {
+			r.SandboxState = state
+			if state == "ready" || state == "paused" || state == "unavailable" {
+				r.SandboxLastKnownState = &state
+			}
+			r.SandboxError = problem
+		})
 	})
 }
 func (e *Executor) observation(ctx context.Context, value string) error {
@@ -141,17 +137,15 @@ func (e *Executor) failure(ctx context.Context, f *harness.ExecutionError) error
 		// Admission must see termination and loss of the environment atomically.
 		// Otherwise a new run can enter between Finish and the unavailable state.
 		if unavailable {
-			before := r.Sandbox()
-			r.SandboxState = "unavailable"
-			r.SandboxLastKnownState = new("unavailable")
-			r.SandboxError = &session.Error{Code: f.Code, Message: f.Message, Phase: new("recovery"), Details: []session.Detail{}}
-			if f.Code == "sandbox_lost" {
-				r.SlotReserved = false
-			}
-			if !reflect.DeepEqual(before, r.Sandbox()) {
-				if err := store.Emit(ctx, tx, r, "sandbox.updated", r.Sandbox()); err != nil {
-					return err
+			if err := store.UpdateSandbox(ctx, tx, r, func(r *store.SessionRecord) {
+				r.SandboxState = "unavailable"
+				r.SandboxLastKnownState = new("unavailable")
+				r.SandboxError = &session.Error{Code: f.Code, Message: f.Message, Phase: new("recovery"), Details: []session.Detail{}}
+				if f.Code == "sandbox_lost" {
+					r.SlotReserved = false
 				}
+			}); err != nil {
+				return err
 			}
 		}
 		run, err := store.ActiveRun(ctx, tx, e.ID)
