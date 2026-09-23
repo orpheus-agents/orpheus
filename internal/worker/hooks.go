@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"path"
 	"strconv"
 	"strings"
@@ -217,7 +218,7 @@ func (e *Executor) launchHook(ctx context.Context, record store.SessionRecord, r
 
 func (e *Executor) sandboxFile(ctx context.Context, name string) ([]byte, bool, error) {
 	r, err := e.sandbox.Read(ctx, name)
-	if errors.Is(err, harness.ErrNotFound) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil, false, nil
 	}
 	if err != nil {

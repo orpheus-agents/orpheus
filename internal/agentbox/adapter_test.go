@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -188,5 +189,48 @@ func TestSDKRejectionClassification(t *testing.T) {
 		if got := classify(original); !errors.Is(got, original) {
 			t.Fatal("uncertain operation classified as rejected", code)
 		}
+	}
+}
+
+func TestMissingFileReadIsNotEnvironmentRejection(t *testing.T) {
+	for _, tc := range []struct {
+		code int
+		want error
+	}{
+		{http.StatusNotFound, fs.ErrNotExist},
+		{http.StatusForbidden, harness.ErrEnvironmentRejected},
+	} {
+		t.Run(fmt.Sprint(tc.code), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.URL.Path == "/sandboxes/sbx/connect" {
+					_, _ = io.WriteString(w, `{"sandboxID":"sbx","templateID":"codex","envdVersion":"0.6.15"}`)
+					return
+				}
+				if r.URL.Path != "/files" || r.Method != http.MethodGet {
+					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+				}
+				w.WriteHeader(tc.code)
+				_, _ = io.WriteString(w, `{"message":"file unavailable"}`)
+			}))
+			defer server.Close()
+			client, err := sdk.NewClient(sdk.WithAPIKey("fixture"), sdk.WithAPIURL(server.URL), sdk.WithSandboxURL(server.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			p := &Platform{client: client}
+			box, err := p.Connect(t.Context(), "sbx", time.Minute)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reader, err := box.Read(t.Context(), "/home/user/.orpheus/hooks/operation/result.json")
+			if reader != nil {
+				_ = reader.Close()
+				t.Fatal("unexpected reader")
+			}
+			if !errors.Is(err, tc.want) || errors.Is(err, harness.ErrNotFound) {
+				t.Fatalf("read error = %v, want %v without sandbox loss", err, tc.want)
+			}
+		})
 	}
 }
