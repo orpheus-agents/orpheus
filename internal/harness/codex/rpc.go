@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skillum-ai/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/harness"
 )
 
 type RPCError struct {

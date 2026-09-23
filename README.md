@@ -24,6 +24,25 @@ The API is available at `http://localhost:8000`. Session requests require
 `Authorization: Bearer <key>` using a key from `PUBLIC_API_KEYS` in `.env`.
 Run `make stop` to stop the project; database data is preserved.
 
+## Go API client
+
+Connectors import `github.com/orpheus-agents/orpheus/client`. The public HTTP client
+and wire types are generated from `api/openapi.yaml` with the pinned `oapi-codegen`
+version. No server startup, database connection or connector-side generation is needed.
+
+The client belongs to the root Go module and uses the same `vX.Y.Z` release tag as
+Orpheus. Pin a tag containing the client with
+`go get github.com/orpheus-agents/orpheus/client@<release-tag>`; `v0.1.0` predates it.
+See [client usage](client/README.md) for authentication, responses and SSE.
+
+Regular CI runs `make check`, including client generation, tests and compilation.
+Tag pushes run only `make build-client` before publishing the image; generation
+checks and tests are not repeated on tags.
+Go consumers obtain the source from the Git tag: a separate binary or package
+registry upload is unnecessary. Generation happens before committing; CI rejects
+stale output instead of silently generating a different release.
+[Go module publishing](https://go.dev/doc/modules/publishing).
+
 ## Development
 
 The application, generators, linters and tests run in Docker; host Go and Python
@@ -42,8 +61,10 @@ directory. Use `migrate --dir /path/to/migrations up` or
 | `make tools` / `make tools-build` | Ensure the matching tools image exists / explicitly rebuild it |
 | `make start` / `make stop` | Start or stop Compose services; preserve database volumes |
 | `make migrate` | Apply Goose migrations from `migrations/` |
-| `make generate` | Generate OpenAPI transport code and sqlc queries/models |
+| `make generate` | Generate OpenAPI server, public Go client and sqlc queries/models |
 | `make generate-check` | Compare all generated content, including missing/obsolete files, without changing the checkout |
+| `make generate-client` / `make generate-client-check` | Generate / check only the Go client; no SQL generation |
+| `make test-client` / `make build-client` | Test the client with the race detector / compile the package |
 | `make sqlc-check` | Prepare all SQL queries against an isolated PostgreSQL schema created by Goose |
 | `make fix` / `make gofix` | Format Go / apply Go toolchain fixes |
 | `make tidy-check` | Check `go.mod` and `go.sum` with `go mod tidy -diff`, without modifying files |

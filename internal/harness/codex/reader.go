@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/skillum-ai/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/harness"
 )
 
 //go:embed native_reader.py

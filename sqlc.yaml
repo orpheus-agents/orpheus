@@ -51,50 +51,50 @@ sql:
               import: "encoding/json"
           - column: "sessions.configuration"
             go_type:
-              import: "github.com/skillum-ai/orpheus/internal/session"
+              import: "github.com/orpheus-agents/orpheus/internal/session"
               type: "ResolvedConfiguration"
           - column: "sessions.sandbox_error"
             go_type:
-              import: "github.com/skillum-ai/orpheus/internal/session"
+              import: "github.com/orpheus-agents/orpheus/internal/session"
               type: "Error"
               pointer: true
           - column: "runs.error"
             go_type:
-              import: "github.com/skillum-ai/orpheus/internal/session"
+              import: "github.com/orpheus-agents/orpheus/internal/session"
               type: "Error"
               pointer: true
           - column: "runs.agent_error"
             go_type:
-              import: "github.com/skillum-ai/orpheus/internal/session"
+              import: "github.com/orpheus-agents/orpheus/internal/session"
               type: "Error"
               pointer: true
           - column: "runs.agent_status"
             go_type:
-              import: "github.com/skillum-ai/orpheus/internal/session"
+              import: "github.com/orpheus-agents/orpheus/internal/session"
               type: "Status"
               pointer: true
           - column: "hook_executions.error"
             go_type:
-              import: "github.com/skillum-ai/orpheus/internal/session"
+              import: "github.com/orpheus-agents/orpheus/internal/session"
               type: "Error"
               pointer: true
           - column: "runs.status"
             go_type:
-              import: "github.com/skillum-ai/orpheus/internal/session"
+              import: "github.com/orpheus-agents/orpheus/internal/session"
               type: "Status"
           - column: "messages.error"
             go_type:
-              import: "github.com/skillum-ai/orpheus/internal/session"
+              import: "github.com/orpheus-agents/orpheus/internal/session"
               type: "Error"
               pointer: true
           - column: "messages.position"
             go_type:
-              import: "github.com/skillum-ai/orpheus/internal/session"
+              import: "github.com/orpheus-agents/orpheus/internal/session"
               type: "Position"
               pointer: true
           - column: "tool_calls.position"
             go_type:
-              import: "github.com/skillum-ai/orpheus/internal/session"
+              import: "github.com/orpheus-agents/orpheus/internal/session"
               type: "Position"
               pointer: true
     rules:

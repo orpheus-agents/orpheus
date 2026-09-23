@@ -15,7 +15,7 @@ import (
 
 	sdk "github.com/abox-dev/sdk/packages/go-sdk"
 
-	"github.com/skillum-ai/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/harness"
 )
 
 func TestLiveSandboxAccessSDK(t *testing.T) {

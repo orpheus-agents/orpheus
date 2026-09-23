@@ -9,7 +9,7 @@ import (
 	"time"
 
 	sdk "github.com/abox-dev/sdk/packages/go-sdk"
-	"github.com/skillum-ai/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/harness"
 )
 
 type Platform struct{ client *sdk.Client }

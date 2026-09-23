@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/skillum-ai/orpheus/internal/migrate"
-	"github.com/skillum-ai/orpheus/internal/testutil"
+	"github.com/orpheus-agents/orpheus/internal/migrate"
+	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
 func TestTokenUsageMigrations(t *testing.T) {

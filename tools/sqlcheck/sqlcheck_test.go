@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/skillum-ai/orpheus/internal/testutil"
+	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
 // sqlc's prepare rule asks PostgreSQL to validate every query without executing

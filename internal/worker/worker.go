@@ -12,12 +12,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/skillum-ai/orpheus/internal/credentials"
-	"github.com/skillum-ai/orpheus/internal/diagnostic"
-	"github.com/skillum-ai/orpheus/internal/harness"
-	"github.com/skillum-ai/orpheus/internal/harness/codex"
-	"github.com/skillum-ai/orpheus/internal/session"
-	"github.com/skillum-ai/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/credentials"
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
+	"github.com/orpheus-agents/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/harness/codex"
+	"github.com/orpheus-agents/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/store"
 )
 
 type DriverFactory func(harness.Sandbox) harness.Driver

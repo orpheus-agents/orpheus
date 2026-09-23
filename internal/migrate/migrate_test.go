@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/skillum-ai/orpheus/internal/migrate"
-	"github.com/skillum-ai/orpheus/internal/testutil"
+	"github.com/orpheus-agents/orpheus/internal/migrate"
+	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
 func TestUpDownUpAndConstraints(t *testing.T) {

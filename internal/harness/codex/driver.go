@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skillum-ai/orpheus/internal/harness"
-	"github.com/skillum-ai/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
 type Driver struct {

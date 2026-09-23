@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/skillum-ai/orpheus/internal/store/db"
+	"github.com/orpheus-agents/orpheus/internal/store/db"
 )
 
 func (s *Store) Operation(ctx context.Context, sid uuid.UUID, kind string, rid, mid *uuid.UUID, parameters any) (Operation, error) {

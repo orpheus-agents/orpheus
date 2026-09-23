@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/skillum-ai/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
 func TestValidateRunEnvironment(t *testing.T) {

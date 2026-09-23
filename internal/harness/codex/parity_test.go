@@ -13,8 +13,8 @@ import (
 
 	"time"
 
-	"github.com/skillum-ai/orpheus/internal/harness"
-	"github.com/skillum-ai/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
 // Expected values were captured by executing the original Python main. They

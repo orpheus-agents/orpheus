@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skillum-ai/orpheus/internal/api"
-	"github.com/skillum-ai/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/api"
+	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
 func TestGeneratedToolResultRoundTrip(t *testing.T) {

@@ -21,13 +21,13 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/google/uuid"
-	"github.com/skillum-ai/orpheus/internal/api"
-	"github.com/skillum-ai/orpheus/internal/config"
-	"github.com/skillum-ai/orpheus/internal/harness/codex"
-	"github.com/skillum-ai/orpheus/internal/secret"
-	"github.com/skillum-ai/orpheus/internal/session"
-	"github.com/skillum-ai/orpheus/internal/store"
-	"github.com/skillum-ai/orpheus/internal/testutil"
+	"github.com/orpheus-agents/orpheus/internal/api"
+	"github.com/orpheus-agents/orpheus/internal/config"
+	"github.com/orpheus-agents/orpheus/internal/harness/codex"
+	"github.com/orpheus-agents/orpheus/internal/secret"
+	"github.com/orpheus-agents/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
 func testServer(t *testing.T) (*httptest.Server, *store.Store) {
