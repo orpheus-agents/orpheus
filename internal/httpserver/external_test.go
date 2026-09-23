@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/skillum-ai/orpheus/internal/api"
-	"github.com/skillum-ai/orpheus/internal/session"
-	"github.com/skillum-ai/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/api"
+	"github.com/orpheus-agents/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/store"
 )
 
 const externalBody = `{"namespace":"redmine","external_key":"prod:issue:7","input_fingerprint":"v1:456","configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}},"message":{"text":"hello","external_key":"journal:456"}}`

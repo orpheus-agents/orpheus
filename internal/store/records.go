@@ -3,9 +3,9 @@ package store
 import (
 	"strconv"
 
-	"github.com/skillum-ai/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/session"
 
-	"github.com/skillum-ai/orpheus/internal/store/db"
+	"github.com/orpheus-agents/orpheus/internal/store/db"
 )
 
 func sessionRecord(v db.Session, err error) (SessionRecord, error) { return SessionRecord(v), err }

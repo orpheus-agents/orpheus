@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/skillum-ai/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/harness"
 )
 
 const authA = `{"tokens":{"access_token":"a","refresh_token":"r","id_token":"i"}}`

@@ -1,4 +1,4 @@
-module github.com/skillum-ai/orpheus
+module github.com/orpheus-agents/orpheus
 
 go 1.27.0
 

@@ -15,12 +15,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skillum-ai/orpheus/internal/config"
-	"github.com/skillum-ai/orpheus/internal/harness"
-	"github.com/skillum-ai/orpheus/internal/secret"
-	"github.com/skillum-ai/orpheus/internal/session"
-	"github.com/skillum-ai/orpheus/internal/store"
-	"github.com/skillum-ai/orpheus/internal/testutil"
+	"github.com/orpheus-agents/orpheus/internal/config"
+	"github.com/orpheus-agents/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/secret"
+	"github.com/orpheus-agents/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
 type hookStream struct{}

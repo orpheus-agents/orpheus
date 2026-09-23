@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/skillum-ai/orpheus/internal/store/db"
+	"github.com/orpheus-agents/orpheus/internal/store/db"
 )
 
 // projectionBatch queues writes within the caller's transaction. A failed flush

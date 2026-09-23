@@ -28,7 +28,7 @@ linters:
             - "**/internal/config/*.go"
             - "!**/*_test.go"
           deny:
-            - pkg: github.com/skillum-ai/orpheus/internal/api
+            - pkg: github.com/orpheus-agents/orpheus/internal/api
               desc: business logic must not depend on HTTP DTOs
             - pkg: github.com/abox-dev/sdk
               desc: use the AgentBox adapter through harness interfaces
@@ -37,7 +37,7 @@ linters:
           files:
             - "**/internal/session/*.go"
           deny:
-            - pkg: github.com/skillum-ai/orpheus/internal/api
+            - pkg: github.com/orpheus-agents/orpheus/internal/api
               desc: domain must not depend on HTTP DTOs
             - pkg: github.com/jackc/pgx
               desc: domain must not depend on storage

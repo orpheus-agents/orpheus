@@ -16,10 +16,10 @@ import (
 	awscredentials "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
-	"github.com/skillum-ai/orpheus/internal/agentbox"
-	"github.com/skillum-ai/orpheus/internal/harness"
-	"github.com/skillum-ai/orpheus/internal/harness/codex"
-	"github.com/skillum-ai/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/agentbox"
+	"github.com/orpheus-agents/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/harness/codex"
+	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
 func TestLiveAccountFiles(t *testing.T) {

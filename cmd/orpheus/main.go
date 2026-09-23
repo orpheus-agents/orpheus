@@ -15,13 +15,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/skillum-ai/orpheus/internal/agentbox"
-	"github.com/skillum-ai/orpheus/internal/config"
-	"github.com/skillum-ai/orpheus/internal/diagnostic"
-	"github.com/skillum-ai/orpheus/internal/httpserver"
-	"github.com/skillum-ai/orpheus/internal/migrate"
-	"github.com/skillum-ai/orpheus/internal/store"
-	"github.com/skillum-ai/orpheus/internal/worker"
+	"github.com/orpheus-agents/orpheus/internal/agentbox"
+	"github.com/orpheus-agents/orpheus/internal/config"
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
+	"github.com/orpheus-agents/orpheus/internal/httpserver"
+	"github.com/orpheus-agents/orpheus/internal/migrate"
+	"github.com/orpheus-agents/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/worker"
 )
 
 func main() {

@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/skillum-ai/orpheus/internal/secret"
-	"github.com/skillum-ai/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/secret"
+	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
 func TestResolveHooks(t *testing.T) {

@@ -15,14 +15,14 @@ import (
 
 	sdk "github.com/abox-dev/sdk/packages/go-sdk"
 	"github.com/google/uuid"
-	"github.com/skillum-ai/orpheus/internal/agentbox"
-	"github.com/skillum-ai/orpheus/internal/config"
-	"github.com/skillum-ai/orpheus/internal/harness"
-	"github.com/skillum-ai/orpheus/internal/harness/codex"
-	"github.com/skillum-ai/orpheus/internal/secret"
-	"github.com/skillum-ai/orpheus/internal/session"
-	"github.com/skillum-ai/orpheus/internal/store"
-	"github.com/skillum-ai/orpheus/internal/testutil"
+	"github.com/orpheus-agents/orpheus/internal/agentbox"
+	"github.com/orpheus-agents/orpheus/internal/config"
+	"github.com/orpheus-agents/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/harness/codex"
+	"github.com/orpheus-agents/orpheus/internal/secret"
+	"github.com/orpheus-agents/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
 type faultPlatform struct {
@@ -96,7 +96,7 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 	runnerDir := t.TempDir()
 	for _, arch := range []string{"amd64", "arm64"} {
 		binary := filepath.Join(runnerDir, "hook-runner-"+arch)
-		build := exec.CommandContext(t.Context(), "go", "build", "-trimpath", "-o", binary, "github.com/skillum-ai/orpheus/cmd/orpheus-hook-runner")
+		build := exec.CommandContext(t.Context(), "go", "build", "-trimpath", "-o", binary, "github.com/orpheus-agents/orpheus/cmd/orpheus-hook-runner")
 		build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH="+arch)
 		if output, err := build.CombinedOutput(); err != nil {
 			t.Fatalf("build hook runner: %v: %s", err, output)

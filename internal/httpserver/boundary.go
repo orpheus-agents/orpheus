@@ -16,9 +16,9 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers/legacy"
-	"github.com/skillum-ai/orpheus/internal/api"
-	"github.com/skillum-ai/orpheus/internal/session"
-	"github.com/skillum-ai/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/api"
+	"github.com/orpheus-agents/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/store"
 )
 
 type responseWriter struct {

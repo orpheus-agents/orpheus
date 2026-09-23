@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skillum-ai/orpheus/internal/api"
-	"github.com/skillum-ai/orpheus/internal/session"
-	"github.com/skillum-ai/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/api"
+	"github.com/orpheus-agents/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/store"
 )
 
 type Server struct {
