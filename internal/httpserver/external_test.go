@@ -195,7 +195,7 @@ func TestExternalValidationHTTP(t *testing.T) {
 		externalRequest(t, server, "GET", target.path+"?"+target.param+"=a&"+target.param+"=b", "", "", 422)
 		externalRequest(t, server, "GET", target.path+"?"+target.param+"=null", "", "", 200)
 	}
-	for _, query := range []string{"status=bogus", "status=finalizing", "order=bogus", "order=", "status=accepted&status=accepted"} {
+	for _, query := range []string{"status=bogus", "status=finishing", "order=bogus", "order=", "status=accepted&status=accepted"} {
 		externalRequest(t, server, "GET", "/api/v1/runs?"+query, "", "", 422)
 	}
 	externalRequest(t, server, "GET", "/api/v1/sessions/"+uuid.NewString()+"/history?message_external_key=x", "", "", 404)

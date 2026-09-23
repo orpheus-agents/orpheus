@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -27,6 +28,7 @@ type Executor struct {
 	Platform        harness.Platform
 	NewDriver       DriverFactory
 	NewAccount      AccountFactory
+	RunnerBinary    func(string) ([]byte, error)
 	sandbox         harness.Sandbox
 	driver          harness.Driver
 	account         credentials.Sync
@@ -36,12 +38,13 @@ type Executor struct {
 	pauseAuthSynced bool
 	timeoutRenewAt  time.Time
 	timeoutRunID    uuid.UUID
+	runnerReady     bool
 }
 
 func NewExecutor(id uuid.UUID, s *store.Store, p harness.Platform) *Executor {
 	return &Executor{ID: id, Store: s, Platform: p, NewDriver: func(box harness.Sandbox) harness.Driver {
 		return codex.New(box, s.Settings.RPCTimeout, s.Settings.MaxToolResultBytes)
-	}, NewAccount: func(ctx context.Context, box harness.Sandbox, home string, source session.Credentials) (credentials.Sync, error) {
+	}, RunnerBinary: os.ReadFile, NewAccount: func(ctx context.Context, box harness.Sandbox, home string, source session.Credentials) (credentials.Sync, error) {
 		return credentials.New(ctx, box, home, source)
 	}, pauseRetryDelay: 5 * time.Second}
 }
@@ -159,7 +162,29 @@ func (e *Executor) failure(ctx context.Context, f *harness.ExecutionError) error
 		if run.ExecutionStartedAt != nil {
 			phase = "execution"
 		}
-		return store.Finish(ctx, tx, r, run, session.Failed, &session.Error{Code: f.Code, Message: f.Message, Phase: &phase, Details: []session.Detail{}}, nil)
+		if run.Phase != nil && *run.Phase == "after_run" {
+			phase = "finalization"
+		}
+		problem := &session.Error{Code: f.Code, Message: f.Message, Phase: &phase, Details: []session.Detail{}}
+		activeHook := ""
+		if run.Phase != nil && (*run.Phase == "after_create" || *run.Phase == "before_run" || *run.Phase == "after_run") {
+			activeHook = *run.Phase
+		}
+		if err := store.FailUnfinishedHooks(ctx, tx, run.ID, activeHook, problem); err != nil {
+			return err
+		}
+		if run.AgentStatus != nil {
+			status, agentProblem := *run.AgentStatus, run.AgentError
+			if status == session.Completed {
+				status, agentProblem = session.Failed, problem
+			}
+			return store.Finish(ctx, tx, r, run, status, agentProblem, run.StopMethod)
+		}
+		if run.ExecutionStartedAt != nil {
+			run.AgentStatus = new(session.Failed)
+			run.AgentError = problem
+		}
+		return store.Finish(ctx, tx, r, run, session.Failed, problem, nil)
 	})
 }
 func (e *Executor) Disconnect() {
@@ -172,6 +197,7 @@ func (e *Executor) Disconnect() {
 		e.account = nil
 	}
 	e.sandbox = nil
+	e.runnerReady = false
 }
 func (e *Executor) Run(ctx context.Context) {
 	defer e.Disconnect()
@@ -254,6 +280,7 @@ func (e *Executor) tick(ctx context.Context) error {
 			}
 			if current.Status == session.Accepted {
 				current.Status = session.Starting
+				current.Phase = new("preparation")
 				return store.PublishRun(ctx, tx, r, &current)
 			}
 			return nil
@@ -269,6 +296,27 @@ func (e *Executor) tick(ctx context.Context) error {
 		return e.pause(ctx, record)
 	}
 	if run.CancelRequestedAt != nil && run.ExecutionStartedAt == nil {
+		if run.Phase != nil && (*run.Phase == "after_create" || *run.Phase == "before_run") {
+			h, err := e.Store.Hook(ctx, run.ID, *run.Phase)
+			if err != nil {
+				return err
+			}
+			if h != nil && h.Status == "running" {
+				if err := e.ensureSandbox(ctx, &record, run); err != nil {
+					return err
+				}
+				if err := e.preparePaths(ctx, &record); err != nil {
+					return err
+				}
+				done, _, err := e.runHook(ctx, record, *run, *run.Phase)
+				if err != nil || !done {
+					return err
+				}
+			}
+		}
+		if err := e.skipHooks(ctx, *run, "after_create", "before_run", "after_run"); err != nil {
+			return err
+		}
 		if record.SandboxID == nil {
 			attempt, err := e.Store.LatestAttempt(ctx, e.ID, "sandbox_create")
 			if err != nil {
@@ -284,6 +332,43 @@ func (e *Executor) tick(ctx context.Context) error {
 	}
 	if err := e.ensureSandbox(ctx, &record, run); err != nil {
 		return err
+	}
+	if run.Status == session.Finalizing {
+		if err := e.preparePaths(ctx, &record); err != nil {
+			return err
+		}
+		done, hookError, err := e.runHook(ctx, record, *run, "after_run")
+		if err != nil || !done {
+			return err
+		}
+		if run.AgentStatus == nil {
+			return harness.ErrUncertain
+		}
+		status, problem := *run.AgentStatus, run.AgentError
+		if status == session.Completed && hookError != nil {
+			status, problem = session.Failed, hookError
+		}
+		return e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
+			current, err := store.GetRun(ctx, tx, e.ID, run.ID)
+			if err != nil {
+				return err
+			}
+			return store.Finish(ctx, tx, r, &current, status, problem, current.StopMethod)
+		})
+	}
+	if run.ExecutionStartedAt == nil {
+		if err := e.preparePaths(ctx, &record); err != nil {
+			return err
+		}
+		for _, name := range []string{"after_create", "before_run"} {
+			done, problem, err := e.runHook(ctx, record, *run, name)
+			if err != nil || !done {
+				return err
+			}
+			if problem != nil {
+				return e.finishPreparationError(ctx, *run, name, problem)
+			}
+		}
 	}
 	if run.DeadlineAt != nil && !time.Now().Before(*run.DeadlineAt) && run.CancelRequestedAt == nil {
 		if err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
@@ -350,6 +435,9 @@ func (e *Executor) tick(ctx context.Context) error {
 	record, run, err = e.read(ctx)
 	if err != nil || run == nil {
 		return err
+	}
+	if run.Status == session.Finalizing {
+		return nil
 	}
 	if run.CancelRequestedAt != nil {
 		err = e.cancelRun(ctx, record, *run)

@@ -75,6 +75,7 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 			now := time.Now().UTC()
 			current.ExecutionStartedAt = &now
 			current.DeadlineAt = new(now.Add(time.Duration(record.Configuration.Public.Limits.RunTimeoutSeconds) * time.Second))
+			current.Phase = new("agent")
 			if err := store.PublishRun(ctx, tx, r, &current); err != nil {
 				return err
 			}

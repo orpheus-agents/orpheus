@@ -18,7 +18,7 @@ import (
 
 func (e *Executor) ensureSandbox(ctx context.Context, record *store.SessionRecord, run *store.RunRecord) error {
 	cfg := record.Configuration
-	timeout := time.Duration(cfg.Public.Limits.RunTimeoutSeconds)*time.Second + e.Store.Settings.CancelGrace + 300*time.Second
+	timeout := time.Duration(cfg.Public.Limits.RunTimeoutSeconds+3*cfg.Public.Hooks.TimeoutSeconds)*time.Second + e.Store.Settings.CancelGrace + 300*time.Second
 	if record.SandboxID == nil {
 		if err := e.state(ctx, "provisioning", nil); err != nil {
 			return err
@@ -376,9 +376,9 @@ func (e *Executor) recoverDead(ctx context.Context, record store.SessionRecord, 
 			return nil
 		}
 		if current.CancelRequestedAt != nil {
-			return store.Finish(ctx, tx, r, &current, session.Cancelled, nil, new("forced"))
+			return store.AgentFinished(ctx, tx, r, &current, session.Cancelled, nil, new("forced"))
 		}
-		return store.Finish(ctx, tx, r, &current, session.Failed, &session.Error{Code: "harness_failed", Message: "Harness exited before completion.", Phase: new("execution"), Details: []session.Detail{}}, nil)
+		return store.AgentFinished(ctx, tx, r, &current, session.Failed, &session.Error{Code: "harness_failed", Message: "Harness exited before completion.", Phase: new("execution"), Details: []session.Detail{}}, nil)
 	})
 }
 func (e *Executor) refresh(ctx context.Context, record store.SessionRecord) error {

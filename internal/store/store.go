@@ -113,8 +113,21 @@ func RunView(ctx context.Context, q db.DBTX, r RunRecord) (session.Run, error) {
 	if v.EnvFrom == nil {
 		v.EnvFrom = []string{}
 	}
+	hooks, err := db.New(q).HookExecutions(ctx, r.ID)
+	if err != nil {
+		return v, err
+	}
+	v.Hooks = make([]session.HookResult, 0, len(hooks))
+	for _, h := range hooks {
+		v.Hooks = append(v.Hooks, session.HookResult{
+			ID: h.ID, Name: h.Name, Status: h.Status, StartedAt: h.StartedAt,
+			DeadlineAt: h.DeadlineAt, FinishedAt: h.FinishedAt, ExitCode: h.ExitCode,
+			Signal: h.Signal, Output: h.Output, OutputCompleteness: h.OutputCompleteness,
+			TruncationReason: h.TruncationReason, Error: h.Error,
+		})
+	}
 	v.FinalMessage = nil
-	if r.Status.Terminal() && r.FinalMessageID != nil {
+	if (r.Status.Terminal() || r.Status == session.Finalizing) && r.FinalMessageID != nil {
 		m, err := GetMessage(ctx, q, *r.FinalMessageID)
 		if err != nil {
 			return v, err
@@ -132,7 +145,7 @@ func SessionView(ctx context.Context, q db.DBTX, s SessionRecord) (session.Sessi
 	if err != nil {
 		return session.Session{}, err
 	}
-	out := session.Session{Namespace: s.Namespace, ExternalKey: s.ExternalKey, ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, Status: r.Status, FinalMessage: v.FinalMessage, Error: r.Error}
+	out := session.Session{Namespace: s.Namespace, ExternalKey: s.ExternalKey, ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, Status: r.Status, Phase: r.Phase, FinalMessage: v.FinalMessage, Error: r.Error}
 	if !r.Status.Terminal() {
 		out.ActiveRunID = &r.ID
 	}
@@ -221,6 +234,9 @@ func SaveRun(ctx context.Context, tx pgx.Tx, r *RunRecord) error {
 		NativeTurnID:       r.NativeTurnID,
 		NextDeliveryNumber: r.NextDeliveryNumber,
 		FinalMessageID:     r.FinalMessageID,
+		Phase:              r.Phase,
+		AgentStatus:        r.AgentStatus,
+		AgentError:         r.AgentError,
 	})
 }
 
@@ -316,6 +332,92 @@ func PublishTool(ctx context.Context, tx db.DBTX, s *SessionRecord, t *ToolRecor
 	return Emit(ctx, tx, s, "tool_call.updated", t.ToolCall)
 }
 func Finish(ctx context.Context, tx pgx.Tx, s *SessionRecord, r *RunRecord, status session.Status, problem *session.Error, method *string) error {
+	if err := selectFinalMessage(ctx, tx, r); err != nil {
+		return err
+	}
+	r.Status = status
+	r.Phase = nil
+	r.FinishedAt = new(time.Now().UTC())
+	r.Observation = new("attached")
+	r.Error = problem
+	if status == session.Cancelled {
+		r.StopMethod = method
+		if method == nil {
+			r.StopMethod = new("graceful")
+		}
+	}
+	messages, err := Messages(ctx, tx, r.ID)
+	if err != nil {
+		return err
+	}
+	for i := range messages {
+		m := &messages[i]
+		if m.DeliveryStatus != nil && *m.DeliveryStatus == "pending" {
+			m.DeliveryStatus = new("rejected")
+			m.Error = &session.Error{Code: "run_finished_before_delivery", Message: "Run finished before delivery.", Details: []session.Detail{}}
+			if err := PublishMessage(ctx, tx, s, m); err != nil {
+				return err
+			}
+		}
+	}
+	return PublishRun(ctx, tx, s, r)
+}
+
+func AgentFinished(ctx context.Context, tx pgx.Tx, s *SessionRecord, r *RunRecord, status session.Status, problem *session.Error, method *string) error {
+	r.AgentStatus = &status
+	r.AgentError = problem
+	if s.Configuration.Public.Hooks.AfterRun == nil || r.ExecutionStartedAt == nil {
+		return Finish(ctx, tx, s, r, status, problem, method)
+	}
+	if err := selectFinalMessage(ctx, tx, r); err != nil {
+		return err
+	}
+	r.Status = session.Finalizing
+	r.Phase = new("after_run")
+	r.Error = problem
+	r.Observation = new("attached")
+	if status == session.Cancelled {
+		r.StopMethod = method
+		if method == nil {
+			r.StopMethod = new("graceful")
+		}
+	}
+	return PublishRun(ctx, tx, s, r)
+}
+
+func planHooks(ctx context.Context, tx pgx.Tx, s *SessionRecord, r *RunRecord) error {
+	hooks := s.Configuration.Public.Hooks
+	list := []struct {
+		name   string
+		script *string
+	}{
+		{"after_create", hooks.AfterCreate},
+		{"before_run", hooks.BeforeRun},
+		{"after_run", hooks.AfterRun},
+	}
+	for _, hook := range list {
+		if hook.script == nil {
+			continue
+		}
+		if hook.name == "after_create" {
+			already, err := db.New(tx).SuccessfulAfterCreate(ctx, s.ID)
+			if err != nil {
+				return err
+			}
+			if already {
+				continue
+			}
+		}
+		if err := db.New(tx).InsertHookExecution(ctx, db.InsertHookExecutionParams{
+			ID: uuid.New(), SessionID: s.ID, RunID: r.ID, Name: hook.name, Status: "pending",
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func selectFinalMessage(ctx context.Context, tx pgx.Tx, r *RunRecord) error {
 	messages, err := Messages(ctx, tx, r.ID)
 	if err != nil {
 		return err
@@ -338,27 +440,7 @@ func Finish(ctx context.Context, tx pgx.Tx, s *SessionRecord, r *RunRecord, stat
 	if answer != nil {
 		r.FinalMessageID = &answer.ID
 	}
-	r.Status = status
-	r.FinishedAt = new(time.Now().UTC())
-	r.Observation = new("attached")
-	r.Error = problem
-	if status == session.Cancelled {
-		r.StopMethod = method
-		if method == nil {
-			r.StopMethod = new("graceful")
-		}
-	}
-	for i := range messages {
-		m := &messages[i]
-		if m.DeliveryStatus != nil && *m.DeliveryStatus == "pending" {
-			m.DeliveryStatus = new("rejected")
-			m.Error = &session.Error{Code: "run_finished_before_delivery", Message: "Run finished before delivery.", Details: []session.Detail{}}
-			if err := PublishMessage(ctx, tx, s, m); err != nil {
-				return err
-			}
-		}
-	}
-	return PublishRun(ctx, tx, s, r)
+	return nil
 }
 
 type Admission struct {
@@ -400,14 +482,15 @@ func fingerprint(a Admission) (string, error) {
 			RunEnvNames      []string            `json:"run_env_names,omitzero"`
 			RunEnvFrom       []string            `json:"run_env_from,omitzero"`
 		}{Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, InputFingerprint: a.Create.InputFingerprint, Configuration: struct {
-			Agent   session.AgentInput `json:"agent"`
-			Sandbox any                `json:"sandbox"`
-			Limits  session.Limits     `json:"limits"`
+			Agent   session.AgentInput  `json:"agent"`
+			Sandbox any                 `json:"sandbox"`
+			Limits  session.Limits      `json:"limits"`
+			Hooks   *session.HooksInput `json:"hooks,omitzero"`
 		}{Agent: c.Agent, Sandbox: struct {
 			Template string   `json:"template"`
 			Env      []string `json:"env"`
 			EnvFrom  []string `json:"env_from"`
-		}{c.Sandbox.Template, names, c.Sandbox.EnvFrom}, Limits: c.Limits}, Message: a.Create.Message, RunEnvNames: runEnvNames, RunEnvFrom: runEnvFrom}
+		}{c.Sandbox.Template, names, c.Sandbox.EnvFrom}, Limits: c.Limits, Hooks: c.Hooks}, Message: a.Create.Message, RunEnvNames: runEnvNames, RunEnvFrom: runEnvFrom}
 	}
 	raw, err := json.Marshal(value)
 	if err != nil {
@@ -577,6 +660,9 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			return err
 		}
 		if a.RunID == uuid.Nil {
+			if err := planHooks(ctx, tx, &record, &run); err != nil {
+				return err
+			}
 			err = PublishRun(ctx, tx, &record, &run)
 		} else {
 			err = SaveRun(ctx, tx, &run)
@@ -608,10 +694,16 @@ func (s *Store) Cancel(ctx context.Context, sid, rid uuid.UUID) (session.Cancell
 		if err != nil {
 			return err
 		}
+		if run.Status == session.Finalizing && run.CancelRequestedAt == nil {
+			return session.Problem(409, "run_not_cancellable", "The agent has finished; the final hook cannot be cancelled.")
+		}
 		if !run.Status.Terminal() && run.CancelRequestedAt == nil {
 			run.CancelRequestedAt = new(time.Now().UTC())
 			run.StopReason = new("user_request")
 			if run.Status == session.Accepted {
+				if err := db.New(tx).SkipPendingHooks(ctx, run.ID); err != nil {
+					return err
+				}
 				if err := Finish(ctx, tx, record, &run, session.Cancelled, nil, nil); err != nil {
 					return err
 				}

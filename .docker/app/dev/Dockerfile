@@ -9,6 +9,9 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
+RUN mkdir -p /opt/orpheus && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /opt/orpheus/hook-runner-amd64 ./cmd/orpheus-hook-runner && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o /opt/orpheus/hook-runner-arm64 ./cmd/orpheus-hook-runner
 EXPOSE 8000
 USER ${ORPHEUS_UID}:${ORPHEUS_GID}
 CMD ["go", "run", "./cmd/orpheus", "serve"]

@@ -257,7 +257,7 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 			return err
 		}
 		if !r.Status.Terminal() {
-			if turn.Status.Terminal() {
+			if turn.Status.Terminal() && r.AgentStatus == nil {
 				var problem *session.Error
 				if turn.Status == session.Failed {
 					code := turn.ErrorCode
@@ -266,10 +266,10 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 					}
 					problem = &session.Error{Code: code, Message: "Harness execution failed.", Phase: new("execution"), Details: []session.Detail{}}
 				}
-				if err := Finish(ctx, tx, record, r, turn.Status, problem, nil); err != nil {
+				if err := AgentFinished(ctx, tx, record, r, turn.Status, problem, nil); err != nil {
 					return err
 				}
-			} else {
+			} else if !turn.Status.Terminal() {
 				if r.Status != session.Cancelling {
 					r.Status = session.Running
 				}

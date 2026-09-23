@@ -284,7 +284,7 @@ func TestExternalCursorComponents(t *testing.T) {
 		_, err := s.ListSessions(t.Context(), 50, encodeCursor(scope, json.RawMessage(raw)), ListFilter{})
 		requireCode(t, err, "invalid_cursor")
 	}
-	for _, f := range []ListFilter{{Order: "other"}, {Status: new("finalizing")}, {Namespace: new("")}, {ExternalKey: new("\x00")}, {InputFingerprint: new(" ")}} {
+	for _, f := range []ListFilter{{Order: "other"}, {Status: new("finishing")}, {Namespace: new("")}, {ExternalKey: new("\x00")}, {InputFingerprint: new(" ")}} {
 		_, err := s.ListAllRuns(t.Context(), 50, "", f)
 		requireCode(t, err, "validation_error")
 	}
