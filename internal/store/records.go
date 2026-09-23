@@ -3,12 +3,15 @@ package store
 import (
 	"strconv"
 
+	"github.com/skillum-ai/orpheus/internal/session"
+
 	"github.com/skillum-ai/orpheus/internal/store/db"
 )
 
 func sessionRecord(v db.Session, err error) (SessionRecord, error) { return SessionRecord(v), err }
 func runRecord(v db.Run, err error) (RunRecord, error) {
 	return RunRecord{
+		Usage:              session.Usage{InputTokens: v.InputTokens, OutputTokens: v.OutputTokens, TotalTokens: v.TotalTokens},
 		InputFingerprint:   v.InputFingerprint,
 		EnvNames:           v.EnvNames,
 		EnvFrom:            v.EnvFrom,

@@ -29,6 +29,7 @@ type Driver struct {
 	divergenceReads int
 	recovered       map[string]NativeTurn
 	historyOnly     bool
+	usage           []harness.UsageReport
 }
 
 func New(s harness.Sandbox, timeout time.Duration, limit int) *Driver {
@@ -112,9 +113,9 @@ func (d *Driver) Recover(ctx context.Context, id, path, home *string) (harness.S
 }
 func (d *Driver) HasUpdates() bool {
 	notify, dirty := d.rpc.updates()
-	return notify || dirty || d.thread == nil || !time.Now().Before(d.readAt)
+	return notify || dirty || len(d.usage) > 0 || d.thread == nil || !time.Now().Before(d.readAt)
 }
-func (d *Driver) Committed() { clear(d.outputs) }
+func (d *Driver) Committed() { clear(d.outputs); d.usage = nil }
 func (d *Driver) Start(ctx context.Context, thread, text string) (string, error) {
 	var out struct {
 		Turn NativeTurn `json:"turn"`
@@ -165,8 +166,22 @@ func (d *Driver) mergeRecovered() {
 	}
 }
 func (d *Driver) Snapshot(ctx context.Context, thread string, path *string, offset int64) (harness.Snapshot, error) {
+	snapshot, err := d.snapshot(ctx, thread, path, offset)
+	if err == nil {
+		snapshot.Usage = slices.Clone(d.usage)
+	}
+	return snapshot, err
+}
+func (d *Driver) snapshot(ctx context.Context, thread string, path *string, offset int64) (harness.Snapshot, error) {
 	startOffset := offset
 	notifications, dirty := d.rpc.drain()
+	for _, n := range notifications {
+		if n.Method == "thread/tokenUsage/updated" {
+			if report, ok := parseUsage(n.Params); ok {
+				d.usage = append(d.usage, report)
+			}
+		}
+	}
 	select {
 	case <-d.rpc.done:
 		return harness.Snapshot{}, harness.ErrUncertain

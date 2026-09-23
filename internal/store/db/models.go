@@ -98,6 +98,9 @@ type Run struct {
 	Phase              *string         `json:"phase"`
 	AgentStatus        *session.Status `json:"agent_status"`
 	AgentError         *session.Error  `json:"agent_error"`
+	InputTokens        int64           `json:"input_tokens"`
+	OutputTokens       int64           `json:"output_tokens"`
+	TotalTokens        int64           `json:"total_tokens"`
 }
 
 type Session struct {
@@ -121,6 +124,9 @@ type Session struct {
 	NextEventSequence     int64                         `json:"next_event_sequence"`
 	Namespace             *string                       `json:"namespace"`
 	ExternalKey           *string                       `json:"external_key"`
+	InputTokens           int64                         `json:"input_tokens"`
+	OutputTokens          int64                         `json:"output_tokens"`
+	TotalTokens           int64                         `json:"total_tokens"`
 }
 
 type SessionEvent struct {

@@ -199,7 +199,7 @@ func invalid(message string, path ...any) *session.APIError {
 	p.Problem.Details = []session.Detail{{Path: append([]any{"body"}, path...), Code: "invalid_value"}}
 	return p
 }
-func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string) (session.ResolvedConfiguration, error) {
+func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defaultMaxTokens int64) (session.ResolvedConfiguration, error) {
 	var out session.ResolvedConfiguration
 	if err := ValidateSandbox(in.Sandbox); err != nil {
 		return out, err
@@ -232,6 +232,12 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string) (ses
 	}
 	if in.Limits.RunTimeoutSeconds <= 0 || in.Limits.RunTimeoutSeconds > 2147483647 {
 		return out, invalid("Invalid run timeout.", "configuration", "limits", "run_timeout_seconds")
+	}
+	if in.Limits.MaxSessionTokens == 0 {
+		in.Limits.MaxSessionTokens = defaultMaxTokens
+	}
+	if in.Limits.MaxSessionTokens <= 0 {
+		return out, invalid("Invalid session token budget.", "configuration", "limits", "max_session_tokens")
 	}
 	creds := session.Credentials{Mode: profile.Auth.Mode, APIKeyEnv: profile.Auth.APIKeyEnv, Key: profile.Auth.Key}
 	if profile.Auth.Mode == "account" {
@@ -289,25 +295,28 @@ func MergedEnvironment(cipher *secret.Cipher, id uuid.UUID, token *string, cfg s
 	return env, nil
 }
 
+const DefaultMaxSessionTokens int64 = 100_000_000
+
 type Settings struct {
-	DatabaseURL           string
-	ConfigFile            string
-	PublicAPIKeys         []string
-	EnvEncryptionKey      string
-	HarnessEnvAllowlist   []string
-	SandboxProxyURL       string
-	MaxConcurrentSessions int
-	MaxToolResultBytes    int
-	MaxHookOutputBytes    int
-	MaxRequestBytes       int64
-	ReadinessTimeout      time.Duration
-	CancelGrace           time.Duration
-	WorkerPoll            time.Duration
-	RPCTimeout            time.Duration
+	DefaultMaxSessionTokens int64
+	DatabaseURL             string
+	ConfigFile              string
+	PublicAPIKeys           []string
+	EnvEncryptionKey        string
+	HarnessEnvAllowlist     []string
+	SandboxProxyURL         string
+	MaxConcurrentSessions   int
+	MaxToolResultBytes      int
+	MaxHookOutputBytes      int
+	MaxRequestBytes         int64
+	ReadinessTimeout        time.Duration
+	CancelGrace             time.Duration
+	WorkerPoll              time.Duration
+	RPCTimeout              time.Duration
 }
 
 func DefaultSettings() Settings {
-	return Settings{ConfigFile: "orpheus.toml", SandboxProxyURL: "socks5h://sandbox-proxy.agentbox.ru:65180", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, ReadinessTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
+	return Settings{DefaultMaxSessionTokens: DefaultMaxSessionTokens, ConfigFile: "orpheus.toml", SandboxProxyURL: "socks5h://sandbox-proxy.agentbox.ru:65180", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, ReadinessTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
 }
 func Load() (Settings, error) {
 	s := DefaultSettings()
@@ -342,6 +351,13 @@ func Load() (Settings, error) {
 			}
 			*dest = n
 		}
+	}
+	if v, ok := os.LookupEnv("DEFAULT_MAX_SESSION_TOKENS"); ok {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || n <= 0 {
+			return s, errors.New("invalid DEFAULT_MAX_SESSION_TOKENS")
+		}
+		s.DefaultMaxSessionTokens = n
 	}
 	if v, ok := os.LookupEnv("MAX_REQUEST_BYTES"); ok {
 		n, err := strconv.ParseInt(v, 10, 64)

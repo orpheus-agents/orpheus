@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
 	"time"
 
 	"github.com/skillum-ai/orpheus/internal/harness"
@@ -85,7 +86,12 @@ func TestPythonProjectionParity(t *testing.T) {
 				completed[id] = true
 			}
 			got, _ := json.Marshal(Normalize(tc.Thread, completed, nil, 1024, tc.Orders, nil))
-			equal(t, got, tc.Expected)
+			var expected harness.Snapshot
+			if err := json.Unmarshal(tc.Expected, &expected); err != nil {
+				t.Fatal(err)
+			}
+			want, _ := json.Marshal(expected)
+			equal(t, got, want)
 		})
 	}
 }

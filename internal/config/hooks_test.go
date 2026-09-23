@@ -13,24 +13,24 @@ import (
 func TestResolveHooks(t *testing.T) {
 	profiles := Profiles{Profiles: map[string]Profile{"default": {Harness: "codex", Model: new("model"), Auth: Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}
 	input := session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "template"}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
-	got, err := Resolve(input, profiles, nil)
+	got, err := Resolve(input, profiles, nil, DefaultMaxSessionTokens)
 	if err != nil || got.Public.Hooks.TimeoutSeconds != 300 {
 		t.Fatal(got, err)
 	}
 	input.Hooks = &session.HooksInput{AfterCreate: new("#!/bin/sh\nprintf ready\n"), BeforeRemove: new("#!/usr/bin/env python3\npass\n"), TimeoutSeconds: new(45)}
-	got, err = Resolve(input, profiles, nil)
+	got, err = Resolve(input, profiles, nil, DefaultMaxSessionTokens)
 	if err != nil || got.Public.Hooks.TimeoutSeconds != 45 || got.Public.Hooks.AfterCreate == nil || got.Public.Hooks.BeforeRemove == nil {
 		t.Fatal(got, err)
 	}
 	for _, script := range []string{"", "echo without shebang", "#!\n", "#!/bin/sh\x00", "#!/bin/sh\r\necho hello\r\n", strings.Repeat("a", 65537)} {
 		input.Hooks.AfterCreate = &script
-		if _, err := Resolve(input, profiles, nil); err == nil {
+		if _, err := Resolve(input, profiles, nil, DefaultMaxSessionTokens); err == nil {
 			t.Fatalf("accepted invalid hook %q", script[:min(len(script), 30)])
 		}
 	}
 	input.Hooks.AfterCreate = new("#!/bin/sh\n")
 	input.Hooks.TimeoutSeconds = new(0)
-	if _, err := Resolve(input, profiles, nil); err == nil {
+	if _, err := Resolve(input, profiles, nil, DefaultMaxSessionTokens); err == nil {
 		t.Fatal("accepted zero hook timeout")
 	}
 }

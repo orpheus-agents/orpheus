@@ -42,9 +42,18 @@ type Turn struct {
 	ErrorCode string
 }
 type Snapshot struct {
+	Usage  []UsageReport
 	Turns  []Turn
 	Path   *string
 	Offset int64
+}
+
+// UsageReport carries cumulative counters for a native context, attributed to
+// the turn that reported them. It is not a per-turn delta.
+type UsageReport struct {
+	ContextID string
+	TurnID    string
+	Total     session.Usage
 }
 type Context struct {
 	NativeID    string
