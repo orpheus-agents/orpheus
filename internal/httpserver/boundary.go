@@ -135,6 +135,13 @@ func Handler(s *store.Store, streams context.Context) (http.Handler, error) {
 func validationProblem(err error) *session.APIError {
 	p := session.Problem(422, "validation_error", "Request validation failed.")
 	detail := session.Detail{Path: []any{"body"}, Code: "invalid_value"}
+	// Generated decoding can reject integers that schema validation accepted
+	// after float64 rounding. Keep the field path without exposing its value.
+	if decoded, ok := errors.AsType[*json.UnmarshalTypeError](err); ok && decoded.Field != "" {
+		for segment := range strings.SplitSeq(decoded.Field, ".") {
+			detail.Path = append(detail.Path, segment)
+		}
+	}
 	if request, ok := errors.AsType[*openapi3filter.RequestError](err); ok && request.Parameter != nil {
 		detail.Path = []any{request.Parameter.In, request.Parameter.Name}
 		if errors.Is(err, openapi3filter.ErrInvalidRequired) {

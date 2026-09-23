@@ -19,11 +19,21 @@ import (
 func TestTokenBudgetHTTPValidation(t *testing.T) {
 	server, s := testServer(t)
 	s.Settings.DefaultMaxSessionTokens = 321
-	for _, value := range []string{"0", "-1", "null", "true", `"10"`, "1.5", "9223372036854775808"} {
+	for _, value := range []string{"0", "-1", "null", "true", `"10"`, "1.5", "1.0", "1e3", "9223372036854775808"} {
 		body := strings.Replace(validBody, `"agent":`, `"limits":{"max_session_tokens":`+value+`},"agent":`, 1)
 		status, _, raw := requestHTTP(t, server, "POST", "/api/v1/sessions", body, "key", uuid.NewString())
 		if status != 422 {
 			t.Fatalf("%s: %d %s", value, status, raw)
+		}
+		var problem struct {
+			Error session.Error `json:"error"`
+		}
+		if err := json.Unmarshal(raw, &problem); err != nil || len(problem.Error.Details) != 1 {
+			t.Fatalf("%s: missing error detail: %s (%v)", value, raw, err)
+		}
+		path, err := json.Marshal(problem.Error.Details[0].Path)
+		if err != nil || string(path) != `["body","configuration","limits","max_session_tokens"]` {
+			t.Fatalf("%s: incorrect error path: %s (%v)", value, path, err)
 		}
 	}
 	for _, tc := range []struct {

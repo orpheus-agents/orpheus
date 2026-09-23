@@ -698,6 +698,7 @@ components:
                 status:
                     $ref: '#/components/schemas/RunStatus'
                 stop_method:
+                    description: How cancellation stopped agent execution. Null until confirmed, or if the run was cancelled before the first dispatch attempt, including user-requested cancellation.
                     anyOf:
                         - enum:
                             - graceful
