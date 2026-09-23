@@ -58,3 +58,43 @@ func TestCipher(t *testing.T) {
 		t.Fatal("accepted wrong key")
 	}
 }
+
+func TestRunCipherBindsBothIDsAndScope(t *testing.T) {
+	c, err := New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sid, rid := uuid.New(), uuid.New()
+	want := map[string]string{"TOKEN": "run-secret"}
+	token, err := c.EncryptRun(sid, rid, want)
+	if err != nil || token == nil || !strings.HasPrefix(*token, "aes-gcm-run-v1:") || strings.Contains(*token, want["TOKEN"]) {
+		t.Fatal(token, err)
+	}
+	restarted, err := New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := restarted.DecryptRun(sid, rid, token)
+	if err != nil || !maps.Equal(got, want) {
+		t.Fatal(got, err)
+	}
+	for _, ids := range [][2]uuid.UUID{{uuid.New(), rid}, {sid, uuid.New()}} {
+		if _, err := c.DecryptRun(ids[0], ids[1], token); err == nil {
+			t.Fatal("accepted ciphertext for another run or session")
+		}
+	}
+	if _, err := c.Decrypt(sid, token); err == nil {
+		t.Fatal("accepted run ciphertext as session ciphertext")
+	}
+	sessionToken, err := c.Encrypt(sid, want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.DecryptRun(sid, rid, sessionToken); err == nil {
+		t.Fatal("accepted session ciphertext as run ciphertext")
+	}
+	empty, err := c.EncryptRun(sid, rid, nil)
+	if err != nil || empty != nil {
+		t.Fatal("empty environment must not store ciphertext")
+	}
+}

@@ -21,7 +21,7 @@ import (
 )
 
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-var reserved = strings.Fields(`ALL_PROXY NO_PROXY HTTP_PROXY HTTPS_PROXY all_proxy no_proxy http_proxy https_proxy HOME CODEX_HOME ORPHEUS_LAUNCH_ID PUBLIC_API_KEYS OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL OPENAI_ORG_ID OPENAI_ORGANIZATION OPENAI_PROJECT_ID CHATGPT_BASE_URL ENV_ENCRYPTION_KEY AGENTBOX_API_KEY`)
+var reserved = strings.Fields(`ALL_PROXY NO_PROXY HTTP_PROXY HTTPS_PROXY all_proxy no_proxy http_proxy https_proxy HOME CODEX_HOME ORPHEUS_LAUNCH_ID ORPHEUS_SESSION_ID ORPHEUS_WORKSPACE_PATH ORPHEUS_RUN_ID ORPHEUS_INPUT_FINGERPRINT ORPHEUS_AGENT_STATUS ORPHEUS_STOP_REASON PUBLIC_API_KEYS OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL OPENAI_ORG_ID OPENAI_ORGANIZATION OPENAI_PROJECT_ID CHATGPT_BASE_URL ENV_ENCRYPTION_KEY AGENTBOX_API_KEY`)
 
 type Auth struct {
 	Mode      string `toml:"mode"`
@@ -121,23 +121,38 @@ func ValidateSandbox(s session.SandboxInput) error {
 	if s.Template == "" {
 		return invalid("Sandbox template is required.", "configuration", "sandbox", "template")
 	}
-	names := make(map[string]bool, len(s.Env)+len(s.EnvFrom))
-	for name, value := range s.Env {
+	return validateEnvironment(s.Env, s.EnvFrom, []any{"configuration", "sandbox"})
+}
+func ValidateRunEnvironment(env map[string]string, from, allowlist []string) error {
+	if err := validateEnvironment(env, from, nil); err != nil {
+		return err
+	}
+	for _, name := range from {
+		if !slices.Contains(allowlist, name) {
+			return invalid("Environment reference is not allowed.", "env_from")
+		}
+	}
+	return nil
+}
+func validateEnvironment(env map[string]string, from []string, prefix []any) error {
+	names := make(map[string]bool, len(env)+len(from))
+	for name, value := range env {
 		if strings.ContainsRune(value, 0) {
-			return invalid("NUL is not allowed in environment variables.", "configuration", "sandbox", "env", name)
+			return invalid("NUL is not allowed in environment variables.", append(slices.Clone(prefix), "env", name)...)
 		}
-		names[name] = true
-	}
-	for _, name := range s.EnvFrom {
-		if names[name] {
-			return invalid("Duplicate environment variable.", "configuration", "sandbox", "env_from")
-		}
-		names[name] = true
-	}
-	for name := range names {
 		if !envName.MatchString(name) || slices.Contains(reserved, name) {
-			return invalid("Invalid or reserved environment variable.", "configuration", "sandbox")
+			return invalid("Invalid or reserved environment variable.", append(slices.Clone(prefix), "env", name)...)
 		}
+		names[name] = true
+	}
+	for _, name := range from {
+		if !envName.MatchString(name) || slices.Contains(reserved, name) {
+			return invalid("Invalid or reserved environment variable.", append(slices.Clone(prefix), "env_from")...)
+		}
+		if names[name] {
+			return invalid("Duplicate environment variable.", append(slices.Clone(prefix), "env_from")...)
+		}
+		names[name] = true
 	}
 	return nil
 }

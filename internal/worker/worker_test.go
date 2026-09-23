@@ -188,6 +188,9 @@ func (a *fakeAccount) Watch(context.Context) error { return nil }
 func (a *fakeAccount) Sync(context.Context, bool)  { a.r.syncs++ }
 func (a *fakeAccount) Close() error                { return nil }
 func setup(t *testing.T) (*store.Store, *remote, session.Acceptance, *Executor) {
+	return setupWithEnvironment(t, session.SandboxInput{Template: "codex"}, nil)
+}
+func setupWithEnvironment(t *testing.T, sandbox session.SandboxInput, runEnv map[string]string) (*store.Store, *remote, session.Acceptance, *Executor) {
 	t.Helper()
 	pool := testutil.Database(t)
 	c, _ := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
@@ -195,7 +198,7 @@ func setup(t *testing.T) (*store.Store, *remote, session.Acceptance, *Executor) 
 	settings.DatabaseURL = pool.Config().ConnString()
 	settings.WorkerPoll = time.Millisecond
 	s := &store.Store{Pool: pool, Settings: settings, Cipher: c, Profiles: config.Profiles{Profiles: map[string]config.Profile{"p": {Harness: "codex", Model: new("model"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}}
-	a, err := s.Accept(t.Context(), store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "p"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 3600}}, Message: session.TextMessage{Text: "task"}}})
+	a, err := s.Accept(t.Context(), store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "p"}, Sandbox: sandbox, Limits: session.Limits{RunTimeoutSeconds: 3600}}, Message: session.TextMessage{Text: "task"}, Env: runEnv}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,6 +251,32 @@ func TestFullCyclePauseResume(t *testing.T) {
 	tick(t, e)
 	if r.creates != 1 || r.launches != 1 || r.starts != 2 || r.opens != 1 {
 		t.Fatalf("cycle create=%d launch=%d starts=%d opens=%d", r.creates, r.launches, r.starts, r.opens)
+	}
+}
+func TestRunEnvironmentDoesNotReachHarness(t *testing.T) {
+	s, r, a, e := setupWithEnvironment(t,
+		session.SandboxInput{Template: "codex", Env: map[string]string{"TOKEN": "private"}},
+		map[string]string{"TOKEN": "override", "TASK_ID": "first"},
+	)
+	tick(t, e)
+	if r.launches != 1 || r.env["TOKEN"] != "private" {
+		t.Fatal("harness did not receive session environment", r.launches, r.env)
+	}
+	if _, ok := r.env["TASK_ID"]; ok {
+		t.Fatal("run environment reached harness", r.env)
+	}
+	complete(r)
+	tick(t, e)
+	tick(t, e)
+	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "next", Env: map[string]string{"TOKEN": "second-override", "TASK_ID": "second"}}); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, e)
+	if r.launches != 1 || r.starts != 2 || r.env["TOKEN"] != "private" {
+		t.Fatal("new run changed harness environment or restarted it", r.launches, r.starts, r.env)
+	}
+	if _, ok := r.env["TASK_ID"]; ok {
+		t.Fatal("second run environment reached harness", r.env)
 	}
 }
 func TestSandboxAccessProjectionAndEvents(t *testing.T) {

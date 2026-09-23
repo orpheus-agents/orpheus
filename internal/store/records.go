@@ -10,6 +10,8 @@ func sessionRecord(v db.Session, err error) (SessionRecord, error) { return Sess
 func runRecord(v db.Run, err error) (RunRecord, error) {
 	return RunRecord{
 		InputFingerprint:   v.InputFingerprint,
+		EnvNames:           v.EnvNames,
+		EnvFrom:            v.EnvFrom,
 		ID:                 v.ID,
 		SessionID:          v.SessionID,
 		Number:             v.Number,
@@ -27,6 +29,7 @@ func runRecord(v db.Run, err error) (RunRecord, error) {
 		NativeTurnID:       v.NativeTurnID,
 		NextDeliveryNumber: v.NextDeliveryNumber,
 		FinalMessageID:     v.FinalMessageID,
+		EnvCiphertext:      v.EnvCiphertext,
 	}, err
 }
 func messageRecord(v db.Message, err error) (MessageRecord, error) {

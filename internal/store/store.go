@@ -52,6 +52,7 @@ func UpdateSandbox(ctx context.Context, tx pgx.Tx, r *SessionRecord, change func
 
 type RunRecord struct {
 	session.Run
+	EnvCiphertext      *string    `json:"-"`
 	CancelAttemptedAt  *time.Time `json:"cancel_attempted_at"`
 	NativeTurnID       *string    `json:"native_turn_id"`
 	NextDeliveryNumber int        `json:"next_delivery_number"`
@@ -106,6 +107,12 @@ func Messages(ctx context.Context, q db.DBTX, rid uuid.UUID) ([]MessageRecord, e
 }
 func RunView(ctx context.Context, q db.DBTX, r RunRecord) (session.Run, error) {
 	v := r.Run
+	if v.EnvNames == nil {
+		v.EnvNames = []string{}
+	}
+	if v.EnvFrom == nil {
+		v.EnvFrom = []string{}
+	}
 	v.FinalMessage = nil
 	if r.Status.Terminal() && r.FinalMessageID != nil {
 		m, err := GetMessage(ctx, q, *r.FinalMessageID)
@@ -362,10 +369,19 @@ type Admission struct {
 	Key                uuid.UUID
 	SessionID          uuid.UUID
 	RunID              uuid.UUID
+	Env                map[string]string
+	EnvFrom            []string
 }
 
 func fingerprint(a Admission) (string, error) {
-	var value any = session.CreateRun{InputFingerprint: a.InputFingerprint, Message: session.TextMessage{Text: a.Text, ExternalKey: a.MessageExternalKey}}
+	runEnvNames := slices.Sorted(maps.Keys(a.Env))
+	runEnvFrom := slices.Sorted(slices.Values(a.EnvFrom))
+	var value any = struct {
+		Message          session.TextMessage `json:"message"`
+		InputFingerprint *string             `json:"input_fingerprint,omitzero"`
+		EnvNames         []string            `json:"env_names,omitzero"`
+		EnvFrom          []string            `json:"env_from,omitzero"`
+	}{session.TextMessage{Text: a.Text, ExternalKey: a.MessageExternalKey}, a.InputFingerprint, runEnvNames, runEnvFrom}
 	if a.Create != nil {
 		c := a.Create.Configuration
 		if c.Sandbox.EnvFrom == nil {
@@ -381,6 +397,8 @@ func fingerprint(a Admission) (string, error) {
 			InputFingerprint *string             `json:"input_fingerprint,omitzero"`
 			Configuration    any                 `json:"configuration"`
 			Message          session.TextMessage `json:"message"`
+			RunEnvNames      []string            `json:"run_env_names,omitzero"`
+			RunEnvFrom       []string            `json:"run_env_from,omitzero"`
 		}{Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, InputFingerprint: a.Create.InputFingerprint, Configuration: struct {
 			Agent   session.AgentInput `json:"agent"`
 			Sandbox any                `json:"sandbox"`
@@ -389,7 +407,7 @@ func fingerprint(a Admission) (string, error) {
 			Template string   `json:"template"`
 			Env      []string `json:"env"`
 			EnvFrom  []string `json:"env_from"`
-		}{c.Sandbox.Template, names, c.Sandbox.EnvFrom}, Limits: c.Limits}, Message: a.Create.Message}
+		}{c.Sandbox.Template, names, c.Sandbox.EnvFrom}, Limits: c.Limits}, Message: a.Create.Message, RunEnvNames: runEnvNames, RunEnvFrom: runEnvFrom}
 	}
 	raw, err := json.Marshal(value)
 	if err != nil {
@@ -407,6 +425,8 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 		a.Text = a.Create.Message.Text
 		a.InputFingerprint = a.Create.InputFingerprint
 		a.MessageExternalKey = a.Create.Message.ExternalKey
+		a.Env = a.Create.Env
+		a.EnvFrom = a.Create.EnvFrom
 	}
 	if err := a.validateExternal(); err != nil {
 		return result, err
@@ -444,6 +464,17 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 				}
 				same = maps.Equal(env, a.Create.Configuration.Sandbox.Env)
 			}
+			if same && a.RunID == uuid.Nil {
+				r, e := GetRun(ctx, tx, result.SessionID, result.RunID)
+				if e != nil {
+					return e
+				}
+				env, e := s.Cipher.DecryptRun(r.SessionID, r.ID, r.EnvCiphertext)
+				if e != nil {
+					return session.Problem(503, "storage_unavailable", "Stored run environment cannot be decrypted.")
+				}
+				same = maps.Equal(env, a.Env)
+			}
 			if !same {
 				return session.Problem(409, "idempotency_conflict", "Idempotency key was used for another request.")
 			}
@@ -451,6 +482,11 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
+		}
+		if a.RunID == uuid.Nil {
+			if err := config.ValidateRunEnvironment(a.Env, a.EnvFrom, s.Settings.HarnessEnvAllowlist); err != nil {
+				return err
+			}
 		}
 		if a.RunID == uuid.Nil {
 			if err := Advisory(ctx, tx, CapacityLock); err != nil {
@@ -508,7 +544,20 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 				}
 				record.SlotReserved = true
 			}
-			run, err = runRecord(db.New(tx).CreateRun(ctx, db.CreateRunParams{InputFingerprint: a.InputFingerprint, ID: uuid.New(), SessionID: record.ID, Number: record.NextRunNumber}))
+			runID := uuid.New()
+			token, e := s.Cipher.EncryptRun(record.ID, runID, a.Env)
+			if e != nil {
+				return e
+			}
+			envNames := slices.Sorted(maps.Keys(a.Env))
+			if envNames == nil {
+				envNames = []string{}
+			}
+			envFrom := slices.Sorted(slices.Values(a.EnvFrom))
+			if envFrom == nil {
+				envFrom = []string{}
+			}
+			run, err = runRecord(db.New(tx).CreateRun(ctx, db.CreateRunParams{InputFingerprint: a.InputFingerprint, ID: runID, SessionID: record.ID, Number: record.NextRunNumber, EnvCiphertext: token, EnvNames: envNames, EnvFrom: envFrom}))
 			if err != nil {
 				return err
 			}
