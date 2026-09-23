@@ -25,7 +25,6 @@ jobs:
         if: always()
         run: make stop
   live:
-    needs: checks
     if: >-
       github.actor != 'dependabot[bot]' &&
       (github.event_name != 'pull_request' ||
