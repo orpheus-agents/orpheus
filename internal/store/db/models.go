@@ -29,6 +29,8 @@ type HookExecution struct {
 	OutputCompleteness string          `json:"output_completeness"`
 	TruncationReason   *string         `json:"truncation_reason"`
 	Error              *session.Error  `json:"error"`
+	KillAttemptedAt    *time.Time      `json:"kill_attempted_at"`
+	StartAttempts      int             `json:"start_attempts"`
 }
 
 type IdempotencyKey struct {

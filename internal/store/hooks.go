@@ -42,6 +42,7 @@ func FailUnfinishedHooks(ctx context.Context, tx pgx.Tx, runID uuid.UUID, active
 		if err := db.New(tx).SaveHookExecution(ctx, db.SaveHookExecutionParams{
 			ID: h.ID, Status: h.Status, StartedAt: h.StartedAt, DeadlineAt: h.DeadlineAt,
 			CancelAttemptedAt: h.CancelAttemptedAt, FinishedAt: h.FinishedAt,
+			KillAttemptedAt: h.KillAttemptedAt, StartAttempts: h.StartAttempts,
 			ExitCode: h.ExitCode, Signal: h.Signal, Output: h.Output,
 			OutputCompleteness: h.OutputCompleteness, TruncationReason: h.TruncationReason,
 			Error:      h.Error,
@@ -71,7 +72,7 @@ func (s *Store) ChangeHook(ctx context.Context, sid, rid uuid.UUID, name string,
 		if reflect.DeepEqual(beforeHook, h) && reflect.DeepEqual(beforeRun, r) {
 			return nil
 		}
-		for _, field := range []**time.Time{&h.StartedAt, &h.DeadlineAt, &h.CancelAttemptedAt, &h.FinishedAt} {
+		for _, field := range []**time.Time{&h.StartedAt, &h.DeadlineAt, &h.CancelAttemptedAt, &h.KillAttemptedAt, &h.FinishedAt} {
 			if *field != nil {
 				*field = new((*field).UTC().Truncate(time.Microsecond))
 			}
@@ -79,7 +80,8 @@ func (s *Store) ChangeHook(ctx context.Context, sid, rid uuid.UUID, name string,
 		if err := db.New(tx).SaveHookExecution(ctx, db.SaveHookExecutionParams{
 			ID: h.ID, Status: h.Status, StartedAt: h.StartedAt, DeadlineAt: h.DeadlineAt,
 			CancelAttemptedAt: h.CancelAttemptedAt,
-			FinishedAt:        h.FinishedAt, ExitCode: h.ExitCode, Signal: h.Signal,
+			KillAttemptedAt:   h.KillAttemptedAt, StartAttempts: h.StartAttempts,
+			FinishedAt: h.FinishedAt, ExitCode: h.ExitCode, Signal: h.Signal,
 			Output: h.Output, OutputCompleteness: h.OutputCompleteness,
 			TruncationReason: h.TruncationReason, Error: h.Error,
 			StopReason: h.StopReason,

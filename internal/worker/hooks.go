@@ -36,6 +36,11 @@ type hookResultFile struct {
 	TailFile           string    `json:"tail_file"`
 }
 
+const (
+	maxHookStartAttempts = 3
+	hookKillResultWait   = 3 * time.Second
+)
+
 func hookScript(cfg session.HooksConfiguration, name string) *string {
 	switch name {
 	case "after_create":
@@ -174,6 +179,7 @@ func (e *Executor) startHook(ctx context.Context, record store.SessionRecord, ru
 		}
 		now := time.Now().UTC()
 		h.Status = "running"
+		h.StartAttempts = 1
 		h.StartedAt = &now
 		h.DeadlineAt = new(now.Add(time.Duration(record.Configuration.Public.Hooks.TimeoutSeconds) * time.Second))
 		r.Phase = &name
@@ -268,7 +274,7 @@ func (e *Executor) finishHookFromFile(ctx context.Context, record store.SessionR
 	if err != nil {
 		return err
 	}
-	return e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, _ *store.RunRecord) error {
+	if err := e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, _ *store.RunRecord) error {
 		if h.Status != "running" {
 			return nil
 		}
@@ -294,7 +300,11 @@ func (e *Executor) finishHookFromFile(ctx context.Context, record store.SessionR
 			h.Error = hookProblem(name, "hook_failed", "Hook returned an error.")
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	e.cleanupHook(ctx, record, h.ID)
+	return nil
 }
 
 func (e *Executor) finishStoppedHook(ctx context.Context, run store.RunRecord, name string, h store.HookExecution) error {
@@ -360,8 +370,19 @@ func (e *Executor) observeHook(ctx context.Context, record store.SessionRecord, 
 		if !claimed {
 			// An uncertain Start or worker crash before Start can be retried with
 			// the same ID. The runner's exclusive claim prevents a second script.
+			if h.StartAttempts >= maxHookStartAttempts {
+				return e.failHook(ctx, run, name, hookProblem(name, "hook_launch_failed", "Hook process could not start after repeated attempts."))
+			}
 			runner, err := e.ensureRunner(ctx, record)
 			if err != nil {
+				return err
+			}
+			if err := e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, _ *store.RunRecord) error {
+				if h.Status == "running" {
+					h.StartAttempts++
+				}
+				return nil
+			}); err != nil {
 				return err
 			}
 			return e.launchHook(ctx, record, run, h, name, runner)
@@ -404,15 +425,34 @@ func (e *Executor) observeHook(ctx context.Context, record store.SessionRecord, 
 		}
 		return nil
 	}
-	if started.HookPID != nil {
-		if _, err := e.sandbox.Run(ctx, fmt.Sprintf("kill -KILL %d 2>/dev/null || true", *started.HookPID)); err != nil {
-			return err
+	if h.KillAttemptedAt == nil {
+		if started.HookPID != nil {
+			if _, err := e.sandbox.Run(ctx, fmt.Sprintf("kill -KILL %d 2>/dev/null || true", *started.HookPID)); err != nil {
+				return err
+			}
 		}
+		attempted := time.Now().UTC()
+		return e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, _ *store.RunRecord) error {
+			if h.Status == "running" && h.KillAttemptedAt == nil {
+				h.KillAttemptedAt = &attempted
+			}
+			return nil
+		})
+	}
+	if time.Since(*h.KillAttemptedAt) < hookKillResultWait {
+		return nil
 	}
 	if wrapperPID != 0 {
 		if err := e.sandbox.Kill(ctx, wrapperPID); err != nil && !errors.Is(err, harness.ErrNotFound) {
 			return err
 		}
+	}
+	raw, resultFound, err = e.sandboxFile(ctx, path.Join(dir, "result.json"))
+	if err != nil {
+		return err
+	}
+	if resultFound {
+		return e.finishHookFromFile(ctx, record, run, h, name, raw)
 	}
 	return e.finishStoppedHook(ctx, run, name, h)
 }
@@ -429,10 +469,8 @@ func (e *Executor) runHook(ctx context.Context, record store.SessionRecord, run 
 	}
 	switch h.Status {
 	case "completed":
-		e.cleanupHook(ctx, record, *h)
 		return true, nil, nil
 	case "failed", "cancelled", "skipped":
-		e.cleanupHook(ctx, record, *h)
 		return true, h.Error, nil
 	case "pending":
 		if err := e.startHook(ctx, record, run, *h, name); err != nil {
@@ -446,13 +484,13 @@ func (e *Executor) runHook(ctx context.Context, record store.SessionRecord, run 
 	return false, nil, nil
 }
 
-func (e *Executor) cleanupHook(ctx context.Context, record store.SessionRecord, h store.HookExecution) {
-	if len(h.Output) == 0 || e.sandbox == nil || record.Workspace == nil {
+func (e *Executor) cleanupHook(ctx context.Context, record store.SessionRecord, id uuid.UUID) {
+	if e.sandbox == nil || record.Workspace == nil {
 		return
 	}
 	// The database is now authoritative; retain no completed output in the
 	// sandbox longer than needed for recovery. Cleanup is best effort.
-	_, _ = e.sandbox.Run(ctx, "rm -rf -- "+harness.Quote(hookDir(record, h.ID)))
+	_, _ = e.sandbox.Run(ctx, "rm -rf -- "+harness.Quote(hookDir(record, id)))
 }
 
 func (e *Executor) skipHooks(ctx context.Context, run store.RunRecord, names ...string) error {

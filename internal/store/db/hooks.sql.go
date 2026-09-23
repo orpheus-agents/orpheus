@@ -15,7 +15,7 @@ import (
 )
 
 const getHookExecution = `-- name: GetHookExecution :one
-SELECT id, session_id, run_id, name, status, started_at, deadline_at, cancel_attempted_at, stop_reason, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error FROM hook_executions WHERE run_id = $1 AND name = $2
+SELECT id, session_id, run_id, name, status, started_at, deadline_at, cancel_attempted_at, stop_reason, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error, kill_attempted_at, start_attempts FROM hook_executions WHERE run_id = $1 AND name = $2
 `
 
 type GetHookExecutionParams struct {
@@ -43,12 +43,14 @@ func (q *Queries) GetHookExecution(ctx context.Context, arg GetHookExecutionPara
 		&i.OutputCompleteness,
 		&i.TruncationReason,
 		&i.Error,
+		&i.KillAttemptedAt,
+		&i.StartAttempts,
 	)
 	return i, err
 }
 
 const hookExecutions = `-- name: HookExecutions :many
-SELECT id, session_id, run_id, name, status, started_at, deadline_at, cancel_attempted_at, stop_reason, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error FROM hook_executions WHERE run_id = $1 ORDER BY
+SELECT id, session_id, run_id, name, status, started_at, deadline_at, cancel_attempted_at, stop_reason, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error, kill_attempted_at, start_attempts FROM hook_executions WHERE run_id = $1 ORDER BY
   CASE name WHEN 'after_create' THEN 1 WHEN 'before_run' THEN 2 WHEN 'after_run' THEN 3 ELSE 4 END
 `
 
@@ -78,6 +80,8 @@ func (q *Queries) HookExecutions(ctx context.Context, runID uuid.UUID) ([]HookEx
 			&i.OutputCompleteness,
 			&i.TruncationReason,
 			&i.Error,
+			&i.KillAttemptedAt,
+			&i.StartAttempts,
 		); err != nil {
 			return nil, err
 		}
@@ -90,7 +94,7 @@ func (q *Queries) HookExecutions(ctx context.Context, runID uuid.UUID) ([]HookEx
 }
 
 const hookExecutionsForRuns = `-- name: HookExecutionsForRuns :many
-SELECT id, session_id, run_id, name, status, started_at, deadline_at, cancel_attempted_at, stop_reason, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error FROM hook_executions WHERE run_id = ANY($1::uuid[]) ORDER BY run_id,
+SELECT id, session_id, run_id, name, status, started_at, deadline_at, cancel_attempted_at, stop_reason, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error, kill_attempted_at, start_attempts FROM hook_executions WHERE run_id = ANY($1::uuid[]) ORDER BY run_id,
   CASE name WHEN 'after_create' THEN 1 WHEN 'before_run' THEN 2 WHEN 'after_run' THEN 3 ELSE 4 END
 `
 
@@ -120,6 +124,8 @@ func (q *Queries) HookExecutionsForRuns(ctx context.Context, runIds []uuid.UUID)
 			&i.OutputCompleteness,
 			&i.TruncationReason,
 			&i.Error,
+			&i.KillAttemptedAt,
+			&i.StartAttempts,
 		); err != nil {
 			return nil, err
 		}
@@ -159,9 +165,10 @@ func (q *Queries) InsertHookExecution(ctx context.Context, arg InsertHookExecuti
 const saveHookExecution = `-- name: SaveHookExecution :exec
 UPDATE hook_executions SET
   status = $2, started_at = $3, deadline_at = $4, cancel_attempted_at = $5,
-  finished_at = $6, exit_code = $7, signal = $8, output = $9,
-  output_completeness = $10, truncation_reason = $11, error = $12,
-  stop_reason = $13
+  kill_attempted_at = $6, start_attempts = $7,
+  finished_at = $8, exit_code = $9, signal = $10, output = $11,
+  output_completeness = $12, truncation_reason = $13, error = $14,
+  stop_reason = $15
 WHERE id = $1
 `
 
@@ -171,6 +178,8 @@ type SaveHookExecutionParams struct {
 	StartedAt          *time.Time      `json:"started_at"`
 	DeadlineAt         *time.Time      `json:"deadline_at"`
 	CancelAttemptedAt  *time.Time      `json:"cancel_attempted_at"`
+	KillAttemptedAt    *time.Time      `json:"kill_attempted_at"`
+	StartAttempts      int             `json:"start_attempts"`
 	FinishedAt         *time.Time      `json:"finished_at"`
 	ExitCode           *int            `json:"exit_code"`
 	Signal             *int            `json:"signal"`
@@ -188,6 +197,8 @@ func (q *Queries) SaveHookExecution(ctx context.Context, arg SaveHookExecutionPa
 		arg.StartedAt,
 		arg.DeadlineAt,
 		arg.CancelAttemptedAt,
+		arg.KillAttemptedAt,
+		arg.StartAttempts,
 		arg.FinishedAt,
 		arg.ExitCode,
 		arg.Signal,

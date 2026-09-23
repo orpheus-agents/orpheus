@@ -32,16 +32,18 @@ func (hookStream) Close() error                               { return nil }
 
 type hookRemote struct {
 	*remote
-	files         map[string][]byte
-	invoked       []string
-	hookEnv       []map[string]string
-	signals       []string
-	autoResult    bool
-	failAfter     bool
-	failCreate    bool
-	lostHookStart bool
-	startAttempts int
-	onProcesses   func()
+	files           map[string][]byte
+	invoked         []string
+	hookEnv         []map[string]string
+	signals         []string
+	autoResult      bool
+	failAfter       bool
+	failCreate      bool
+	lostHookStart   bool
+	alwaysLostStart bool
+	startAttempts   int
+	cleanups        int
+	onProcesses     func()
 }
 
 func (h *hookRemote) Create(ctx context.Context, template string, timeout time.Duration, metadata map[string]string) (harness.Sandbox, error) {
@@ -60,6 +62,10 @@ func (h *hookRemote) Run(ctx context.Context, command string) ([]byte, error) {
 		if strings.HasPrefix(command, "kill ") {
 			h.signals = append(h.signals, command)
 		}
+		return nil, nil
+	}
+	if strings.HasPrefix(command, "rm -rf -- ") {
+		h.cleanups++
 		return nil, nil
 	}
 	return h.remote.Run(ctx, command)
@@ -86,6 +92,9 @@ func (h *hookRemote) Processes(ctx context.Context) ([]harness.Process, error) {
 }
 func (h *hookRemote) Start(_ context.Context, _ string, env map[string]string, _ string) (harness.Stream, int, error) {
 	h.startAttempts++
+	if h.alwaysLostStart {
+		return nil, 0, harness.ErrUncertain
+	}
 	if h.lostHookStart {
 		h.lostHookStart = false
 		return nil, 0, harness.ErrUncertain
@@ -156,6 +165,15 @@ func TestHooksFullCycleAndFinalMessage(t *testing.T) {
 	tickUntil(t, e, func() bool { return box.starts == 1 })
 	if len(box.invoked) != 2 || !strings.Contains(box.invoked[0], "after_create") || !strings.Contains(box.invoked[1], "before_run") {
 		t.Fatalf("wrong preparation sequence: %q", box.invoked)
+	}
+	if box.cleanups != 2 {
+		t.Fatalf("completed preparation hooks were not cleaned once: %d", box.cleanups)
+	}
+	for range 3 {
+		tick(t, e)
+	}
+	if box.cleanups != 2 {
+		t.Fatalf("completed hooks were cleaned again: %d", box.cleanups)
 	}
 	complete(box.remote)
 	tickUntil(t, e, func() bool {
@@ -392,6 +410,33 @@ func TestUncertainHookStartRetriesSameOperation(t *testing.T) {
 	})
 }
 
+func TestHookStartRetriesAreBounded(t *testing.T) {
+	s, box, a, e := setupHooks(t, false, false)
+	box.alwaysLostStart = true
+	reconnected := false
+	for range 20 {
+		err := e.Tick(t.Context())
+		if err != nil && !errors.Is(err, harness.ErrUncertain) {
+			t.Fatal(err)
+		}
+		h, err := s.Hook(t.Context(), a.RunID, "after_create")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if h != nil && h.Status == "failed" {
+			if !reconnected || h.Error == nil || h.Error.Code != "hook_launch_failed" || h.StartAttempts != maxHookStartAttempts || box.startAttempts != maxHookStartAttempts {
+				t.Fatal(h, box.startAttempts)
+			}
+			return
+		}
+		if box.startAttempts == 2 && !reconnected {
+			e.Disconnect()
+			reconnected = true
+		}
+	}
+	t.Fatal("hook did not fail after bounded launch attempts")
+}
+
 func TestHookResultUsesWorkerTimeAndRecordedTimeout(t *testing.T) {
 	s, box, a, e := setupHooks(t, false, false)
 	tickUntil(t, e, func() bool { return len(box.invoked) == 1 })
@@ -531,8 +576,49 @@ func TestHookForceStopHasHardDeadline(t *testing.T) {
 	}
 	tick(t, e)
 	h, err = s.Hook(t.Context(), a.RunID, "after_create")
-	if err != nil || h == nil || h.Status != "failed" || h.Error == nil || h.Error.Code != "hook_timeout" || len(box.killed) != 1 || box.killed[0] != 200 || len(box.signals) != 1 || !strings.Contains(box.signals[0], "-KILL 201") {
+	if err != nil || h == nil || h.Status != "running" || h.KillAttemptedAt == nil || len(box.killed) != 0 || len(box.signals) != 1 || !strings.Contains(box.signals[0], "-KILL 201") {
 		t.Fatal(h, box.killed, box.signals, err)
+	}
+	e.Disconnect()
+	tick(t, e)
+	if len(box.signals) != 1 || len(box.killed) != 0 {
+		t.Fatal("forced stop was repeated after reconnect", box.signals, box.killed)
+	}
+	output := []byte("hook output before kill")
+	box.files[path.Join(dir, "head.txt")] = output
+	result, _ := json.Marshal(hookResultFile{OperationID: h.ID.String(), FinishedAt: time.Now().UTC(), Signal: new(9), OutputCompleteness: "complete", OriginalBytes: int64(len(output)), HeadFile: "head.txt"})
+	box.files[path.Join(dir, "result.json")] = result
+	tick(t, e)
+	h, err = s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || h == nil || h.Status != "failed" || h.Error == nil || h.Error.Code != "hook_timeout" || h.Signal == nil || *h.Signal != 9 || h.OutputCompleteness != "complete" || len(box.killed) != 0 {
+		t.Fatal(h, box.killed, err)
+	}
+}
+
+func TestHookForceStopKillsUnresponsiveWrapper(t *testing.T) {
+	s, box, a, e := setupHooks(t, false, false)
+	tickUntil(t, e, func() bool { return len(box.invoked) == 1 })
+	h, err := s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || h == nil {
+		t.Fatal(h, err)
+	}
+	dir := path.Join("/home/template/.orpheus/hooks", h.ID.String())
+	started, _ := json.Marshal(hookStarted{OperationID: h.ID.String(), WrapperPID: 200, HookPID: new(201)})
+	box.files[path.Join(dir, "started.json")] = started
+	box.processes = append(box.processes, harness.Process{PID: 200, Env: map[string]string{"ORPHEUS_HOOK_OPERATION_ID": h.ID.String()}})
+	if err := s.ChangeHook(t.Context(), a.SessionID, a.RunID, "after_create", func(h *store.HookExecution, _ *store.RunRecord) error {
+		h.DeadlineAt = new(time.Now().Add(-time.Minute))
+		h.CancelAttemptedAt = new(time.Now().Add(-time.Minute))
+		h.StopReason = new("timeout")
+		h.KillAttemptedAt = new(time.Now().Add(-time.Minute))
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, e)
+	h, err = s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || h == nil || h.Status != "failed" || h.Error == nil || h.Error.Code != "hook_timeout" || len(box.killed) != 1 || box.killed[0] != 200 {
+		t.Fatal(h, box.killed, err)
 	}
 }
 

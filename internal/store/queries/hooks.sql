@@ -22,9 +22,10 @@ ON CONFLICT (run_id,name) DO NOTHING;
 -- name: SaveHookExecution :exec
 UPDATE hook_executions SET
   status = $2, started_at = $3, deadline_at = $4, cancel_attempted_at = $5,
-  finished_at = $6, exit_code = $7, signal = $8, output = $9,
-  output_completeness = $10, truncation_reason = $11, error = $12,
-  stop_reason = $13
+  kill_attempted_at = $6, start_attempts = $7,
+  finished_at = $8, exit_code = $9, signal = $10, output = $11,
+  output_completeness = $12, truncation_reason = $13, error = $14,
+  stop_reason = $15
 WHERE id = $1;
 
 -- name: SkipPendingHooks :exec
