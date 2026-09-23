@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"strings"
@@ -42,6 +43,12 @@ func TestLiveSandboxAccessSDK(t *testing.T) {
 	workspace, err := box.Run(ctx, `mkdir -p "$HOME/workspace"; printf '%s' "$HOME/workspace"`)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if reader, err := box.Read(ctx, path.Join(string(workspace), "not-yet-created-hook-result.json")); !errors.Is(err, fs.ErrNotExist) {
+		if reader != nil {
+			_ = reader.Close()
+		}
+		t.Fatalf("missing hook result must remain a file absence: %v", err)
 	}
 	if err := box.Pause(ctx); err != nil {
 		t.Fatal(err)

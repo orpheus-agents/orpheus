@@ -83,6 +83,8 @@ type Sandbox interface {
 	Run(context.Context, string) ([]byte, error)
 	Start(context.Context, string, map[string]string, string) (Stream, int, error)
 	Attach(context.Context, int) (Stream, error)
+	// Read returns an error matching fs.ErrNotExist for a missing file.
+	// A missing sandbox remains ErrNotFound.
 	Read(context.Context, string) (io.ReadCloser, error)
 	Write(context.Context, string, []byte) error
 	Watch(context.Context, string) (Watch, error)

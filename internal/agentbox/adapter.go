@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"sync"
 	"time"
 
@@ -129,6 +130,9 @@ func openStream(ctx context.Context, timeout time.Duration, open func(context.Co
 }
 func (s *sandbox) Read(ctx context.Context, path string) (io.ReadCloser, error) {
 	r, err := s.s.Files.Read(ctx, path, &sdk.FileOptions{User: sandboxUser})
+	if _, ok := errors.AsType[*sdk.FileNotFoundError](err); ok {
+		return nil, fs.ErrNotExist
+	}
 	return r, classify(err)
 }
 func (s *sandbox) Write(ctx context.Context, path string, b []byte) error {

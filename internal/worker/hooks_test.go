@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"maps"
 	"path"
 	"strings"
@@ -77,7 +78,7 @@ func (h *hookRemote) Write(_ context.Context, name string, data []byte) error {
 func (h *hookRemote) Read(_ context.Context, name string) (io.ReadCloser, error) {
 	data, ok := h.files[name]
 	if !ok {
-		return nil, harness.ErrNotFound
+		return nil, fs.ErrNotExist
 	}
 	return io.NopCloser(strings.NewReader(string(data))), nil
 }
