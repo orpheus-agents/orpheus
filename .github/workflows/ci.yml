@@ -19,14 +19,25 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Check generation, SQL, modules, lint, dead code, tests, race, vulnerabilities, and build
+      - name: Check generation, SQL, modules, lint, dead code, tests, race, vulnerabilities, and build server and Go client
         run: make check
       - name: Build and smoke-test production image
         run: make smoke
       - name: Stop test services
         if: always()
         run: make stop
+  release-client:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build the Go client from the release tag
+        run: make build-client
   publish-image:
+    needs: release-client
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 20

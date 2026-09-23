@@ -31,12 +31,22 @@ generate: tools
 generate-check: tools
 	$(RUN) go run ./tools/generate -check
 
+.PHONY: generate-client generate-client-check test-client
+generate-client: tools
+	$(RUN) go run ./tools/generate -client
+
+generate-client-check: tools
+	$(RUN) go run ./tools/generate -client -check
+
+test-client: tools
+	$(RUN) go test -race ./client
+
 sqlc-check: tools
 	$(COMPOSE) --profile test up -d --wait test-db
 	$(RUN) go test -tags integration -count=1 ./tools/sqlcheck
 
 fix format: tools
-	$(RUN) sh -ec 'gofmt -w cmd internal tools; goimports -w cmd internal tools'
+	$(RUN) sh -ec 'gofmt -w client cmd internal tools; goimports -w client cmd internal tools'
 
 gofix: tools
 	$(RUN) go fix ./...
@@ -49,11 +59,12 @@ tidy-check: tools
 
 # deadcode reports findings on stdout but exits successfully; fail on any finding.
 # Include test entrypoints and both build tags so test-only helpers remain reachable.
+# Public client methods are entrypoints for external consumers, not dead code.
 deadcode: tools
-	$(RUN) sh -ec 'f=$$(mktemp); trap '\''rm -f "$$f"'\'' EXIT; go tool deadcode -test -tags=integration,live ./... > "$$f"; if test -s "$$f"; then cat "$$f"; exit 1; fi'
+	$(RUN) sh -ec 'f=$$(mktemp); trap '\''rm -f "$$f"'\'' EXIT; go tool deadcode -filter="^github.com/orpheus-agents/orpheus/(cmd|internal|tools)(/|$$)" -test -tags=integration,live ./... > "$$f"; if test -s "$$f"; then cat "$$f"; exit 1; fi'
 
 lint-go: tools
-	$(RUN) sh -ec 'files=$$(gofmt -l cmd internal tools); if test -n "$$files"; then printf "%s\n" "$$files"; exit 1; fi'
+	$(RUN) sh -ec 'files=$$(gofmt -l client cmd internal tools); if test -n "$$files"; then printf "%s\n" "$$files"; exit 1; fi'
 	$(RUN) go vet ./...
 	$(RUN) golangci-lint run --build-tags integration ./...
 	$(RUN) golangci-lint run --build-tags live ./...
@@ -101,6 +112,10 @@ vuln: tools
 build: tools
 	$(RUN) go build -trimpath -o /tmp/orpheus ./cmd/orpheus
 
+.PHONY: build-client
+build-client: tools
+	$(RUN) go build ./client
+
 docker-build:
 	$(COMPOSE) build app
 	docker build -f .docker/app/prod/Dockerfile -t orpheus:local .
@@ -115,6 +130,7 @@ check: generate-check
 	$(MAKE) test-go-race
 	$(MAKE) vuln
 	$(MAKE) build
+	$(MAKE) build-client
 
 .PHONY: smoke
 smoke: docker-build
