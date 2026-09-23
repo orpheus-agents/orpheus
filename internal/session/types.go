@@ -117,12 +117,6 @@ type CreateSession struct {
 	Env              map[string]string  `json:"env,omitzero"`
 	EnvFrom          []string           `json:"env_from,omitzero"`
 }
-type CreateRun struct {
-	Message          TextMessage       `json:"message"`
-	InputFingerprint *string           `json:"input_fingerprint,omitzero"`
-	Env              map[string]string `json:"env,omitzero"`
-	EnvFrom          []string          `json:"env_from,omitzero"`
-}
 type Acceptance struct {
 	SessionID uuid.UUID `json:"session_id"`
 	RunID     uuid.UUID `json:"run_id"`
