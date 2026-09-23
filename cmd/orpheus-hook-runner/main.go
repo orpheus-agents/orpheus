@@ -168,6 +168,9 @@ func run(operationID, dir, script, workspace string, limit int) error {
 	cmd := exec.Command(script)
 	cmd.Dir = workspace
 	cmd.Stdout, cmd.Stderr = output, output
+	// A background child may inherit stdout after the script has exited.
+	// Waiting for that pipe forever would keep the run open indefinitely.
+	cmd.WaitDelay = 2 * time.Second
 	if err := cmd.Start(); err != nil {
 		return writeResult(dir, operationID, nil, err, output)
 	}

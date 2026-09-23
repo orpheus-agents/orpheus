@@ -18,6 +18,7 @@ CREATE TABLE hook_executions (
   started_at timestamptz,
   deadline_at timestamptz,
   cancel_attempted_at timestamptz,
+  stop_reason text CHECK (stop_reason IN ('timeout','cancelled')),
   finished_at timestamptz,
   exit_code integer,
   signal integer,

@@ -39,6 +39,7 @@ type Executor struct {
 	timeoutRenewAt  time.Time
 	timeoutRunID    uuid.UUID
 	runnerReady     bool
+	hookTermSent    uuid.UUID
 }
 
 func NewExecutor(id uuid.UUID, s *store.Store, p harness.Platform) *Executor {
@@ -166,6 +167,10 @@ func (e *Executor) failure(ctx context.Context, f *harness.ExecutionError) error
 			phase = "finalization"
 		}
 		problem := &session.Error{Code: f.Code, Message: f.Message, Phase: &phase, Details: []session.Detail{}}
+		if run.ExecutionStartedAt != nil && run.AgentStatus == nil && r.Configuration.Public.Hooks.AfterRun != nil &&
+			f.Code != "sandbox_lost" && f.Code != "environment_unavailable" {
+			return store.AgentFinished(ctx, tx, r, run, session.Failed, problem, nil)
+		}
 		activeHook := ""
 		if run.Phase != nil && (*run.Phase == "after_create" || *run.Phase == "before_run" || *run.Phase == "after_run") {
 			activeHook = *run.Phase
@@ -198,6 +203,7 @@ func (e *Executor) Disconnect() {
 	}
 	e.sandbox = nil
 	e.runnerReady = false
+	e.hookTermSent = uuid.Nil
 }
 func (e *Executor) Run(ctx context.Context) {
 	defer e.Disconnect()

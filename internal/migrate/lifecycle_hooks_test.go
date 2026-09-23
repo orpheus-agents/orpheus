@@ -77,9 +77,19 @@ func TestLifecycleHookMigrations(t *testing.T) {
 			t.Fatal(err)
 		}
 		check(true)
+		if _, err := pool.Exec(t.Context(), `UPDATE runs SET status='finalizing' WHERE id=$1`, rid); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(t.Context(), `UPDATE session_events SET data=jsonb_set(data,'{status}','"finalizing"'::jsonb) WHERE session_id=$1`, sid); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := p.DownTo(t.Context(), 7); err != nil {
 			t.Fatal(err)
 		}
 		check(false)
+		var status string
+		if err := pool.QueryRow(t.Context(), `SELECT status FROM runs WHERE id=$1`, rid).Scan(&status); err != nil || status != "failed" {
+			t.Fatal(status, err)
+		}
 	}
 }

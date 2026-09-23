@@ -106,35 +106,74 @@ func Messages(ctx context.Context, q db.DBTX, rid uuid.UUID) ([]MessageRecord, e
 	return messageRecords(db.New(q).Messages(ctx, rid))
 }
 func RunView(ctx context.Context, q db.DBTX, r RunRecord) (session.Run, error) {
-	v := r.Run
-	if v.EnvNames == nil {
-		v.EnvNames = []string{}
-	}
-	if v.EnvFrom == nil {
-		v.EnvFrom = []string{}
-	}
-	hooks, err := db.New(q).HookExecutions(ctx, r.ID)
+	views, err := RunViews(ctx, q, []RunRecord{r})
 	if err != nil {
-		return v, err
+		return session.Run{}, err
 	}
-	v.Hooks = make([]session.HookResult, 0, len(hooks))
+	return views[0], nil
+}
+
+// RunViews fetches hook results and final messages once for a page of runs.
+func RunViews(ctx context.Context, q db.DBTX, records []RunRecord) ([]session.Run, error) {
+	views := make([]session.Run, 0, len(records))
+	if len(records) == 0 {
+		return views, nil
+	}
+	ids := make([]uuid.UUID, 0, len(records))
+	messageIDs := make([]uuid.UUID, 0, len(records))
+	for _, r := range records {
+		ids = append(ids, r.ID)
+		if (r.Status.Terminal() || r.Status == session.Finalizing) && r.FinalMessageID != nil {
+			messageIDs = append(messageIDs, *r.FinalMessageID)
+		}
+	}
+	hooks, err := db.New(q).HookExecutionsForRuns(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byRun := make(map[uuid.UUID][]session.HookResult, len(records))
 	for _, h := range hooks {
-		v.Hooks = append(v.Hooks, session.HookResult{
+		byRun[h.RunID] = append(byRun[h.RunID], session.HookResult{
 			ID: h.ID, Name: h.Name, Status: h.Status, StartedAt: h.StartedAt,
 			DeadlineAt: h.DeadlineAt, FinishedAt: h.FinishedAt, ExitCode: h.ExitCode,
 			Signal: h.Signal, Output: h.Output, OutputCompleteness: h.OutputCompleteness,
 			TruncationReason: h.TruncationReason, Error: h.Error,
 		})
 	}
-	v.FinalMessage = nil
-	if (r.Status.Terminal() || r.Status == session.Finalizing) && r.FinalMessageID != nil {
-		m, err := GetMessage(ctx, q, *r.FinalMessageID)
+	byMessage := make(map[uuid.UUID]session.Message, len(messageIDs))
+	if len(messageIDs) > 0 {
+		messages, err := db.New(q).MessagesByIDs(ctx, messageIDs)
 		if err != nil {
-			return v, err
+			return nil, err
 		}
-		v.FinalMessage = &m.Message
+		for _, row := range messages {
+			m, _ := messageRecord(row, nil)
+			byMessage[m.ID] = m.Message
+		}
 	}
-	return v, nil
+	for _, r := range records {
+		v := r.Run
+		if v.EnvNames == nil {
+			v.EnvNames = []string{}
+		}
+		if v.EnvFrom == nil {
+			v.EnvFrom = []string{}
+		}
+		v.Hooks = byRun[r.ID]
+		if v.Hooks == nil {
+			v.Hooks = []session.HookResult{}
+		}
+		v.FinalMessage = nil
+		if (r.Status.Terminal() || r.Status == session.Finalizing) && r.FinalMessageID != nil {
+			message, ok := byMessage[*r.FinalMessageID]
+			if !ok {
+				return nil, pgx.ErrNoRows
+			}
+			v.FinalMessage = &message
+		}
+		views = append(views, v)
+	}
+	return views, nil
 }
 func SessionView(ctx context.Context, q db.DBTX, s SessionRecord) (session.Session, error) {
 	r, err := runRecord(db.New(q).LatestRun(ctx, s.ID))

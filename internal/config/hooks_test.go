@@ -22,7 +22,7 @@ func TestResolveHooks(t *testing.T) {
 	if err != nil || got.Public.Hooks.TimeoutSeconds != 45 || got.Public.Hooks.AfterCreate == nil || got.Public.Hooks.BeforeRemove == nil {
 		t.Fatal(got, err)
 	}
-	for _, script := range []string{"", "echo without shebang", "#!\n", "#!/bin/sh\x00", strings.Repeat("a", 65537)} {
+	for _, script := range []string{"", "echo without shebang", "#!\n", "#!/bin/sh\x00", "#!/bin/sh\r\necho hello\r\n", strings.Repeat("a", 65537)} {
 		input.Hooks.AfterCreate = &script
 		if _, err := Resolve(input, profiles, nil); err == nil {
 			t.Fatalf("accepted invalid hook %q", script[:min(len(script), 30)])

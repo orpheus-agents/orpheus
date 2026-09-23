@@ -21,6 +21,7 @@ type HookExecution struct {
 	StartedAt          *time.Time      `json:"started_at"`
 	DeadlineAt         *time.Time      `json:"deadline_at"`
 	CancelAttemptedAt  *time.Time      `json:"cancel_attempted_at"`
+	StopReason         *string         `json:"stop_reason"`
 	FinishedAt         *time.Time      `json:"finished_at"`
 	ExitCode           *int            `json:"exit_code"`
 	Signal             *int            `json:"signal"`

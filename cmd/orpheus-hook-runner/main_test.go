@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -158,5 +161,38 @@ func TestLargeOutputContinuesAfterLimit(t *testing.T) {
 	}
 	if got.ExitCode == nil || *got.ExitCode != 0 || got.OriginalBytes != 10000 || got.OutputCompleteness != "truncated" {
 		t.Fatalf("unexpected large output result: %+v", got)
+	}
+}
+
+func TestRunDoesNotWaitForBackgroundChildOutput(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "operation")
+	script := filepath.Join(root, "hook")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nsleep 3600 & echo $! > child.pid\necho done\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	startedAt := time.Now()
+	if err := run("background-child", dir, script, root, 32); err != nil {
+		t.Fatal(err)
+	}
+	child, err := os.ReadFile(filepath.Join(root, "child.pid"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(child)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
+	if time.Since(startedAt) > 5*time.Second {
+		t.Fatal("runner waited for background child output")
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "result.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got result
+	if err := json.Unmarshal(data, &got); err != nil || got.ExitCode == nil || *got.ExitCode != 0 {
+		t.Fatal(got, err)
 	}
 }

@@ -480,6 +480,47 @@ func (q *Queries) Messages(ctx context.Context, runID uuid.UUID) ([]Message, err
 	return items, nil
 }
 
+const messagesByIDs = `-- name: MessagesByIDs :many
+SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key
+FROM messages
+WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) MessagesByIDs(ctx context.Context, messageIds []uuid.UUID) ([]Message, error) {
+	rows, err := q.db.Query(ctx, messagesByIDs, messageIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Message{}
+	for rows.Next() {
+		var i Message
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.RunID,
+			&i.Role,
+			&i.Kind,
+			&i.Text,
+			&i.DeliveryStatus,
+			&i.DeliveryNumber,
+			&i.Error,
+			&i.NativeKey,
+			&i.RegisteredSequence,
+			&i.Position,
+			&i.CreatedAt,
+			&i.ExternalKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const reservedSessions = `-- name: ReservedSessions :many
 SELECT id
 FROM sessions

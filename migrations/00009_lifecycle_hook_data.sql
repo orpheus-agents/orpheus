@@ -6,6 +6,10 @@ UPDATE session_events SET data = data || '{"phase":null,"agent_status":null,"age
 WHERE type = 'run.updated';
 
 -- +goose Down
+UPDATE runs SET status = 'failed', finished_at = COALESCE(finished_at, now())
+WHERE status = 'finalizing';
+UPDATE session_events SET data = jsonb_set(data, '{status}', '"failed"'::jsonb)
+WHERE type = 'run.updated' AND data->>'status' = 'finalizing';
 UPDATE session_events SET data = data - 'phase' - 'agent_status' - 'agent_error' - 'hooks'
 WHERE type = 'run.updated';
 UPDATE sessions SET configuration = jsonb_set(configuration, '{public}', (configuration->'public') - 'hooks')

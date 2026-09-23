@@ -148,8 +148,8 @@ func resolveHooks(input *session.HooksInput) (session.HooksConfiguration, error)
 			continue
 		}
 		line, _, _ := strings.Cut(*script.text, "\n")
-		if len(*script.text) > 65536 || strings.ContainsRune(*script.text, 0) || !strings.HasPrefix(line, "#!") || strings.TrimSpace(line[2:]) == "" {
-			return hooks, invalid("A hook requires a shebang and at most 65536 UTF-8 bytes without NUL.", "configuration", "hooks", script.name)
+		if len(*script.text) > 65536 || strings.ContainsRune(*script.text, 0) || strings.ContainsRune(line, '\r') || !strings.HasPrefix(line, "#!") || strings.TrimSpace(line[2:]) == "" {
+			return hooks, invalid("A hook requires an LF-terminated shebang and at most 65536 UTF-8 bytes without NUL.", "configuration", "hooks", script.name)
 		}
 		*script.dest = script.text
 	}

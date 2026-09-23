@@ -44,7 +44,8 @@ func FailUnfinishedHooks(ctx context.Context, tx pgx.Tx, runID uuid.UUID, active
 			CancelAttemptedAt: h.CancelAttemptedAt, FinishedAt: h.FinishedAt,
 			ExitCode: h.ExitCode, Signal: h.Signal, Output: h.Output,
 			OutputCompleteness: h.OutputCompleteness, TruncationReason: h.TruncationReason,
-			Error: h.Error,
+			Error:      h.Error,
+			StopReason: h.StopReason,
 		}); err != nil {
 			return err
 		}
@@ -81,6 +82,7 @@ func (s *Store) ChangeHook(ctx context.Context, sid, rid uuid.UUID, name string,
 			FinishedAt:        h.FinishedAt, ExitCode: h.ExitCode, Signal: h.Signal,
 			Output: h.Output, OutputCompleteness: h.OutputCompleteness,
 			TruncationReason: h.TruncationReason, Error: h.Error,
+			StopReason: h.StopReason,
 		}); err != nil {
 			return err
 		}

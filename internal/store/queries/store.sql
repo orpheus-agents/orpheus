@@ -126,6 +126,11 @@ SELECT *
 FROM messages
 WHERE id = $1;
 
+-- name: MessagesByIDs :many
+SELECT *
+FROM messages
+WHERE id = ANY(sqlc.arg(message_ids)::uuid[]);
+
 -- name: Messages :many
 SELECT *
 FROM messages

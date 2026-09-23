@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"path"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -135,7 +134,7 @@ func hookProblem(name, code, message string) *session.Error {
 }
 
 func (e *Executor) failHook(ctx context.Context, run store.RunRecord, name string, problem *session.Error) error {
-	return e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, r *store.RunRecord) error {
+	return e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, _ *store.RunRecord) error {
 		if h.Status == "failed" || h.Status == "completed" || h.Status == "cancelled" {
 			return nil
 		}
@@ -166,11 +165,6 @@ func (e *Executor) startHook(ctx context.Context, record store.SessionRecord, ru
 	if _, err := e.sandbox.Run(ctx, "chmod 700 "+harness.Quote(script)); err != nil {
 		return err
 	}
-	env, err := e.hookEnvironment(record, run, name)
-	if err != nil {
-		return e.failHook(ctx, run, name, hookProblem(name, "hook_environment_unavailable", "Hook environment is unavailable."))
-	}
-	env["ORPHEUS_HOOK_OPERATION_ID"] = h.ID.String()
 	if err := e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, r *store.RunRecord) error {
 		if r.CancelRequestedAt != nil && name != "after_run" {
 			return nil
@@ -191,6 +185,17 @@ func (e *Executor) startHook(ctx context.Context, record store.SessionRecord, ru
 	if err != nil || current == nil || current.Status != "running" {
 		return err
 	}
+	return e.launchHook(ctx, record, run, h, name, runner)
+}
+
+func (e *Executor) launchHook(ctx context.Context, record store.SessionRecord, run store.RunRecord, h store.HookExecution, name, runner string) error {
+	env, err := e.hookEnvironment(record, run, name)
+	if err != nil {
+		return e.failHook(ctx, run, name, hookProblem(name, "hook_environment_unavailable", "Hook environment is unavailable."))
+	}
+	env["ORPHEUS_HOOK_OPERATION_ID"] = h.ID.String()
+	dir := hookDir(record, h.ID)
+	script := path.Join(dir, "script")
 	command := "exec " + harness.Quote(runner) + " -operation-id " + harness.Quote(h.ID.String()) +
 		" -operation-dir " + harness.Quote(dir) + " -script " + harness.Quote(script) +
 		" -workspace " + harness.Quote(*record.Workspace) + " -max-output-bytes " + strconv.Itoa(e.Store.Settings.MaxHookOutputBytes)
@@ -263,23 +268,21 @@ func (e *Executor) finishHookFromFile(ctx context.Context, record store.SessionR
 	if err != nil {
 		return err
 	}
-	return e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, r *store.RunRecord) error {
+	return e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, _ *store.RunRecord) error {
 		if h.Status != "running" {
 			return nil
 		}
-		h.FinishedAt, h.ExitCode, h.Signal = &result.FinishedAt, result.ExitCode, result.Signal
+		h.FinishedAt, h.ExitCode, h.Signal = new(time.Now().UTC()), result.ExitCode, result.Signal
 		h.Output = encoded
 		h.OutputCompleteness = result.OutputCompleteness
 		if result.OutputCompleteness == "truncated" {
 			h.TruncationReason = new("orpheus_limit")
 		}
-		timedOut := h.DeadlineAt != nil && result.FinishedAt.After(*h.DeadlineAt)
-		userCancelled := name != "after_run" && r.CancelRequestedAt != nil && !result.FinishedAt.Before(*r.CancelRequestedAt)
 		switch {
-		case timedOut:
+		case h.StopReason != nil && *h.StopReason == "timeout":
 			h.Status = "failed"
 			h.Error = hookProblem(name, "hook_timeout", "Hook exceeded its deadline.")
-		case userCancelled && h.CancelAttemptedAt != nil:
+		case h.StopReason != nil && *h.StopReason == "cancelled":
 			h.Status = "cancelled"
 		case result.ExitCode != nil && *result.ExitCode == 0:
 			h.Status = "completed"
@@ -294,61 +297,124 @@ func (e *Executor) finishHookFromFile(ctx context.Context, record store.SessionR
 	})
 }
 
+func (e *Executor) finishStoppedHook(ctx context.Context, run store.RunRecord, name string, h store.HookExecution) error {
+	return e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(current *store.HookExecution, _ *store.RunRecord) error {
+		if current.Status != "running" {
+			return nil
+		}
+		current.FinishedAt = new(time.Now().UTC())
+		current.OutputCompleteness = "unavailable"
+		if h.StopReason != nil && *h.StopReason == "cancelled" {
+			current.Status = "cancelled"
+		} else {
+			current.Status = "failed"
+			current.Error = hookProblem(name, "hook_timeout", "Hook exceeded its deadline.")
+		}
+		return nil
+	})
+}
+
 func (e *Executor) observeHook(ctx context.Context, record store.SessionRecord, run store.RunRecord, h store.HookExecution, name string) error {
 	dir := hookDir(record, h.ID)
-	raw, found, err := e.sandboxFile(ctx, path.Join(dir, "result.json"))
-	if err != nil {
-		return err
-	}
-	if found {
-		return e.finishHookFromFile(ctx, record, run, h, name, raw)
-	}
-	raw, found, err = e.sandboxFile(ctx, path.Join(dir, "started.json"))
+	raw, startedFound, err := e.sandboxFile(ctx, path.Join(dir, "started.json"))
 	if err != nil {
 		return err
 	}
 	var started hookStarted
-	if found && (json.Unmarshal(raw, &started) != nil || started.OperationID != h.ID.String()) {
+	if startedFound && (json.Unmarshal(raw, &started) != nil || started.OperationID != h.ID.String() || started.WrapperPID <= 0 || (started.HookPID != nil && *started.HookPID <= 0)) {
 		return e.failHook(ctx, run, name, hookProblem(name, "hook_result_unavailable", "Hook start record is invalid."))
 	}
 	processes, err := e.sandbox.Processes(ctx)
 	if err != nil {
 		return err
 	}
-	active := slices.ContainsFunc(processes, func(p harness.Process) bool { return p.Env["ORPHEUS_HOOK_OPERATION_ID"] == h.ID.String() })
-	if found && !active {
-		return e.failHook(ctx, run, name, hookProblem(name, "hook_result_unavailable", "Hook process ended without a result."))
+	var wrapperPID int
+	for _, p := range processes {
+		if p.Env["ORPHEUS_HOOK_OPERATION_ID"] == h.ID.String() {
+			wrapperPID = p.PID
+			break
+		}
+	}
+	// Read result after the process list: a runner that exits during the list
+	// has already published its result by the time this read completes.
+	raw, resultFound, err := e.sandboxFile(ctx, path.Join(dir, "result.json"))
+	if err != nil {
+		return err
+	}
+	if resultFound {
+		return e.finishHookFromFile(ctx, record, run, h, name, raw)
 	}
 	stopping := run.CancelRequestedAt != nil && name != "after_run"
 	timeout := h.DeadlineAt != nil && !time.Now().Before(*h.DeadlineAt)
+	if startedFound && wrapperPID == 0 {
+		if h.StopReason != nil {
+			return e.finishStoppedHook(ctx, run, name, h)
+		}
+		return e.failHook(ctx, run, name, hookProblem(name, "hook_result_unavailable", "Hook process ended without a result."))
+	}
+	if !startedFound && wrapperPID == 0 && !stopping && !timeout {
+		_, claimed, err := e.sandboxFile(ctx, path.Join(dir, "claim"))
+		if err != nil {
+			return err
+		}
+		if !claimed {
+			// An uncertain Start or worker crash before Start can be retried with
+			// the same ID. The runner's exclusive claim prevents a second script.
+			runner, err := e.ensureRunner(ctx, record)
+			if err != nil {
+				return err
+			}
+			return e.launchHook(ctx, record, run, h, name, runner)
+		}
+		if h.StartedAt != nil && time.Since(*h.StartedAt) > 5*time.Second {
+			return e.failHook(ctx, run, name, hookProblem(name, "hook_result_unavailable", "Hook process ended before recording its start."))
+		}
+	}
 	if !stopping && !timeout {
 		return nil
 	}
 	if h.CancelAttemptedAt == nil {
-		if started.HookPID != nil {
-			_, err := e.sandbox.Run(ctx, fmt.Sprintf("kill -TERM %d 2>/dev/null || true", *started.HookPID))
-			if err != nil {
+		reason := "timeout"
+		attempted := time.Now().UTC()
+		if err := e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, r *store.RunRecord) error {
+			if h.Status != "running" {
+				return nil
+			}
+			if r.CancelRequestedAt != nil && name != "after_run" {
+				reason = "cancelled"
+			}
+			h.CancelAttemptedAt = &attempted
+			h.StopReason = &reason
+			return nil
+		}); err != nil {
+			return err
+		}
+		current, err := e.Store.Hook(ctx, run.ID, name)
+		if err != nil || current == nil || current.Status != "running" {
+			return err
+		}
+		h = *current
+	}
+	if time.Now().Before(h.CancelAttemptedAt.Add(e.Store.Settings.CancelGrace)) {
+		if started.HookPID != nil && e.hookTermSent != h.ID {
+			if _, err := e.sandbox.Run(ctx, fmt.Sprintf("kill -TERM %d 2>/dev/null || true", *started.HookPID)); err != nil {
 				return err
 			}
+			e.hookTermSent = h.ID
 		}
-		return e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, _ *store.RunRecord) error {
-			h.CancelAttemptedAt = new(time.Now().UTC())
-			return nil
-		})
+		return nil
 	}
-	if started.HookPID != nil && !time.Now().Before(h.CancelAttemptedAt.Add(e.Store.Settings.CancelGrace)) {
-		if err := e.sandbox.Kill(ctx, *started.HookPID); err != nil && !errors.Is(err, harness.ErrNotFound) {
+	if started.HookPID != nil {
+		if _, err := e.sandbox.Run(ctx, fmt.Sprintf("kill -KILL %d 2>/dev/null || true", *started.HookPID)); err != nil {
 			return err
 		}
 	}
-	if !found && !active && h.CancelAttemptedAt != nil && !time.Now().Before(h.CancelAttemptedAt.Add(e.Store.Settings.CancelGrace)) {
-		code := "hook_result_unavailable"
-		if timeout {
-			code = "hook_timeout"
+	if wrapperPID != 0 {
+		if err := e.sandbox.Kill(ctx, wrapperPID); err != nil && !errors.Is(err, harness.ErrNotFound) {
+			return err
 		}
-		return e.failHook(ctx, run, name, hookProblem(name, code, "Hook result is unavailable."))
 	}
-	return nil
+	return e.finishStoppedHook(ctx, run, name, h)
 }
 
 // runHook performs at most one external transition per tick. A finished hook is
@@ -363,8 +429,10 @@ func (e *Executor) runHook(ctx context.Context, record store.SessionRecord, run 
 	}
 	switch h.Status {
 	case "completed":
+		e.cleanupHook(ctx, record, *h)
 		return true, nil, nil
 	case "failed", "cancelled", "skipped":
+		e.cleanupHook(ctx, record, *h)
 		return true, h.Error, nil
 	case "pending":
 		if err := e.startHook(ctx, record, run, *h, name); err != nil {
@@ -376,6 +444,15 @@ func (e *Executor) runHook(ctx context.Context, record store.SessionRecord, run 
 		}
 	}
 	return false, nil, nil
+}
+
+func (e *Executor) cleanupHook(ctx context.Context, record store.SessionRecord, h store.HookExecution) {
+	if len(h.Output) == 0 || e.sandbox == nil || record.Workspace == nil {
+		return
+	}
+	// The database is now authoritative; retain no completed output in the
+	// sandbox longer than needed for recovery. Cleanup is best effort.
+	_, _ = e.sandbox.Run(ctx, "rm -rf -- "+harness.Quote(hookDir(record, h.ID)))
 }
 
 func (e *Executor) skipHooks(ctx context.Context, run store.RunRecord, names ...string) error {

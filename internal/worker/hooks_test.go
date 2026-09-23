@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"maps"
 	"path"
@@ -31,13 +32,16 @@ func (hookStream) Close() error                               { return nil }
 
 type hookRemote struct {
 	*remote
-	files      map[string][]byte
-	invoked    []string
-	hookEnv    []map[string]string
-	signals    []string
-	autoResult bool
-	failAfter  bool
-	failCreate bool
+	files         map[string][]byte
+	invoked       []string
+	hookEnv       []map[string]string
+	signals       []string
+	autoResult    bool
+	failAfter     bool
+	failCreate    bool
+	lostHookStart bool
+	startAttempts int
+	onProcesses   func()
 }
 
 func (h *hookRemote) Create(ctx context.Context, template string, timeout time.Duration, metadata map[string]string) (harness.Sandbox, error) {
@@ -71,7 +75,21 @@ func (h *hookRemote) Read(_ context.Context, name string) (io.ReadCloser, error)
 	}
 	return io.NopCloser(strings.NewReader(string(data))), nil
 }
+func (h *hookRemote) Processes(ctx context.Context) ([]harness.Process, error) {
+	processes, err := h.remote.Processes(ctx)
+	if h.onProcesses != nil {
+		callback := h.onProcesses
+		h.onProcesses = nil
+		callback()
+	}
+	return processes, err
+}
 func (h *hookRemote) Start(_ context.Context, _ string, env map[string]string, _ string) (harness.Stream, int, error) {
+	h.startAttempts++
+	if h.lostHookStart {
+		h.lostHookStart = false
+		return nil, 0, harness.ErrUncertain
+	}
 	id := env["ORPHEUS_HOOK_OPERATION_ID"]
 	dir := path.Join("/home/template/.orpheus/hooks", id)
 	name := strings.TrimSpace(string(h.files[path.Join(dir, "script")]))
@@ -166,6 +184,19 @@ func TestHooksFullCycleAndFinalMessage(t *testing.T) {
 	if err != nil || len(run.Hooks) != 3 || len(box.invoked) != 3 || run.Hooks[2].Status != "completed" {
 		t.Fatal(run, box.invoked, err)
 	}
+	for _, list := range []func() (session.Page[session.Run], error){
+		func() (session.Page[session.Run], error) {
+			return s.ListRuns(t.Context(), a.SessionID, 50, "", store.ListFilter{})
+		},
+		func() (session.Page[session.Run], error) {
+			return s.ListAllRuns(t.Context(), 50, "", store.ListFilter{})
+		},
+	} {
+		page, err := list()
+		if err != nil || len(page.Items) != 1 || len(page.Items[0].Hooks) != 3 || page.Items[0].FinalMessage == nil || page.Items[0].FinalMessage.Text != "DONE" {
+			t.Fatal(page, err)
+		}
+	}
 	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "again"}); err != nil {
 		t.Fatal(err)
 	}
@@ -256,9 +287,41 @@ func TestAfterRunReceivesFailedAndCancelledAgentStatus(t *testing.T) {
 	}
 }
 
+func TestExecutionErrorStillRunsAfterRun(t *testing.T) {
+	for _, code := range []string{"harness_failed", "context_lost"} {
+		t.Run(code, func(t *testing.T) {
+			s, box, a, e := setupHooks(t, true, false)
+			tickUntil(t, e, func() bool { return box.starts == 1 })
+			if err := e.failure(t.Context(), &harness.ExecutionError{Code: code, Message: "Agent execution failed."}); err != nil {
+				t.Fatal(err)
+			}
+			run, err := s.Run(t.Context(), a.SessionID, a.RunID)
+			if err != nil || run.Status != session.Finalizing || run.AgentStatus == nil || *run.AgentStatus != session.Failed || run.Hooks[2].Status != "pending" {
+				t.Fatal(run, err)
+			}
+			tickUntil(t, e, func() bool {
+				run, err := s.Run(t.Context(), a.SessionID, a.RunID)
+				return err == nil && run.Status.Terminal()
+			})
+			run, err = s.Run(t.Context(), a.SessionID, a.RunID)
+			if err != nil || run.Status != session.Failed || run.Hooks[2].Status != "completed" || box.hookEnv[2]["ORPHEUS_AGENT_STATUS"] != "failed" {
+				t.Fatal(run, box.hookEnv, err)
+			}
+		})
+	}
+}
+
 func TestHookResultRecoveredWithoutRelaunch(t *testing.T) {
 	s, box, a, e := setupHooks(t, false, false)
 	tickUntil(t, e, func() bool { return len(box.invoked) == 1 })
+	hook, err := s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || hook == nil {
+		t.Fatal(hook, err)
+	}
+	dir := path.Join("/home/template/.orpheus/hooks", hook.ID.String())
+	started, _ := json.Marshal(hookStarted{OperationID: hook.ID.String(), WrapperPID: 200})
+	box.files[path.Join(dir, "started.json")] = started
+	box.processes = append(box.processes, harness.Process{PID: 200, Env: map[string]string{"ORPHEUS_HOOK_OPERATION_ID": hook.ID.String()}})
 	e.Disconnect()
 	replacement := executor(a.SessionID, s, box.remote)
 	replacement.Platform = box
@@ -268,7 +331,7 @@ func TestHookResultRecoveredWithoutRelaunch(t *testing.T) {
 	if len(box.invoked) != 1 {
 		t.Fatal("hook relaunched after worker replacement")
 	}
-	hook, err := s.Hook(t.Context(), a.RunID, "after_create")
+	hook, err = s.Hook(t.Context(), a.RunID, "after_create")
 	if err != nil || hook == nil {
 		t.Fatal(hook, err)
 	}
@@ -279,6 +342,107 @@ func TestHookResultRecoveredWithoutRelaunch(t *testing.T) {
 	})
 	if len(box.invoked) != 1 {
 		t.Fatal("hook repeated while recovering result")
+	}
+}
+
+func TestHookResultPublishedDuringProcessListIsNotLost(t *testing.T) {
+	s, box, a, e := setupHooks(t, false, false)
+	tickUntil(t, e, func() bool { return len(box.invoked) == 1 })
+	h, err := s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || h == nil {
+		t.Fatal(h, err)
+	}
+	dir := path.Join("/home/template/.orpheus/hooks", h.ID.String())
+	started, _ := json.Marshal(hookStarted{OperationID: h.ID.String(), WrapperPID: 200})
+	box.files[path.Join(dir, "started.json")] = started
+	box.onProcesses = func() { box.completeHook(h.ID.String(), string(box.files[path.Join(dir, "script")])) }
+	tick(t, e)
+	h, err = s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || h == nil || h.Status != "completed" {
+		t.Fatal(h, err)
+	}
+}
+
+func TestUncertainHookStartRetriesSameOperation(t *testing.T) {
+	s, box, a, e := setupHooks(t, true, false)
+	box.lostHookStart = true
+	found := false
+	for range 15 {
+		err := e.Tick(t.Context())
+		if errors.Is(err, harness.ErrUncertain) {
+			found = true
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !found {
+		t.Fatal("uncertain Start was not reached")
+	}
+	e.Disconnect()
+	tickUntil(t, e, func() bool { return box.startAttempts == 2 })
+	h, err := s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || h == nil || h.Status != "running" || len(box.invoked) != 1 {
+		t.Fatal(h, box.invoked, err)
+	}
+	tickUntil(t, e, func() bool {
+		h, err := s.Hook(t.Context(), a.RunID, "after_create")
+		return err == nil && h != nil && h.Status == "completed"
+	})
+}
+
+func TestHookResultUsesWorkerTimeAndRecordedTimeout(t *testing.T) {
+	s, box, a, e := setupHooks(t, false, false)
+	tickUntil(t, e, func() bool { return len(box.invoked) == 1 })
+	h, err := s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || h == nil {
+		t.Fatal(h, err)
+	}
+	box.completeHook(h.ID.String(), "done")
+	dir := path.Join("/home/template/.orpheus/hooks", h.ID.String())
+	var file hookResultFile
+	if err := json.Unmarshal(box.files[path.Join(dir, "result.json")], &file); err != nil {
+		t.Fatal(err)
+	}
+	file.FinishedAt = time.Now().Add(24 * time.Hour)
+	box.files[path.Join(dir, "result.json")], _ = json.Marshal(file)
+	tick(t, e)
+	h, err = s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || h == nil || h.Status != "completed" || h.FinishedAt == nil || h.FinishedAt.After(time.Now().Add(time.Minute)) {
+		t.Fatal(h, err)
+	}
+}
+
+func TestHookResultHonorsRecordedStopReason(t *testing.T) {
+	for _, tc := range []struct {
+		reason string
+		status string
+	}{
+		{"timeout", "failed"},
+		{"cancelled", "cancelled"},
+	} {
+		t.Run(tc.reason, func(t *testing.T) {
+			s, box, a, e := setupHooks(t, false, false)
+			tickUntil(t, e, func() bool { return len(box.invoked) == 1 })
+			h, err := s.Hook(t.Context(), a.RunID, "after_create")
+			if err != nil || h == nil {
+				t.Fatal(h, err)
+			}
+			if err := s.ChangeHook(t.Context(), a.SessionID, a.RunID, "after_create", func(h *store.HookExecution, _ *store.RunRecord) error {
+				h.StopReason = &tc.reason
+				h.CancelAttemptedAt = new(time.Now().UTC())
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			box.completeHook(h.ID.String(), "done")
+			tick(t, e)
+			h, err = s.Hook(t.Context(), a.RunID, "after_create")
+			if err != nil || h == nil || h.Status != tc.status {
+				t.Fatal(h, err)
+			}
+		})
 	}
 }
 
@@ -343,6 +507,32 @@ func TestHookTimeoutFailsPreparationWithoutAgent(t *testing.T) {
 	run, err := s.Run(t.Context(), a.SessionID, a.RunID)
 	if err != nil || run.Status != session.Failed || run.Error == nil || run.Error.Code != "hook_timeout" || box.starts != 0 || run.Hooks[0].Status != "failed" || run.Hooks[2].Status != "skipped" {
 		t.Fatal(run, err)
+	}
+}
+
+func TestHookForceStopHasHardDeadline(t *testing.T) {
+	s, box, a, e := setupHooks(t, false, false)
+	tickUntil(t, e, func() bool { return len(box.invoked) == 1 })
+	h, err := s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || h == nil {
+		t.Fatal(h, err)
+	}
+	dir := path.Join("/home/template/.orpheus/hooks", h.ID.String())
+	started, _ := json.Marshal(hookStarted{OperationID: h.ID.String(), WrapperPID: 200, HookPID: new(201)})
+	box.files[path.Join(dir, "started.json")] = started
+	box.processes = append(box.processes, harness.Process{PID: 200, Env: map[string]string{"ORPHEUS_HOOK_OPERATION_ID": h.ID.String()}})
+	if err := s.ChangeHook(t.Context(), a.SessionID, a.RunID, "after_create", func(h *store.HookExecution, _ *store.RunRecord) error {
+		h.DeadlineAt = new(time.Now().Add(-time.Minute))
+		h.CancelAttemptedAt = new(time.Now().Add(-time.Minute))
+		h.StopReason = new("timeout")
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, e)
+	h, err = s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || h == nil || h.Status != "failed" || h.Error == nil || h.Error.Code != "hook_timeout" || len(box.killed) != 1 || box.killed[0] != 200 || len(box.signals) != 1 || !strings.Contains(box.signals[0], "-KILL 201") {
+		t.Fatal(h, box.killed, box.signals, err)
 	}
 }
 

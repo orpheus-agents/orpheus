@@ -2,6 +2,10 @@
 SELECT * FROM hook_executions WHERE run_id = $1 ORDER BY
   CASE name WHEN 'after_create' THEN 1 WHEN 'before_run' THEN 2 WHEN 'after_run' THEN 3 ELSE 4 END;
 
+-- name: HookExecutionsForRuns :many
+SELECT * FROM hook_executions WHERE run_id = ANY(sqlc.arg(run_ids)::uuid[]) ORDER BY run_id,
+  CASE name WHEN 'after_create' THEN 1 WHEN 'before_run' THEN 2 WHEN 'after_run' THEN 3 ELSE 4 END;
+
 -- name: GetHookExecution :one
 SELECT * FROM hook_executions WHERE run_id = $1 AND name = $2;
 
@@ -19,7 +23,8 @@ ON CONFLICT (run_id,name) DO NOTHING;
 UPDATE hook_executions SET
   status = $2, started_at = $3, deadline_at = $4, cancel_attempted_at = $5,
   finished_at = $6, exit_code = $7, signal = $8, output = $9,
-  output_completeness = $10, truncation_reason = $11, error = $12
+  output_completeness = $10, truncation_reason = $11, error = $12,
+  stop_reason = $13
 WHERE id = $1;
 
 -- name: SkipPendingHooks :exec
