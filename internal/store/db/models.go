@@ -71,6 +71,9 @@ type Run struct {
 	NextDeliveryNumber int            `json:"next_delivery_number"`
 	FinalMessageID     *uuid.UUID     `json:"final_message_id"`
 	InputFingerprint   *string        `json:"input_fingerprint"`
+	EnvCiphertext      *string        `json:"env_ciphertext"`
+	EnvNames           []string       `json:"env_names"`
+	EnvFrom            []string       `json:"env_from"`
 }
 
 type Session struct {

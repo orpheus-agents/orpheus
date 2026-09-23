@@ -21,7 +21,7 @@ import (
 )
 
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-var reserved = strings.Fields(`ALL_PROXY NO_PROXY HTTP_PROXY HTTPS_PROXY all_proxy no_proxy http_proxy https_proxy HOME CODEX_HOME ORPHEUS_LAUNCH_ID PUBLIC_API_KEYS OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL OPENAI_ORG_ID OPENAI_ORGANIZATION OPENAI_PROJECT_ID CHATGPT_BASE_URL ENV_ENCRYPTION_KEY AGENTBOX_API_KEY`)
+var reserved = strings.Fields(`ALL_PROXY NO_PROXY HTTP_PROXY HTTPS_PROXY all_proxy no_proxy http_proxy https_proxy HOME CODEX_HOME ORPHEUS_LAUNCH_ID ORPHEUS_SESSION_ID ORPHEUS_WORKSPACE_PATH ORPHEUS_RUN_ID ORPHEUS_INPUT_FINGERPRINT ORPHEUS_AGENT_STATUS ORPHEUS_STOP_REASON PUBLIC_API_KEYS OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL OPENAI_ORG_ID OPENAI_ORGANIZATION OPENAI_PROJECT_ID CHATGPT_BASE_URL ENV_ENCRYPTION_KEY AGENTBOX_API_KEY`)
 
 type Auth struct {
 	Mode      string `toml:"mode"`
@@ -138,6 +138,31 @@ func ValidateSandbox(s session.SandboxInput) error {
 		if !envName.MatchString(name) || slices.Contains(reserved, name) {
 			return invalid("Invalid or reserved environment variable.", "configuration", "sandbox")
 		}
+	}
+	return nil
+}
+func ValidateRunEnvironment(env map[string]string, from, allowlist []string) error {
+	names := make(map[string]bool, len(env)+len(from))
+	for name, value := range env {
+		if strings.ContainsRune(value, 0) {
+			return invalid("NUL is not allowed in environment variables.", "env", name)
+		}
+		if !envName.MatchString(name) || slices.Contains(reserved, name) {
+			return invalid("Invalid or reserved environment variable.", "env", name)
+		}
+		names[name] = true
+	}
+	for _, name := range from {
+		if !envName.MatchString(name) || slices.Contains(reserved, name) {
+			return invalid("Invalid or reserved environment variable.", "env_from")
+		}
+		if names[name] {
+			return invalid("Duplicate environment variable.", "env_from")
+		}
+		if !slices.Contains(allowlist, name) {
+			return invalid("Environment reference is not allowed.", "env_from")
+		}
+		names[name] = true
 	}
 	return nil
 }

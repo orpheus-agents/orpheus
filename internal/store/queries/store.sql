@@ -105,8 +105,8 @@ FROM sessions
 WHERE slot_reserved;
 
 -- name: CreateRun :one
-INSERT INTO runs AS r(id, session_id, number, input_fingerprint)
-VALUES($1, $2, $3, $4)
+INSERT INTO runs AS r(id, session_id, number, input_fingerprint, env_ciphertext, env_names, env_from)
+VALUES($1, $2, $3, $4, $5, $6, $7)
 RETURNING r.*;
 
 -- name: InsertIdempotency :exec

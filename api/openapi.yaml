@@ -124,6 +124,16 @@ components:
                     $ref: '#/components/schemas/ConfigurationInput'
                 message:
                     $ref: '#/components/schemas/TextMessage'
+                env:
+                    description: Explicit environment variables for the first run's before_run and after_run hooks only. Override session sources with the same names; never passed to the harness, after_create, or before_remove.
+                    type: object
+                    additionalProperties:
+                        type: string
+                env_from:
+                    description: Allowlisted orchestrator environment variable names for the first run's before_run and after_run hooks only. Resolved before each hook; override session sources and are never passed to the harness, after_create, or before_remove.
+                    type: array
+                    items:
+                        type: string
             required:
                 - configuration
                 - message
@@ -454,6 +464,16 @@ components:
             type: object
         Run:
             properties:
+                env_names:
+                    description: Sorted names of explicit variables supplied for this run; values are never returned.
+                    type: array
+                    items:
+                        type: string
+                env_from:
+                    description: Sorted orchestrator environment variable names supplied for this run.
+                    type: array
+                    items:
+                        type: string
                 input_fingerprint:
                     description: Input snapshot version supplied when the run was accepted. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
                     anyOf:
@@ -535,6 +555,8 @@ components:
                     title: Stop Reason
             required:
                 - input_fingerprint
+                - env_names
+                - env_from
                 - id
                 - session_id
                 - number
@@ -696,6 +718,16 @@ components:
                     maxLength: 256
                 message:
                     $ref: '#/components/schemas/TextMessage'
+                env:
+                    description: Explicit environment variables available only to this run's before_run and after_run hooks. Override session sources with the same names; never passed to the harness, after_create, or before_remove.
+                    type: object
+                    additionalProperties:
+                        type: string
+                env_from:
+                    description: Allowlisted orchestrator environment variable names available only to this run's before_run and after_run hooks. Resolved before each hook; override session sources and are never passed to the harness, after_create, or before_remove.
+                    type: array
+                    items:
+                        type: string
             required:
                 - message
             title: CreateRun

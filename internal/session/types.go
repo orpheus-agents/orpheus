@@ -114,10 +114,14 @@ type CreateSession struct {
 	InputFingerprint *string            `json:"input_fingerprint,omitzero"`
 	Configuration    ConfigurationInput `json:"configuration"`
 	Message          TextMessage        `json:"message"`
+	Env              map[string]string  `json:"env,omitzero"`
+	EnvFrom          []string           `json:"env_from,omitzero"`
 }
 type CreateRun struct {
-	Message          TextMessage `json:"message"`
-	InputFingerprint *string     `json:"input_fingerprint,omitzero"`
+	Message          TextMessage       `json:"message"`
+	InputFingerprint *string           `json:"input_fingerprint,omitzero"`
+	Env              map[string]string `json:"env,omitzero"`
+	EnvFrom          []string          `json:"env_from,omitzero"`
 }
 type Acceptance struct {
 	SessionID uuid.UUID `json:"session_id"`
@@ -158,6 +162,8 @@ type ToolCall struct {
 }
 type Run struct {
 	InputFingerprint   *string    `json:"input_fingerprint"`
+	EnvNames           []string   `json:"env_names"`
+	EnvFrom            []string   `json:"env_from"`
 	ID                 uuid.UUID  `json:"id"`
 	SessionID          uuid.UUID  `json:"session_id"`
 	Number             int        `json:"number"`
