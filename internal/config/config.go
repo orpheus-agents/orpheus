@@ -21,7 +21,7 @@ import (
 )
 
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-var reserved = strings.Fields(`ALL_PROXY NO_PROXY HTTP_PROXY HTTPS_PROXY all_proxy no_proxy http_proxy https_proxy HOME CODEX_HOME ORPHEUS_LAUNCH_ID ORPHEUS_SESSION_ID ORPHEUS_WORKSPACE_PATH ORPHEUS_RUN_ID ORPHEUS_INPUT_FINGERPRINT ORPHEUS_AGENT_STATUS ORPHEUS_STOP_REASON PUBLIC_API_KEYS OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL OPENAI_ORG_ID OPENAI_ORGANIZATION OPENAI_PROJECT_ID CHATGPT_BASE_URL ENV_ENCRYPTION_KEY AGENTBOX_API_KEY`)
+var reserved = strings.Fields(`ALL_PROXY NO_PROXY HTTP_PROXY HTTPS_PROXY all_proxy no_proxy http_proxy https_proxy HOME CODEX_HOME ORPHEUS_LAUNCH_ID ORPHEUS_HOOK_OPERATION_ID ORPHEUS_SESSION_ID ORPHEUS_WORKSPACE_PATH ORPHEUS_RUN_ID ORPHEUS_INPUT_FINGERPRINT ORPHEUS_AGENT_STATUS ORPHEUS_STOP_REASON PUBLIC_API_KEYS OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL OPENAI_ORG_ID OPENAI_ORGANIZATION OPENAI_PROJECT_ID CHATGPT_BASE_URL ENV_ENCRYPTION_KEY AGENTBOX_API_KEY`)
 
 type Auth struct {
 	Mode      string `toml:"mode"`
@@ -123,6 +123,38 @@ func ValidateSandbox(s session.SandboxInput) error {
 	}
 	return validateEnvironment(s.Env, s.EnvFrom, []any{"configuration", "sandbox"})
 }
+func resolveHooks(input *session.HooksInput) (session.HooksConfiguration, error) {
+	hooks := session.HooksConfiguration{TimeoutSeconds: 300}
+	if input == nil {
+		return hooks, nil
+	}
+	if input.TimeoutSeconds != nil {
+		if *input.TimeoutSeconds <= 0 || int64(*input.TimeoutSeconds) > 2147483647 {
+			return hooks, invalid("Invalid hook timeout.", "configuration", "hooks", "timeout_seconds")
+		}
+		hooks.TimeoutSeconds = *input.TimeoutSeconds
+	}
+	for _, script := range []struct {
+		name string
+		text *string
+		dest **string
+	}{
+		{"after_create", input.AfterCreate, &hooks.AfterCreate},
+		{"before_run", input.BeforeRun, &hooks.BeforeRun},
+		{"after_run", input.AfterRun, &hooks.AfterRun},
+		{"before_remove", input.BeforeRemove, &hooks.BeforeRemove},
+	} {
+		if script.text == nil {
+			continue
+		}
+		line, _, _ := strings.Cut(*script.text, "\n")
+		if len(*script.text) > 65536 || strings.ContainsRune(*script.text, 0) || strings.ContainsRune(line, '\r') || !strings.HasPrefix(line, "#!") || strings.TrimSpace(line[2:]) == "" {
+			return hooks, invalid("A hook requires an LF-terminated shebang and at most 65536 UTF-8 bytes without NUL.", "configuration", "hooks", script.name)
+		}
+		*script.dest = script.text
+	}
+	return hooks, nil
+}
 func ValidateRunEnvironment(env map[string]string, from, allowlist []string) error {
 	if err := validateEnvironment(env, from, nil); err != nil {
 		return err
@@ -172,6 +204,10 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string) (ses
 	if err := ValidateSandbox(in.Sandbox); err != nil {
 		return out, err
 	}
+	hooks, err := resolveHooks(in.Hooks)
+	if err != nil {
+		return out, err
+	}
 	profile, ok := p.Profiles[in.Agent.Profile]
 	if !ok {
 		problem := invalid("Unknown agent profile.", "configuration", "agent", "profile")
@@ -209,21 +245,41 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string) (ses
 	if refs == nil {
 		refs = []string{}
 	}
-	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs}, Limits: in.Limits}, Credentials: creds}
+	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs}, Limits: in.Limits, Hooks: hooks}, Credentials: creds}
 	return out, nil
 }
 func Environment(cipher *secret.Cipher, id uuid.UUID, token *string, cfg session.Configuration, allowlist []string) (map[string]string, error) {
+	return MergedEnvironment(cipher, id, token, cfg, allowlist, nil, nil)
+}
+
+// MergedEnvironment resolves selected sources after run-level overrides have
+// replaced session-level sources. An overridden reference is never read.
+func MergedEnvironment(cipher *secret.Cipher, id uuid.UUID, token *string, cfg session.Configuration, allowlist []string, overrides map[string]string, overrideFrom []string) (map[string]string, error) {
 	env, err := cipher.Decrypt(id, token)
 	if err != nil {
 		return nil, err
 	}
 	for _, name := range cfg.Sandbox.EnvFrom {
+		if _, ok := overrides[name]; ok || slices.Contains(overrideFrom, name) {
+			continue
+		}
 		if !slices.Contains(allowlist, name) {
 			return nil, errors.New("environment reference is no longer allowed")
 		}
 		value, ok := os.LookupEnv(name)
 		if !ok {
 			return nil, errors.New("environment reference is unavailable")
+		}
+		env[name] = value
+	}
+	maps.Copy(env, overrides)
+	for _, name := range overrideFrom {
+		if !slices.Contains(allowlist, name) {
+			return nil, errors.New("run environment reference is no longer allowed")
+		}
+		value, ok := os.LookupEnv(name)
+		if !ok {
+			return nil, errors.New("run environment reference is unavailable")
 		}
 		env[name] = value
 	}
@@ -242,6 +298,7 @@ type Settings struct {
 	SandboxProxyURL       string
 	MaxConcurrentSessions int
 	MaxToolResultBytes    int
+	MaxHookOutputBytes    int
 	MaxRequestBytes       int64
 	ReadinessTimeout      time.Duration
 	CancelGrace           time.Duration
@@ -250,7 +307,7 @@ type Settings struct {
 }
 
 func DefaultSettings() Settings {
-	return Settings{ConfigFile: "orpheus.toml", SandboxProxyURL: "socks5h://sandbox-proxy.agentbox.ru:65180", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxRequestBytes: 1048576, ReadinessTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
+	return Settings{ConfigFile: "orpheus.toml", SandboxProxyURL: "socks5h://sandbox-proxy.agentbox.ru:65180", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, ReadinessTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
 }
 func Load() (Settings, error) {
 	s := DefaultSettings()
@@ -277,10 +334,10 @@ func Load() (Settings, error) {
 			}
 		}
 	}
-	for name, dest := range map[string]*int{"MAX_CONCURRENT_SESSIONS": &s.MaxConcurrentSessions, "MAX_TOOL_RESULT_BYTES": &s.MaxToolResultBytes} {
+	for name, dest := range map[string]*int{"MAX_CONCURRENT_SESSIONS": &s.MaxConcurrentSessions, "MAX_TOOL_RESULT_BYTES": &s.MaxToolResultBytes, "MAX_HOOK_OUTPUT_BYTES": &s.MaxHookOutputBytes} {
 		if v, ok := os.LookupEnv(name); ok {
 			n, err := strconv.Atoi(v)
-			if err != nil || n <= 0 {
+			if err != nil || n <= 0 || (name == "MAX_HOOK_OUTPUT_BYTES" && n < 2) {
 				return s, fmt.Errorf("invalid %s", name)
 			}
 			*dest = n

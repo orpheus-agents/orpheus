@@ -12,6 +12,27 @@ import (
 	"github.com/skillum-ai/orpheus/internal/session"
 )
 
+type HookExecution struct {
+	ID                 uuid.UUID       `json:"id"`
+	SessionID          uuid.UUID       `json:"session_id"`
+	RunID              uuid.UUID       `json:"run_id"`
+	Name               string          `json:"name"`
+	Status             string          `json:"status"`
+	StartedAt          *time.Time      `json:"started_at"`
+	DeadlineAt         *time.Time      `json:"deadline_at"`
+	CancelAttemptedAt  *time.Time      `json:"cancel_attempted_at"`
+	StopReason         *string         `json:"stop_reason"`
+	FinishedAt         *time.Time      `json:"finished_at"`
+	ExitCode           *int            `json:"exit_code"`
+	Signal             *int            `json:"signal"`
+	Output             json.RawMessage `json:"output"`
+	OutputCompleteness string          `json:"output_completeness"`
+	TruncationReason   *string         `json:"truncation_reason"`
+	Error              *session.Error  `json:"error"`
+	KillAttemptedAt    *time.Time      `json:"kill_attempted_at"`
+	StartAttempts      int             `json:"start_attempts"`
+}
+
 type IdempotencyKey struct {
 	Operation   string    `json:"operation"`
 	Resource    string    `json:"resource"`
@@ -53,27 +74,30 @@ type Operation struct {
 }
 
 type Run struct {
-	ID                 uuid.UUID      `json:"id"`
-	SessionID          uuid.UUID      `json:"session_id"`
-	Number             int            `json:"number"`
-	Status             session.Status `json:"status"`
-	Observation        *string        `json:"observation"`
-	CreatedAt          time.Time      `json:"created_at"`
-	ExecutionStartedAt *time.Time     `json:"execution_started_at"`
-	DeadlineAt         *time.Time     `json:"deadline_at"`
-	FinishedAt         *time.Time     `json:"finished_at"`
-	CancelRequestedAt  *time.Time     `json:"cancel_requested_at"`
-	CancelAttemptedAt  *time.Time     `json:"cancel_attempted_at"`
-	StopReason         *string        `json:"stop_reason"`
-	StopMethod         *string        `json:"stop_method"`
-	Error              *session.Error `json:"error"`
-	NativeTurnID       *string        `json:"native_turn_id"`
-	NextDeliveryNumber int            `json:"next_delivery_number"`
-	FinalMessageID     *uuid.UUID     `json:"final_message_id"`
-	InputFingerprint   *string        `json:"input_fingerprint"`
-	EnvCiphertext      *string        `json:"env_ciphertext"`
-	EnvNames           []string       `json:"env_names"`
-	EnvFrom            []string       `json:"env_from"`
+	ID                 uuid.UUID       `json:"id"`
+	SessionID          uuid.UUID       `json:"session_id"`
+	Number             int             `json:"number"`
+	Status             session.Status  `json:"status"`
+	Observation        *string         `json:"observation"`
+	CreatedAt          time.Time       `json:"created_at"`
+	ExecutionStartedAt *time.Time      `json:"execution_started_at"`
+	DeadlineAt         *time.Time      `json:"deadline_at"`
+	FinishedAt         *time.Time      `json:"finished_at"`
+	CancelRequestedAt  *time.Time      `json:"cancel_requested_at"`
+	CancelAttemptedAt  *time.Time      `json:"cancel_attempted_at"`
+	StopReason         *string         `json:"stop_reason"`
+	StopMethod         *string         `json:"stop_method"`
+	Error              *session.Error  `json:"error"`
+	NativeTurnID       *string         `json:"native_turn_id"`
+	NextDeliveryNumber int             `json:"next_delivery_number"`
+	FinalMessageID     *uuid.UUID      `json:"final_message_id"`
+	InputFingerprint   *string         `json:"input_fingerprint"`
+	EnvCiphertext      *string         `json:"env_ciphertext"`
+	EnvNames           []string        `json:"env_names"`
+	EnvFrom            []string        `json:"env_from"`
+	Phase              *string         `json:"phase"`
+	AgentStatus        *session.Status `json:"agent_status"`
+	AgentError         *session.Error  `json:"agent_error"`
 }
 
 type Session struct {

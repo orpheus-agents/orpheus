@@ -171,12 +171,9 @@ func (s *Store) ListAllRuns(ctx context.Context, limit int, cursor string, filte
 		if err != nil {
 			return err
 		}
-		for _, r := range records[:min(limit, len(records))] {
-			v, err := RunView(ctx, tx, r)
-			if err != nil {
-				return err
-			}
-			out.Items = append(out.Items, v)
+		out.Items, err = RunViews(ctx, tx, records[:min(limit, len(records))])
+		if err != nil {
+			return err
 		}
 		if len(records) > limit {
 			r := records[limit-1]
@@ -219,12 +216,9 @@ func (s *Store) ListRuns(ctx context.Context, sid uuid.UUID, limit int, cursor s
 		if err != nil {
 			return err
 		}
-		for _, r := range records[:min(limit, len(records))] {
-			v, err := RunView(ctx, tx, r)
-			if err != nil {
-				return err
-			}
-			out.Items = append(out.Items, v)
+		out.Items, err = RunViews(ctx, tx, records[:min(limit, len(records))])
+		if err != nil {
+			return err
 		}
 		if len(records) > limit {
 			out.NextCursor = new(encodeCursor(scope, records[limit-1].Number))

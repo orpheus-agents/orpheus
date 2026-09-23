@@ -30,6 +30,9 @@ func runRecord(v db.Run, err error) (RunRecord, error) {
 		NextDeliveryNumber: v.NextDeliveryNumber,
 		FinalMessageID:     v.FinalMessageID,
 		EnvCiphertext:      v.EnvCiphertext,
+		Phase:              v.Phase,
+		AgentStatus:        v.AgentStatus,
+		AgentError:         v.AgentError,
 	}, err
 }
 func messageRecord(v db.Message, err error) (MessageRecord, error) {

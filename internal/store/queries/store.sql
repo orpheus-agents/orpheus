@@ -16,7 +16,7 @@ WHERE session_id = $1 AND id = $2;
 -- name: ActiveRun :one
 SELECT r.*
 FROM runs r
-WHERE session_id = $1 AND status IN ('accepted', 'starting', 'running', 'cancelling');
+WHERE session_id = $1 AND status IN ('accepted', 'starting', 'running', 'cancelling', 'finalizing');
 
 -- name: LatestRun :one
 SELECT r.*
@@ -60,7 +60,10 @@ SET status = $2,
     error = $11,
     native_turn_id = $12,
     next_delivery_number = $13,
-    final_message_id = $14
+    final_message_id = $14,
+    phase = $15,
+    agent_status = $16,
+    agent_error = $17
 WHERE id = $1;
 
 -- name: InsertEvent :exec
@@ -122,6 +125,11 @@ WHERE slot_reserved;
 SELECT *
 FROM messages
 WHERE id = $1;
+
+-- name: MessagesByIDs :many
+SELECT *
+FROM messages
+WHERE id = ANY(sqlc.arg(message_ids)::uuid[]);
 
 -- name: Messages :many
 SELECT *

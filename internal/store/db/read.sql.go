@@ -170,7 +170,7 @@ func (q *Queries) HistoryByExternalKey(ctx context.Context, arg HistoryByExterna
 }
 
 const listAllRuns = `-- name: ListAllRuns :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from FROM runs r JOIN sessions s ON s.id=r.session_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error FROM runs r JOIN sessions s ON s.id=r.session_id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR r.input_fingerprint = $3::text) AND ($4::text IS NULL OR r.status = $4::text)
 AND (r.created_at, r.id) > (CASE WHEN $5::boolean THEN '-infinity'::timestamptz ELSE $6::timestamptz END, $7::uuid)
@@ -229,6 +229,9 @@ func (q *Queries) ListAllRuns(ctx context.Context, arg ListAllRunsParams) ([]Run
 			&i.EnvCiphertext,
 			&i.EnvNames,
 			&i.EnvFrom,
+			&i.Phase,
+			&i.AgentStatus,
+			&i.AgentError,
 		); err != nil {
 			return nil, err
 		}
@@ -241,7 +244,7 @@ func (q *Queries) ListAllRuns(ctx context.Context, arg ListAllRunsParams) ([]Run
 }
 
 const listAllRunsDesc = `-- name: ListAllRunsDesc :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from FROM runs r JOIN sessions s ON s.id=r.session_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error FROM runs r JOIN sessions s ON s.id=r.session_id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR r.input_fingerprint = $3::text) AND ($4::text IS NULL OR r.status = $4::text)
 AND (r.created_at, r.id) < (CASE WHEN $5::boolean THEN 'infinity'::timestamptz ELSE $6::timestamptz END, $7::uuid)
@@ -300,6 +303,9 @@ func (q *Queries) ListAllRunsDesc(ctx context.Context, arg ListAllRunsDescParams
 			&i.EnvCiphertext,
 			&i.EnvNames,
 			&i.EnvFrom,
+			&i.Phase,
+			&i.AgentStatus,
+			&i.AgentError,
 		); err != nil {
 			return nil, err
 		}
@@ -356,7 +362,7 @@ func (q *Queries) ListEvents(ctx context.Context, arg ListEventsParams) ([]ListE
 }
 
 const listRuns = `-- name: ListRuns :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from FROM runs r WHERE r.session_id = $1
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error FROM runs r WHERE r.session_id = $1
 AND ($2::text IS NULL OR r.input_fingerprint = $2::text) AND ($3::text IS NULL OR r.status = $3::text)
 AND ($4::boolean OR (r.number) > ($5::int))
 ORDER BY r.number ASC
@@ -410,6 +416,9 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]Run, erro
 			&i.EnvCiphertext,
 			&i.EnvNames,
 			&i.EnvFrom,
+			&i.Phase,
+			&i.AgentStatus,
+			&i.AgentError,
 		); err != nil {
 			return nil, err
 		}
@@ -422,7 +431,7 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]Run, erro
 }
 
 const listRunsDesc = `-- name: ListRunsDesc :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from FROM runs r WHERE r.session_id = $1
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error FROM runs r WHERE r.session_id = $1
 AND ($2::text IS NULL OR r.input_fingerprint = $2::text) AND ($3::text IS NULL OR r.status = $3::text)
 AND ($4::boolean OR (r.number) < ($5::int))
 ORDER BY r.number DESC
@@ -476,6 +485,9 @@ func (q *Queries) ListRunsDesc(ctx context.Context, arg ListRunsDescParams) ([]R
 			&i.EnvCiphertext,
 			&i.EnvNames,
 			&i.EnvFrom,
+			&i.Phase,
+			&i.AgentStatus,
+			&i.AgentError,
 		); err != nil {
 			return nil, err
 		}

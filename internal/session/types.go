@@ -15,6 +15,7 @@ const (
 	Starting   Status = "starting"
 	Running    Status = "running"
 	Cancelling Status = "cancelling"
+	Finalizing Status = "finalizing"
 	Completed  Status = "completed"
 	Failed     Status = "failed"
 	Cancelled  Status = "cancelled"
@@ -22,7 +23,7 @@ const (
 
 func (s Status) Valid() bool {
 	switch s {
-	case Accepted, Starting, Running, Cancelling, Completed, Failed, Cancelled:
+	case Accepted, Starting, Running, Cancelling, Finalizing, Completed, Failed, Cancelled:
 		return true
 	default:
 		return false
@@ -66,10 +67,25 @@ type SandboxInput struct {
 type Limits struct {
 	RunTimeoutSeconds int `json:"run_timeout_seconds"`
 }
+type HooksInput struct {
+	AfterCreate    *string `json:"after_create,omitzero"`
+	BeforeRun      *string `json:"before_run,omitzero"`
+	AfterRun       *string `json:"after_run,omitzero"`
+	BeforeRemove   *string `json:"before_remove,omitzero"`
+	TimeoutSeconds *int    `json:"timeout_seconds,omitzero"`
+}
+type HooksConfiguration struct {
+	AfterCreate    *string `json:"after_create,omitzero"`
+	BeforeRun      *string `json:"before_run,omitzero"`
+	AfterRun       *string `json:"after_run,omitzero"`
+	BeforeRemove   *string `json:"before_remove,omitzero"`
+	TimeoutSeconds int     `json:"timeout_seconds"`
+}
 type ConfigurationInput struct {
 	Agent   AgentInput   `json:"agent"`
 	Sandbox SandboxInput `json:"sandbox"`
 	Limits  Limits       `json:"limits"`
+	Hooks   *HooksInput  `json:"hooks,omitzero"`
 }
 type AgentConfiguration struct {
 	Profile      string `json:"profile"`
@@ -85,6 +101,7 @@ type Configuration struct {
 	Agent   AgentConfiguration   `json:"agent"`
 	Sandbox SandboxConfiguration `json:"sandbox"`
 	Limits  Limits               `json:"limits"`
+	Hooks   HooksConfiguration   `json:"hooks"`
 }
 type CredentialStore struct {
 	Type        string  `json:"type" toml:"type"`
@@ -154,24 +171,42 @@ type ToolCall struct {
 	Position           *Position       `json:"position"`
 	CreatedAt          time.Time       `json:"created_at"`
 }
+type HookResult struct {
+	ID                 uuid.UUID       `json:"id"`
+	Name               string          `json:"name"`
+	Status             string          `json:"status"`
+	StartedAt          *time.Time      `json:"started_at"`
+	DeadlineAt         *time.Time      `json:"deadline_at"`
+	FinishedAt         *time.Time      `json:"finished_at"`
+	ExitCode           *int            `json:"exit_code"`
+	Signal             *int            `json:"signal"`
+	Output             json.RawMessage `json:"output"`
+	OutputCompleteness string          `json:"output_completeness"`
+	TruncationReason   *string         `json:"truncation_reason"`
+	Error              *Error          `json:"error"`
+}
 type Run struct {
-	InputFingerprint   *string    `json:"input_fingerprint"`
-	EnvNames           []string   `json:"env_names"`
-	EnvFrom            []string   `json:"env_from"`
-	ID                 uuid.UUID  `json:"id"`
-	SessionID          uuid.UUID  `json:"session_id"`
-	Number             int        `json:"number"`
-	Status             Status     `json:"status"`
-	Observation        *string    `json:"observation"`
-	CreatedAt          time.Time  `json:"created_at"`
-	ExecutionStartedAt *time.Time `json:"execution_started_at"`
-	DeadlineAt         *time.Time `json:"deadline_at"`
-	FinishedAt         *time.Time `json:"finished_at"`
-	CancelRequestedAt  *time.Time `json:"cancel_requested_at"`
-	StopReason         *string    `json:"stop_reason"`
-	StopMethod         *string    `json:"stop_method"`
-	FinalMessage       *Message   `json:"final_message"`
-	Error              *Error     `json:"error"`
+	InputFingerprint   *string      `json:"input_fingerprint"`
+	EnvNames           []string     `json:"env_names"`
+	EnvFrom            []string     `json:"env_from"`
+	ID                 uuid.UUID    `json:"id"`
+	SessionID          uuid.UUID    `json:"session_id"`
+	Number             int          `json:"number"`
+	Status             Status       `json:"status"`
+	Phase              *string      `json:"phase"`
+	AgentStatus        *Status      `json:"agent_status"`
+	AgentError         *Error       `json:"agent_error"`
+	Hooks              []HookResult `json:"hooks"`
+	Observation        *string      `json:"observation"`
+	CreatedAt          time.Time    `json:"created_at"`
+	ExecutionStartedAt *time.Time   `json:"execution_started_at"`
+	DeadlineAt         *time.Time   `json:"deadline_at"`
+	FinishedAt         *time.Time   `json:"finished_at"`
+	CancelRequestedAt  *time.Time   `json:"cancel_requested_at"`
+	StopReason         *string      `json:"stop_reason"`
+	StopMethod         *string      `json:"stop_method"`
+	FinalMessage       *Message     `json:"final_message"`
+	Error              *Error       `json:"error"`
 }
 type SandboxState struct {
 	State          string  `json:"state"`
@@ -190,6 +225,7 @@ type Session struct {
 	ActiveRunID   *uuid.UUID    `json:"active_run_id"`
 	LastRunID     uuid.UUID     `json:"last_run_id"`
 	Status        Status        `json:"status"`
+	Phase         *string       `json:"phase"`
 	FinalMessage  *Message      `json:"final_message"`
 	Error         *Error        `json:"error"`
 }

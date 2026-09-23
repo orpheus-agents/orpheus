@@ -7,6 +7,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -91,6 +93,15 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 	cipher, _ := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
 	settings := config.DefaultSettings()
 	settings.WorkerPoll = time.Second
+	runnerDir := t.TempDir()
+	for _, arch := range []string{"amd64", "arm64"} {
+		binary := filepath.Join(runnerDir, "hook-runner-"+arch)
+		build := exec.CommandContext(t.Context(), "go", "build", "-trimpath", "-o", binary, "github.com/skillum-ai/orpheus/cmd/orpheus-hook-runner")
+		build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH="+arch)
+		if output, err := build.CombinedOutput(); err != nil {
+			t.Fatalf("build hook runner: %v: %s", err, output)
+		}
+	}
 	model := os.Getenv("ORPHEUS_TEST_MODEL")
 	if model == "" {
 		model = "gpt-5.4"
@@ -98,13 +109,17 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 	s := &store.Store{Pool: testutil.Database(t), Settings: settings, Cipher: cipher, Profiles: config.Profiles{Profiles: map[string]config.Profile{"live": {Harness: "codex", Model: &model, Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
 	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Minute)
 	defer cancel()
-	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "live"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 300}}, Message: session.TextMessage{Text: "Create a file named orpheus-probe.txt in the current directory containing exactly ORPHEUS_OK. Then reply with exactly CREATED. Do not access other directories or networks."}}})
+	hooks := &session.HooksInput{AfterCreate: new("#!/bin/sh\nprintf 'created\\n'\n"), BeforeRun: new("#!/bin/sh\nprintf 'prepared\\n'\n"), AfterRun: new("#!/bin/sh\nprintf 'agent:%s\\n' \"$ORPHEUS_AGENT_STATUS\"\n")}
+	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "live"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 300}, Hooks: hooks}, Message: session.TextMessage{Text: "Create a file named orpheus-probe.txt in the current directory containing exactly ORPHEUS_OK. Then reply with exactly CREATED. Do not access other directories or networks."}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	lost := map[string]bool{}
 	newExecutor := func() *Executor {
 		e := NewExecutor(a.SessionID, s, faults)
+		e.RunnerBinary = func(remotePath string) ([]byte, error) {
+			return os.ReadFile(filepath.Join(runnerDir, filepath.Base(remotePath)))
+		}
 		e.NewDriver = func(box harness.Sandbox) harness.Driver {
 			return &faultDriver{Driver: codex.New(box, settings.RPCTimeout, settings.MaxToolResultBytes), lost: lost}
 		}
@@ -131,7 +146,7 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 				t.Fatal(err)
 			}
 			if run.Status.Terminal() {
-				if run.Status != session.Completed || run.FinalMessage == nil || !strings.Contains(run.FinalMessage.Text, marker) {
+				if run.Status != session.Completed || run.FinalMessage == nil || !strings.Contains(run.FinalMessage.Text, marker) || len(run.Hooks) == 0 || run.Hooks[len(run.Hooks)-1].Status != "completed" {
 					t.Fatalf("unexpected live run outcome: status=%s error=%v", run.Status, run.Error)
 				}
 				for ctx.Err() == nil {

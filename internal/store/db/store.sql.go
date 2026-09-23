@@ -15,9 +15,9 @@ import (
 )
 
 const activeRun = `-- name: ActiveRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error
 FROM runs r
-WHERE session_id = $1 AND status IN ('accepted', 'starting', 'running', 'cancelling')
+WHERE session_id = $1 AND status IN ('accepted', 'starting', 'running', 'cancelling', 'finalizing')
 `
 
 func (q *Queries) ActiveRun(ctx context.Context, sessionID uuid.UUID) (Run, error) {
@@ -45,6 +45,9 @@ func (q *Queries) ActiveRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 		&i.EnvCiphertext,
 		&i.EnvNames,
 		&i.EnvFrom,
+		&i.Phase,
+		&i.AgentStatus,
+		&i.AgentError,
 	)
 	return i, err
 }
@@ -74,7 +77,7 @@ func (q *Queries) CountReserved(ctx context.Context) (int64, error) {
 const createRun = `-- name: CreateRun :one
 INSERT INTO runs AS r(id, session_id, number, input_fingerprint, env_ciphertext, env_names, env_from)
 VALUES($1, $2, $3, $4, $5, $6, $7)
-RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from
+RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error
 `
 
 type CreateRunParams struct {
@@ -120,6 +123,9 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		&i.EnvCiphertext,
 		&i.EnvNames,
 		&i.EnvFrom,
+		&i.Phase,
+		&i.AgentStatus,
+		&i.AgentError,
 	)
 	return i, err
 }
@@ -232,7 +238,7 @@ func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 }
 
 const getRun = `-- name: GetRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error
 FROM runs r
 WHERE session_id = $1 AND id = $2
 `
@@ -267,6 +273,9 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (Run, error) {
 		&i.EnvCiphertext,
 		&i.EnvNames,
 		&i.EnvFrom,
+		&i.Phase,
+		&i.AgentStatus,
+		&i.AgentError,
 	)
 	return i, err
 }
@@ -356,7 +365,7 @@ func (q *Queries) InsertIdempotency(ctx context.Context, arg InsertIdempotencyPa
 }
 
 const latestRun = `-- name: LatestRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error
 FROM runs r
 WHERE session_id = $1
 ORDER BY number DESC
@@ -388,6 +397,9 @@ func (q *Queries) LatestRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 		&i.EnvCiphertext,
 		&i.EnvNames,
 		&i.EnvFrom,
+		&i.Phase,
+		&i.AgentStatus,
+		&i.AgentError,
 	)
 	return i, err
 }
@@ -468,6 +480,47 @@ func (q *Queries) Messages(ctx context.Context, runID uuid.UUID) ([]Message, err
 	return items, nil
 }
 
+const messagesByIDs = `-- name: MessagesByIDs :many
+SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key
+FROM messages
+WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) MessagesByIDs(ctx context.Context, messageIds []uuid.UUID) ([]Message, error) {
+	rows, err := q.db.Query(ctx, messagesByIDs, messageIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Message{}
+	for rows.Next() {
+		var i Message
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.RunID,
+			&i.Role,
+			&i.Kind,
+			&i.Text,
+			&i.DeliveryStatus,
+			&i.DeliveryNumber,
+			&i.Error,
+			&i.NativeKey,
+			&i.RegisteredSequence,
+			&i.Position,
+			&i.CreatedAt,
+			&i.ExternalKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const reservedSessions = `-- name: ReservedSessions :many
 SELECT id
 FROM sessions
@@ -508,25 +561,31 @@ SET status = $2,
     error = $11,
     native_turn_id = $12,
     next_delivery_number = $13,
-    final_message_id = $14
+    final_message_id = $14,
+    phase = $15,
+    agent_status = $16,
+    agent_error = $17
 WHERE id = $1
 `
 
 type SaveRunParams struct {
-	ID                 uuid.UUID      `json:"id"`
-	Status             session.Status `json:"status"`
-	Observation        *string        `json:"observation"`
-	ExecutionStartedAt *time.Time     `json:"execution_started_at"`
-	DeadlineAt         *time.Time     `json:"deadline_at"`
-	FinishedAt         *time.Time     `json:"finished_at"`
-	CancelRequestedAt  *time.Time     `json:"cancel_requested_at"`
-	CancelAttemptedAt  *time.Time     `json:"cancel_attempted_at"`
-	StopReason         *string        `json:"stop_reason"`
-	StopMethod         *string        `json:"stop_method"`
-	Error              *session.Error `json:"error"`
-	NativeTurnID       *string        `json:"native_turn_id"`
-	NextDeliveryNumber int            `json:"next_delivery_number"`
-	FinalMessageID     *uuid.UUID     `json:"final_message_id"`
+	ID                 uuid.UUID       `json:"id"`
+	Status             session.Status  `json:"status"`
+	Observation        *string         `json:"observation"`
+	ExecutionStartedAt *time.Time      `json:"execution_started_at"`
+	DeadlineAt         *time.Time      `json:"deadline_at"`
+	FinishedAt         *time.Time      `json:"finished_at"`
+	CancelRequestedAt  *time.Time      `json:"cancel_requested_at"`
+	CancelAttemptedAt  *time.Time      `json:"cancel_attempted_at"`
+	StopReason         *string         `json:"stop_reason"`
+	StopMethod         *string         `json:"stop_method"`
+	Error              *session.Error  `json:"error"`
+	NativeTurnID       *string         `json:"native_turn_id"`
+	NextDeliveryNumber int             `json:"next_delivery_number"`
+	FinalMessageID     *uuid.UUID      `json:"final_message_id"`
+	Phase              *string         `json:"phase"`
+	AgentStatus        *session.Status `json:"agent_status"`
+	AgentError         *session.Error  `json:"agent_error"`
 }
 
 func (q *Queries) SaveRun(ctx context.Context, arg SaveRunParams) error {
@@ -545,6 +604,9 @@ func (q *Queries) SaveRun(ctx context.Context, arg SaveRunParams) error {
 		arg.NativeTurnID,
 		arg.NextDeliveryNumber,
 		arg.FinalMessageID,
+		arg.Phase,
+		arg.AgentStatus,
+		arg.AgentError,
 	)
 	return err
 }

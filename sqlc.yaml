@@ -63,6 +63,21 @@ sql:
               import: "github.com/skillum-ai/orpheus/internal/session"
               type: "Error"
               pointer: true
+          - column: "runs.agent_error"
+            go_type:
+              import: "github.com/skillum-ai/orpheus/internal/session"
+              type: "Error"
+              pointer: true
+          - column: "runs.agent_status"
+            go_type:
+              import: "github.com/skillum-ai/orpheus/internal/session"
+              type: "Status"
+              pointer: true
+          - column: "hook_executions.error"
+            go_type:
+              import: "github.com/skillum-ai/orpheus/internal/session"
+              type: "Error"
+              pointer: true
           - column: "runs.status"
             go_type:
               import: "github.com/skillum-ai/orpheus/internal/session"

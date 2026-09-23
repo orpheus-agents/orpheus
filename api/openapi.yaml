@@ -2,7 +2,7 @@ components:
     schemas:
         RunStatus:
             type: string
-            enum: [accepted, starting, running, cancelling, completed, failed, cancelled]
+            enum: [accepted, starting, running, cancelling, finalizing, completed, failed, cancelled]
         Accepted:
             properties:
                 message_id:
@@ -78,6 +78,8 @@ components:
             properties:
                 agent:
                     $ref: '#/components/schemas/AgentConfiguration'
+                hooks:
+                    $ref: '#/components/schemas/HooksConfiguration'
                 limits:
                     $ref: '#/components/schemas/Limits'
                 sandbox:
@@ -86,6 +88,7 @@ components:
                 - agent
                 - sandbox
                 - limits
+                - hooks
             title: Configuration
             type: object
         ConfigurationInput:
@@ -93,6 +96,8 @@ components:
             properties:
                 agent:
                     $ref: '#/components/schemas/AgentInput'
+                hooks:
+                    $ref: '#/components/schemas/HooksInput'
                 limits:
                     $ref: '#/components/schemas/Limits'
                 sandbox:
@@ -157,6 +162,7 @@ components:
                         - enum:
                             - preparation
                             - execution
+                            - finalization
                             - recovery
                           type: string
                         - type: "null"
@@ -169,7 +175,7 @@ components:
             title: Error
             type: object
         ErrorDetail:
-            description: Request validation issue. Paths start with body, header, query, or path; codes never contain input values or native validator messages.
+            description: Validation paths start with body, header, query, or path. Hook execution errors identify configuration.hooks.<name>; codes never contain input values or native validator messages.
             properties:
                 code:
                     enum: [required, invalid_type, invalid_value, unknown_field]
@@ -237,6 +243,99 @@ components:
             required:
                 - status
             title: HealthResponse
+            type: object
+        HooksConfiguration:
+            additionalProperties: false
+            properties:
+                after_create:
+                    type: string
+                before_run:
+                    type: string
+                after_run:
+                    type: string
+                before_remove:
+                    type: string
+                timeout_seconds:
+                    type: integer
+                    minimum: 1
+                    maximum: 2147483647
+            required:
+                - timeout_seconds
+            type: object
+        HooksInput:
+            additionalProperties: false
+            properties:
+                after_create:
+                    description: Executable script text with a shebang; runs once after workspace creation.
+                    type: string
+                before_run:
+                    description: Executable script text with a shebang; runs before every assignment.
+                    type: string
+                after_run:
+                    description: Executable script text with a shebang; runs after confirmed agent completion, before pause.
+                    type: string
+                before_remove:
+                    description: Accepted for future explicit sandbox removal; never called by this API version.
+                    type: string
+                timeout_seconds:
+                    description: Timeout for each hook invocation.
+                    type: integer
+                    default: 300
+                    minimum: 1
+                    maximum: 2147483647
+            type: object
+        HookResult:
+            properties:
+                id:
+                    type: string
+                    format: uuid
+                name:
+                    type: string
+                    enum: [after_create, before_run, after_run, before_remove]
+                status:
+                    type: string
+                    enum: [pending, running, completed, failed, cancelled, skipped]
+                started_at:
+                    anyOf:
+                        - type: string
+                          format: date-time
+                        - type: 'null'
+                deadline_at:
+                    anyOf:
+                        - type: string
+                          format: date-time
+                        - type: 'null'
+                finished_at:
+                    anyOf:
+                        - type: string
+                          format: date-time
+                        - type: 'null'
+                exit_code:
+                    anyOf:
+                        - type: integer
+                        - type: 'null'
+                signal:
+                    anyOf:
+                        - type: integer
+                        - type: 'null'
+                output:
+                    anyOf:
+                        - $ref: '#/components/schemas/TextResult'
+                        - $ref: '#/components/schemas/TruncatedResult'
+                        - type: 'null'
+                output_completeness:
+                    type: string
+                    enum: [complete, truncated, unavailable, unknown]
+                truncation_reason:
+                    anyOf:
+                        - type: string
+                          enum: [orpheus_limit]
+                        - type: 'null'
+                error:
+                    anyOf:
+                        - $ref: '#/components/schemas/Error'
+                        - type: 'null'
+            required: [id, name, status, started_at, deadline_at, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error]
             type: object
         HistoryPage:
             properties:
@@ -464,6 +563,24 @@ components:
             type: object
         Run:
             properties:
+                phase:
+                    anyOf:
+                        - type: string
+                          enum: [preparation, after_create, before_run, agent, after_run]
+                        - type: 'null'
+                agent_status:
+                    anyOf:
+                        - type: string
+                          enum: [completed, failed, cancelled]
+                        - type: 'null'
+                agent_error:
+                    anyOf:
+                        - $ref: '#/components/schemas/Error'
+                        - type: 'null'
+                hooks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HookResult'
                 env_names:
                     description: Sorted names of explicit variables supplied for this run; values are never returned.
                     type: array
@@ -554,6 +671,10 @@ components:
                         - type: "null"
                     title: Stop Reason
             required:
+                - phase
+                - agent_status
+                - agent_error
+                - hooks
                 - input_fingerprint
                 - env_names
                 - env_from
@@ -743,6 +864,11 @@ components:
             type: object
         Session:
             properties:
+                phase:
+                    anyOf:
+                        - type: string
+                          enum: [preparation, after_create, before_run, agent, after_run]
+                        - type: 'null'
                 namespace:
                     description: Logical integration or workflow name. Opaque identifier, 1–128 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
                     anyOf:
@@ -786,6 +912,7 @@ components:
                 status:
                     $ref: '#/components/schemas/RunStatus'
             required:
+                - phase
                 - namespace
                 - external_key
                 - id

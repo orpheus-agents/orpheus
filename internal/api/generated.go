@@ -27,19 +27,22 @@ import (
 
 // Defines values for ErrorPhase.
 const (
-	Execution   ErrorPhase = "execution"
-	Preparation ErrorPhase = "preparation"
-	Recovery    ErrorPhase = "recovery"
+	ErrorPhaseExecution    ErrorPhase = "execution"
+	ErrorPhaseFinalization ErrorPhase = "finalization"
+	ErrorPhasePreparation  ErrorPhase = "preparation"
+	ErrorPhaseRecovery     ErrorPhase = "recovery"
 )
 
 // Valid indicates whether the value is a known member of the ErrorPhase enum.
 func (e ErrorPhase) Valid() bool {
 	switch e {
-	case Execution:
+	case ErrorPhaseExecution:
 		return true
-	case Preparation:
+	case ErrorPhaseFinalization:
 		return true
-	case Recovery:
+	case ErrorPhasePreparation:
+		return true
+	case ErrorPhaseRecovery:
 		return true
 	default:
 		return false
@@ -79,6 +82,99 @@ const (
 func (e HealthResponseStatus) Valid() bool {
 	switch e {
 	case Ok:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HookResultName.
+const (
+	HookResultNameAfterCreate  HookResultName = "after_create"
+	HookResultNameAfterRun     HookResultName = "after_run"
+	HookResultNameBeforeRemove HookResultName = "before_remove"
+	HookResultNameBeforeRun    HookResultName = "before_run"
+)
+
+// Valid indicates whether the value is a known member of the HookResultName enum.
+func (e HookResultName) Valid() bool {
+	switch e {
+	case HookResultNameAfterCreate:
+		return true
+	case HookResultNameAfterRun:
+		return true
+	case HookResultNameBeforeRemove:
+		return true
+	case HookResultNameBeforeRun:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HookResultOutputCompleteness.
+const (
+	HookResultOutputCompletenessComplete    HookResultOutputCompleteness = "complete"
+	HookResultOutputCompletenessTruncated   HookResultOutputCompleteness = "truncated"
+	HookResultOutputCompletenessUnavailable HookResultOutputCompleteness = "unavailable"
+	HookResultOutputCompletenessUnknown     HookResultOutputCompleteness = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the HookResultOutputCompleteness enum.
+func (e HookResultOutputCompleteness) Valid() bool {
+	switch e {
+	case HookResultOutputCompletenessComplete:
+		return true
+	case HookResultOutputCompletenessTruncated:
+		return true
+	case HookResultOutputCompletenessUnavailable:
+		return true
+	case HookResultOutputCompletenessUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HookResultStatus.
+const (
+	HookResultStatusCancelled HookResultStatus = "cancelled"
+	HookResultStatusCompleted HookResultStatus = "completed"
+	HookResultStatusFailed    HookResultStatus = "failed"
+	HookResultStatusPending   HookResultStatus = "pending"
+	HookResultStatusRunning   HookResultStatus = "running"
+	HookResultStatusSkipped   HookResultStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the HookResultStatus enum.
+func (e HookResultStatus) Valid() bool {
+	switch e {
+	case HookResultStatusCancelled:
+		return true
+	case HookResultStatusCompleted:
+		return true
+	case HookResultStatusFailed:
+		return true
+	case HookResultStatusPending:
+		return true
+	case HookResultStatusRunning:
+		return true
+	case HookResultStatusSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HookResultTruncationReason.
+const (
+	HookResultTruncationReasonOrpheusLimit HookResultTruncationReason = "orpheus_limit"
+)
+
+// Valid indicates whether the value is a known member of the HookResultTruncationReason enum.
+func (e HookResultTruncationReason) Valid() bool {
+	switch e {
+	case HookResultTruncationReasonOrpheusLimit:
 		return true
 	default:
 		return false
@@ -193,6 +289,27 @@ func (e MessageItemType) Valid() bool {
 	}
 }
 
+// Defines values for RunAgentStatus.
+const (
+	RunAgentStatusCancelled RunAgentStatus = "cancelled"
+	RunAgentStatusCompleted RunAgentStatus = "completed"
+	RunAgentStatusFailed    RunAgentStatus = "failed"
+)
+
+// Valid indicates whether the value is a known member of the RunAgentStatus enum.
+func (e RunAgentStatus) Valid() bool {
+	switch e {
+	case RunAgentStatusCancelled:
+		return true
+	case RunAgentStatusCompleted:
+		return true
+	case RunAgentStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RunObservation.
 const (
 	RunObservationAttached     RunObservation = "attached"
@@ -208,6 +325,33 @@ func (e RunObservation) Valid() bool {
 	case RunObservationReconnecting:
 		return true
 	case RunObservationUncertain:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunPhase.
+const (
+	RunPhaseAfterCreate RunPhase = "after_create"
+	RunPhaseAfterRun    RunPhase = "after_run"
+	RunPhaseAgent       RunPhase = "agent"
+	RunPhaseBeforeRun   RunPhase = "before_run"
+	RunPhasePreparation RunPhase = "preparation"
+)
+
+// Valid indicates whether the value is a known member of the RunPhase enum.
+func (e RunPhase) Valid() bool {
+	switch e {
+	case RunPhaseAfterCreate:
+		return true
+	case RunPhaseAfterRun:
+		return true
+	case RunPhaseAgent:
+		return true
+	case RunPhaseBeforeRun:
+		return true
+	case RunPhasePreparation:
 		return true
 	default:
 		return false
@@ -272,6 +416,7 @@ const (
 	RunStatusCancelling RunStatus = "cancelling"
 	RunStatusCompleted  RunStatus = "completed"
 	RunStatusFailed     RunStatus = "failed"
+	RunStatusFinalizing RunStatus = "finalizing"
 	RunStatusRunning    RunStatus = "running"
 	RunStatusStarting   RunStatus = "starting"
 )
@@ -288,6 +433,8 @@ func (e RunStatus) Valid() bool {
 	case RunStatusCompleted:
 		return true
 	case RunStatusFailed:
+		return true
+	case RunStatusFinalizing:
 		return true
 	case RunStatusRunning:
 		return true
@@ -340,6 +487,33 @@ func (e SandboxStateState) Valid() bool {
 	case SandboxStateStateResuming:
 		return true
 	case SandboxStateStateUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SessionPhase.
+const (
+	SessionPhaseAfterCreate SessionPhase = "after_create"
+	SessionPhaseAfterRun    SessionPhase = "after_run"
+	SessionPhaseAgent       SessionPhase = "agent"
+	SessionPhaseBeforeRun   SessionPhase = "before_run"
+	SessionPhasePreparation SessionPhase = "preparation"
+)
+
+// Valid indicates whether the value is a known member of the SessionPhase enum.
+func (e SessionPhase) Valid() bool {
+	switch e {
+	case SessionPhaseAfterCreate:
+		return true
+	case SessionPhaseAfterRun:
+		return true
+	case SessionPhaseAgent:
+		return true
+	case SessionPhaseBeforeRun:
+		return true
+	case SessionPhasePreparation:
 		return true
 	default:
 		return false
@@ -414,16 +588,16 @@ func (e ToolCallStatus) Valid() bool {
 
 // Defines values for ToolCallTruncationReason.
 const (
-	HarnessLimit ToolCallTruncationReason = "harness_limit"
-	OrpheusLimit ToolCallTruncationReason = "orpheus_limit"
+	ToolCallTruncationReasonHarnessLimit ToolCallTruncationReason = "harness_limit"
+	ToolCallTruncationReasonOrpheusLimit ToolCallTruncationReason = "orpheus_limit"
 )
 
 // Valid indicates whether the value is a known member of the ToolCallTruncationReason enum.
 func (e ToolCallTruncationReason) Valid() bool {
 	switch e {
-	case HarnessLimit:
+	case ToolCallTruncationReasonHarnessLimit:
 		return true
-	case OrpheusLimit:
+	case ToolCallTruncationReasonOrpheusLimit:
 		return true
 	default:
 		return false
@@ -592,6 +766,7 @@ type Cancelled struct {
 // Configuration defines model for Configuration.
 type Configuration struct {
 	Agent   AgentConfiguration   `json:"agent"`
+	Hooks   HooksConfiguration   `json:"hooks"`
 	Limits  Limits               `json:"limits"`
 	Sandbox SandboxConfiguration `json:"sandbox"`
 }
@@ -599,6 +774,7 @@ type Configuration struct {
 // ConfigurationInput defines model for ConfigurationInput.
 type ConfigurationInput struct {
 	Agent   AgentInput   `json:"agent"`
+	Hooks   *HooksInput  `json:"hooks,omitempty"`
 	Limits  *Limits      `json:"limits,omitempty"`
 	Sandbox SandboxInput `json:"sandbox"`
 }
@@ -648,7 +824,7 @@ type Error struct {
 // ErrorPhase defines model for Error.Phase.
 type ErrorPhase string
 
-// ErrorDetail Request validation issue. Paths start with body, header, query, or path; codes never contain input values or native validator messages.
+// ErrorDetail Validation paths start with body, header, query, or path. Hook execution errors identify configuration.hooks.<name>; codes never contain input values or native validator messages.
 type ErrorDetail struct {
 	Code ErrorDetailCode         `json:"code"`
 	Path []ErrorDetail_Path_Item `json:"path"`
@@ -703,6 +879,66 @@ type HistoryPage struct {
 // HistoryPage_Items_Item defines model for HistoryPage.items.Item.
 type HistoryPage_Items_Item struct {
 	union json.RawMessage
+}
+
+// HookResult defines model for HookResult.
+type HookResult struct {
+	DeadlineAt         *time.Time                   `json:"deadline_at"`
+	Error              *Error                       `json:"error"`
+	ExitCode           *int                         `json:"exit_code"`
+	FinishedAt         *time.Time                   `json:"finished_at"`
+	ID                 openapi_types.UUID           `json:"id"`
+	Name               HookResultName               `json:"name"`
+	Output             *HookResult_Output           `json:"output"`
+	OutputCompleteness HookResultOutputCompleteness `json:"output_completeness"`
+	Signal             *int                         `json:"signal"`
+	StartedAt          *time.Time                   `json:"started_at"`
+	Status             HookResultStatus             `json:"status"`
+	TruncationReason   *HookResultTruncationReason  `json:"truncation_reason"`
+}
+
+// HookResultName defines model for HookResult.Name.
+type HookResultName string
+
+// HookResult_Output defines model for HookResult.Output.
+type HookResult_Output struct {
+	union json.RawMessage
+}
+
+// HookResultOutputCompleteness defines model for HookResult.OutputCompleteness.
+type HookResultOutputCompleteness string
+
+// HookResultStatus defines model for HookResult.Status.
+type HookResultStatus string
+
+// HookResultTruncationReason defines model for HookResult.TruncationReason.
+type HookResultTruncationReason string
+
+// HooksConfiguration defines model for HooksConfiguration.
+type HooksConfiguration struct {
+	AfterCreate    *string `json:"after_create,omitempty"`
+	AfterRun       *string `json:"after_run,omitempty"`
+	BeforeRemove   *string `json:"before_remove,omitempty"`
+	BeforeRun      *string `json:"before_run,omitempty"`
+	TimeoutSeconds int     `json:"timeout_seconds"`
+}
+
+// HooksInput defines model for HooksInput.
+type HooksInput struct {
+	// AfterCreate Executable script text with a shebang; runs once after workspace creation.
+	AfterCreate *string `json:"after_create,omitempty"`
+
+	// AfterRun Executable script text with a shebang; runs after confirmed agent completion, before pause.
+	AfterRun *string `json:"after_run,omitempty"`
+
+	// BeforeRemove Accepted for future explicit sandbox removal; never called by this API version.
+	BeforeRemove *string `json:"before_remove,omitempty"`
+
+	// BeforeRun Executable script text with a shebang; runs before every assignment.
+	BeforeRun *string `json:"before_run,omitempty"`
+
+	// TimeoutSeconds Timeout for each hook invocation.
+	TimeoutSeconds *int `json:"timeout_seconds,omitempty"`
 }
 
 // JSONResult defines model for JSONResult.
@@ -776,9 +1012,11 @@ type Position struct {
 
 // Run defines model for Run.
 type Run struct {
-	CancelRequestedAt *time.Time `json:"cancel_requested_at"`
-	CreatedAt         time.Time  `json:"created_at"`
-	DeadlineAt        *time.Time `json:"deadline_at"`
+	AgentError        *Error          `json:"agent_error"`
+	AgentStatus       *RunAgentStatus `json:"agent_status"`
+	CancelRequestedAt *time.Time      `json:"cancel_requested_at"`
+	CreatedAt         time.Time       `json:"created_at"`
+	DeadlineAt        *time.Time      `json:"deadline_at"`
 
 	// EnvFrom Sorted orchestrator environment variable names supplied for this run.
 	EnvFrom []string `json:"env_from"`
@@ -789,20 +1027,28 @@ type Run struct {
 	ExecutionStartedAt *time.Time         `json:"execution_started_at"`
 	FinalMessage       *Message           `json:"final_message"`
 	FinishedAt         *time.Time         `json:"finished_at"`
+	Hooks              []HookResult       `json:"hooks"`
 	ID                 openapi_types.UUID `json:"id"`
 
 	// InputFingerprint Input snapshot version supplied when the run was accepted. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
 	InputFingerprint *string            `json:"input_fingerprint"`
 	Number           int                `json:"number"`
 	Observation      *RunObservation    `json:"observation"`
+	Phase            *RunPhase          `json:"phase"`
 	SessionID        openapi_types.UUID `json:"session_id"`
 	Status           RunStatus          `json:"status"`
 	StopMethod       *RunStopMethod     `json:"stop_method"`
 	StopReason       *RunStopReason     `json:"stop_reason"`
 }
 
+// RunAgentStatus defines model for Run.AgentStatus.
+type RunAgentStatus string
+
 // RunObservation defines model for Run.Observation.
 type RunObservation string
+
+// RunPhase defines model for Run.Phase.
+type RunPhase string
 
 // RunStopMethod defines model for Run.StopMethod.
 type RunStopMethod string
@@ -892,10 +1138,14 @@ type Session struct {
 	LastRunID    openapi_types.UUID `json:"last_run_id"`
 
 	// Namespace Logical integration or workflow name. Opaque identifier, 1–128 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
-	Namespace *string      `json:"namespace"`
-	Sandbox   SandboxState `json:"sandbox"`
-	Status    RunStatus    `json:"status"`
+	Namespace *string       `json:"namespace"`
+	Phase     *SessionPhase `json:"phase"`
+	Sandbox   SandboxState  `json:"sandbox"`
+	Status    RunStatus     `json:"status"`
 }
+
+// SessionPhase defines model for Session.Phase.
+type SessionPhase string
 
 // SessionPage defines model for SessionPage.
 type SessionPage struct {
@@ -1411,6 +1661,68 @@ func (t HistoryPage_Items_Item) MarshalJSON() ([]byte, error) {
 }
 
 func (t *HistoryPage_Items_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTextResult returns the union data inside the HookResult_Output as a TextResult
+func (t HookResult_Output) AsTextResult() (TextResult, error) {
+	var body TextResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextResult overwrites any union data inside the HookResult_Output as the provided TextResult
+func (t *HookResult_Output) FromTextResult(v TextResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextResult performs a merge with any union data inside the HookResult_Output, using the provided TextResult
+func (t *HookResult_Output) MergeTextResult(v TextResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTruncatedResult returns the union data inside the HookResult_Output as a TruncatedResult
+func (t HookResult_Output) AsTruncatedResult() (TruncatedResult, error) {
+	var body TruncatedResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTruncatedResult overwrites any union data inside the HookResult_Output as the provided TruncatedResult
+func (t *HookResult_Output) FromTruncatedResult(v TruncatedResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTruncatedResult performs a merge with any union data inside the HookResult_Output, using the provided TruncatedResult
+func (t *HookResult_Output) MergeTruncatedResult(v TruncatedResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t HookResult_Output) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *HookResult_Output) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -4744,83 +5056,90 @@ func (sh *strictHandler) Ready(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"e7y/n6kBcybk8duDgwP1Ien/HwA=",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
