@@ -1,10 +1,12 @@
-FROM golang:1.27.1-bookworm AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.1-bookworm AS build
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
+ARG TARGETOS
+ARG TARGETARCH
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -trimpath -o /orpheus ./cmd/orpheus
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -o /orpheus ./cmd/orpheus
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     mkdir -p /opt/orpheus && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /opt/orpheus/hook-runner-amd64 ./cmd/orpheus-hook-runner && \
