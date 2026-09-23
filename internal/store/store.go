@@ -374,23 +374,14 @@ type Admission struct {
 }
 
 func fingerprint(a Admission) (string, error) {
-	var value any = session.CreateRun{InputFingerprint: a.InputFingerprint, Message: session.TextMessage{Text: a.Text, ExternalKey: a.MessageExternalKey}}
 	runEnvNames := slices.Sorted(maps.Keys(a.Env))
 	runEnvFrom := slices.Sorted(slices.Values(a.EnvFrom))
-	if len(runEnvNames) == 0 {
-		runEnvNames = nil
-	}
-	if len(runEnvFrom) == 0 {
-		runEnvFrom = nil
-	}
-	if len(runEnvNames) > 0 || len(runEnvFrom) > 0 {
-		value = struct {
-			InputFingerprint *string             `json:"input_fingerprint,omitzero"`
-			Message          session.TextMessage `json:"message"`
-			EnvNames         []string            `json:"env_names,omitzero"`
-			EnvFrom          []string            `json:"env_from,omitzero"`
-		}{a.InputFingerprint, session.TextMessage{Text: a.Text, ExternalKey: a.MessageExternalKey}, runEnvNames, runEnvFrom}
-	}
+	var value any = struct {
+		Message          session.TextMessage `json:"message"`
+		InputFingerprint *string             `json:"input_fingerprint,omitzero"`
+		EnvNames         []string            `json:"env_names,omitzero"`
+		EnvFrom          []string            `json:"env_from,omitzero"`
+	}{session.TextMessage{Text: a.Text, ExternalKey: a.MessageExternalKey}, a.InputFingerprint, runEnvNames, runEnvFrom}
 	if a.Create != nil {
 		c := a.Create.Configuration
 		if c.Sandbox.EnvFrom == nil {

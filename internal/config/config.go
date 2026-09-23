@@ -121,46 +121,36 @@ func ValidateSandbox(s session.SandboxInput) error {
 	if s.Template == "" {
 		return invalid("Sandbox template is required.", "configuration", "sandbox", "template")
 	}
-	names := make(map[string]bool, len(s.Env)+len(s.EnvFrom))
-	for name, value := range s.Env {
-		if strings.ContainsRune(value, 0) {
-			return invalid("NUL is not allowed in environment variables.", "configuration", "sandbox", "env", name)
-		}
-		names[name] = true
+	return validateEnvironment(s.Env, s.EnvFrom, []any{"configuration", "sandbox"})
+}
+func ValidateRunEnvironment(env map[string]string, from, allowlist []string) error {
+	if err := validateEnvironment(env, from, nil); err != nil {
+		return err
 	}
-	for _, name := range s.EnvFrom {
-		if names[name] {
-			return invalid("Duplicate environment variable.", "configuration", "sandbox", "env_from")
-		}
-		names[name] = true
-	}
-	for name := range names {
-		if !envName.MatchString(name) || slices.Contains(reserved, name) {
-			return invalid("Invalid or reserved environment variable.", "configuration", "sandbox")
+	for _, name := range from {
+		if !slices.Contains(allowlist, name) {
+			return invalid("Environment reference is not allowed.", "env_from")
 		}
 	}
 	return nil
 }
-func ValidateRunEnvironment(env map[string]string, from, allowlist []string) error {
+func validateEnvironment(env map[string]string, from []string, prefix []any) error {
 	names := make(map[string]bool, len(env)+len(from))
 	for name, value := range env {
 		if strings.ContainsRune(value, 0) {
-			return invalid("NUL is not allowed in environment variables.", "env", name)
+			return invalid("NUL is not allowed in environment variables.", append(slices.Clone(prefix), "env", name)...)
 		}
 		if !envName.MatchString(name) || slices.Contains(reserved, name) {
-			return invalid("Invalid or reserved environment variable.", "env", name)
+			return invalid("Invalid or reserved environment variable.", append(slices.Clone(prefix), "env", name)...)
 		}
 		names[name] = true
 	}
 	for _, name := range from {
 		if !envName.MatchString(name) || slices.Contains(reserved, name) {
-			return invalid("Invalid or reserved environment variable.", "env_from")
+			return invalid("Invalid or reserved environment variable.", append(slices.Clone(prefix), "env_from")...)
 		}
 		if names[name] {
-			return invalid("Duplicate environment variable.", "env_from")
-		}
-		if !slices.Contains(allowlist, name) {
-			return invalid("Environment reference is not allowed.", "env_from")
+			return invalid("Duplicate environment variable.", append(slices.Clone(prefix), "env_from")...)
 		}
 		names[name] = true
 	}
