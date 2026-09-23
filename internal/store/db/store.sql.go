@@ -15,7 +15,7 @@ import (
 )
 
 const activeRun = `-- name: ActiveRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens
 FROM runs r
 WHERE session_id = $1 AND status IN ('accepted', 'starting', 'running', 'cancelling', 'finalizing')
 `
@@ -48,6 +48,9 @@ func (q *Queries) ActiveRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 		&i.Phase,
 		&i.AgentStatus,
 		&i.AgentError,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
 	)
 	return i, err
 }
@@ -77,7 +80,7 @@ func (q *Queries) CountReserved(ctx context.Context) (int64, error) {
 const createRun = `-- name: CreateRun :one
 INSERT INTO runs AS r(id, session_id, number, input_fingerprint, env_ciphertext, env_names, env_from)
 VALUES($1, $2, $3, $4, $5, $6, $7)
-RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error
+RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens
 `
 
 type CreateRunParams struct {
@@ -126,6 +129,9 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		&i.Phase,
 		&i.AgentStatus,
 		&i.AgentError,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
 	)
 	return i, err
 }
@@ -133,7 +139,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved, namespace, external_key)
 VALUES($1, $2, $3, false, $4, $5)
-RETURNING s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key
+RETURNING s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens
 `
 
 type CreateSessionParams struct {
@@ -174,6 +180,9 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.NextEventSequence,
 		&i.Namespace,
 		&i.ExternalKey,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
 	)
 	return i, err
 }
@@ -238,7 +247,7 @@ func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 }
 
 const getRun = `-- name: GetRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens
 FROM runs r
 WHERE session_id = $1 AND id = $2
 `
@@ -276,12 +285,15 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (Run, error) {
 		&i.Phase,
 		&i.AgentStatus,
 		&i.AgentError,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
 	)
 	return i, err
 }
 
 const getSession = `-- name: GetSession :one
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens
 FROM sessions s
 WHERE id = $1
 `
@@ -310,6 +322,9 @@ func (q *Queries) GetSession(ctx context.Context, id uuid.UUID) (Session, error)
 		&i.NextEventSequence,
 		&i.Namespace,
 		&i.ExternalKey,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
 	)
 	return i, err
 }
@@ -365,7 +380,7 @@ func (q *Queries) InsertIdempotency(ctx context.Context, arg InsertIdempotencyPa
 }
 
 const latestRun = `-- name: LatestRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens
 FROM runs r
 WHERE session_id = $1
 ORDER BY number DESC
@@ -400,12 +415,15 @@ func (q *Queries) LatestRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 		&i.Phase,
 		&i.AgentStatus,
 		&i.AgentError,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
 	)
 	return i, err
 }
 
 const lockSession = `-- name: LockSession :one
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens
 FROM sessions s
 WHERE id = $1 FOR UPDATE
 `
@@ -434,6 +452,9 @@ func (q *Queries) LockSession(ctx context.Context, id uuid.UUID) (Session, error
 		&i.NextEventSequence,
 		&i.Namespace,
 		&i.ExternalKey,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
 	)
 	return i, err
 }
@@ -564,7 +585,10 @@ SET status = $2,
     final_message_id = $14,
     phase = $15,
     agent_status = $16,
-    agent_error = $17
+    agent_error = $17,
+    input_tokens = $18,
+    output_tokens = $19,
+    total_tokens = $20
 WHERE id = $1
 `
 
@@ -586,6 +610,9 @@ type SaveRunParams struct {
 	Phase              *string         `json:"phase"`
 	AgentStatus        *session.Status `json:"agent_status"`
 	AgentError         *session.Error  `json:"agent_error"`
+	InputTokens        int64           `json:"input_tokens"`
+	OutputTokens       int64           `json:"output_tokens"`
+	TotalTokens        int64           `json:"total_tokens"`
 }
 
 func (q *Queries) SaveRun(ctx context.Context, arg SaveRunParams) error {
@@ -607,6 +634,9 @@ func (q *Queries) SaveRun(ctx context.Context, arg SaveRunParams) error {
 		arg.Phase,
 		arg.AgentStatus,
 		arg.AgentError,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.TotalTokens,
 	)
 	return err
 }
@@ -626,7 +656,10 @@ SET sandbox_state = $2,
     harness_home = $12,
     slot_reserved = $13,
     next_run_number = $14,
-    next_event_sequence = $15
+    next_event_sequence = $15,
+    input_tokens = $16,
+    output_tokens = $17,
+    total_tokens = $18
 WHERE id = $1
 `
 
@@ -646,6 +679,9 @@ type SaveSessionParams struct {
 	SlotReserved          bool           `json:"slot_reserved"`
 	NextRunNumber         int            `json:"next_run_number"`
 	NextEventSequence     int64          `json:"next_event_sequence"`
+	InputTokens           int64          `json:"input_tokens"`
+	OutputTokens          int64          `json:"output_tokens"`
+	TotalTokens           int64          `json:"total_tokens"`
 }
 
 func (q *Queries) SaveSession(ctx context.Context, arg SaveSessionParams) error {
@@ -665,6 +701,9 @@ func (q *Queries) SaveSession(ctx context.Context, arg SaveSessionParams) error 
 		arg.SlotReserved,
 		arg.NextRunNumber,
 		arg.NextEventSequence,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.TotalTokens,
 	)
 	return err
 }

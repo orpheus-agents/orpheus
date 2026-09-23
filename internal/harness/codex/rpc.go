@@ -167,7 +167,7 @@ func (r *RPC) receive(ctx context.Context, line []byte) {
 			return
 		}
 		switch message.Method {
-		case "item/completed", "item/started", "turn/completed", "turn/started":
+		case "item/completed", "item/started", "turn/completed", "turn/started", "thread/tokenUsage/updated":
 			r.mu.Lock()
 			switch {
 			case r.dirty:

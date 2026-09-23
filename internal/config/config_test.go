@@ -23,7 +23,7 @@ api_key_env="OPENAI_API_KEY"
 		t.Fatal(err)
 	}
 	in := session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex", Env: map[string]string{"TOKEN": "secret"}, EnvFrom: []string{"GITHUB_TOKEN"}}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
-	first, err := Resolve(in, p, []string{"GITHUB_TOKEN"})
+	first, err := Resolve(in, p, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,15 +31,15 @@ api_key_env="OPENAI_API_KEY"
 		t.Fatal(first)
 	}
 	in.Agent.Instructions = new("")
-	next, err := Resolve(in, p, []string{"GITHUB_TOKEN"})
+	next, err := Resolve(in, p, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens)
 	if err != nil || next.Public.Agent.Instructions != "" {
 		t.Fatal(next, err)
 	}
-	if _, err := Resolve(in, p, nil); err == nil {
+	if _, err := Resolve(in, p, nil, DefaultMaxSessionTokens); err == nil {
 		t.Fatal("allowlist bypass")
 	}
 	in.Agent.Model = new(" ")
-	if _, err := Resolve(in, p, []string{"GITHUB_TOKEN"}); err == nil {
+	if _, err := Resolve(in, p, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens); err == nil {
 		t.Fatal("blank model")
 	}
 	c, _ := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
@@ -92,7 +92,7 @@ key="auth.json"
 		t.Fatal(err)
 	}
 	in := session.ConfigurationInput{Agent: session.AgentInput{Profile: "account"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
-	got, err := Resolve(in, p, nil)
+	got, err := Resolve(in, p, nil, DefaultMaxSessionTokens)
 	if err != nil || got.Credentials.Store.Bucket != "b" || got.Credentials.Store.Region != "us-east-1" {
 		t.Fatal(got, err)
 	}

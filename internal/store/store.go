@@ -35,6 +35,10 @@ type Store struct {
 }
 type SessionRecord db.Session
 
+func (s SessionRecord) Usage() session.Usage {
+	return session.Usage{InputTokens: s.InputTokens, OutputTokens: s.OutputTokens, TotalTokens: s.TotalTokens}
+}
+
 func (s SessionRecord) Sandbox() session.SandboxState {
 	return session.SandboxState{State: s.SandboxState, LastKnownState: s.SandboxLastKnownState, Error: s.SandboxError, ID: s.SandboxID, Workspace: s.Workspace}
 }
@@ -184,7 +188,7 @@ func SessionView(ctx context.Context, q db.DBTX, s SessionRecord) (session.Sessi
 	if err != nil {
 		return session.Session{}, err
 	}
-	out := session.Session{Namespace: s.Namespace, ExternalKey: s.ExternalKey, ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, Status: r.Status, Phase: r.Phase, FinalMessage: v.FinalMessage, Error: r.Error}
+	out := session.Session{Usage: s.Usage(), Namespace: s.Namespace, ExternalKey: s.ExternalKey, ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, Status: r.Status, Phase: r.Phase, FinalMessage: v.FinalMessage, Error: r.Error}
 	if !r.Status.Terminal() {
 		out.ActiveRunID = &r.ID
 	}
@@ -250,6 +254,7 @@ func sessionParams(s *SessionRecord) db.SaveSessionParams {
 		SlotReserved:          s.SlotReserved,
 		NextRunNumber:         s.NextRunNumber,
 		NextEventSequence:     s.NextEventSequence,
+		InputTokens:           s.InputTokens, OutputTokens: s.OutputTokens, TotalTokens: s.TotalTokens,
 	}
 }
 func SaveRun(ctx context.Context, tx pgx.Tx, r *RunRecord) error {
@@ -276,6 +281,7 @@ func SaveRun(ctx context.Context, tx pgx.Tx, r *RunRecord) error {
 		Phase:              r.Phase,
 		AgentStatus:        r.AgentStatus,
 		AgentError:         r.AgentError,
+		InputTokens:        r.Usage.InputTokens, OutputTokens: r.Usage.OutputTokens, TotalTokens: r.Usage.TotalTokens,
 	})
 }
 
@@ -381,7 +387,7 @@ func Finish(ctx context.Context, tx pgx.Tx, s *SessionRecord, r *RunRecord, stat
 	r.Error = problem
 	if status == session.Cancelled {
 		r.StopMethod = method
-		if method == nil {
+		if method == nil && r.ExecutionStartedAt != nil {
 			r.StopMethod = new("graceful")
 		}
 	}
@@ -617,7 +623,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 		}
 		var record SessionRecord
 		if a.Create != nil {
-			resolved, err := config.Resolve(a.Create.Configuration, s.Profiles, s.Settings.HarnessEnvAllowlist)
+			resolved, err := config.Resolve(a.Create.Configuration, s.Profiles, s.Settings.HarnessEnvAllowlist, s.Settings.DefaultMaxSessionTokens)
 			if err != nil {
 				return err
 			}
@@ -637,6 +643,9 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			}
 		}
 		var run RunRecord
+		if BudgetExhausted(record) {
+			return session.Problem(409, "token_limit_exceeded", "Session token budget is exhausted.")
+		}
 		if a.RunID != uuid.Nil {
 			run, err = GetRun(ctx, tx, record.ID, a.RunID)
 			if err != nil {

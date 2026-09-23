@@ -65,7 +65,13 @@ type SandboxInput struct {
 	EnvFrom  []string          `json:"env_from"`
 }
 type Limits struct {
-	RunTimeoutSeconds int `json:"run_timeout_seconds"`
+	RunTimeoutSeconds int   `json:"run_timeout_seconds"`
+	MaxSessionTokens  int64 `json:"max_session_tokens,omitzero"`
+}
+type Usage struct {
+	InputTokens  int64 `json:"input_tokens"`
+	OutputTokens int64 `json:"output_tokens"`
+	TotalTokens  int64 `json:"total_tokens"`
 }
 type HooksInput struct {
 	AfterCreate    *string `json:"after_create,omitzero"`
@@ -186,6 +192,7 @@ type HookResult struct {
 	Error              *Error          `json:"error"`
 }
 type Run struct {
+	Usage              Usage        `json:"usage"`
 	InputFingerprint   *string      `json:"input_fingerprint"`
 	EnvNames           []string     `json:"env_names"`
 	EnvFrom            []string     `json:"env_from"`
@@ -216,6 +223,7 @@ type SandboxState struct {
 	Workspace      *string `json:"workspace"`
 }
 type Session struct {
+	Usage         Usage         `json:"usage"`
 	Namespace     *string       `json:"namespace"`
 	ExternalKey   *string       `json:"external_key"`
 	ID            uuid.UUID     `json:"id"`

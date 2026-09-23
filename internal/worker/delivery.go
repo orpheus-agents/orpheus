@@ -63,6 +63,9 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 		if current.CancelRequestedAt != nil || current.Status.Terminal() {
 			return nil
 		}
+		if store.BudgetExhausted(*r) {
+			return store.EnforceTokenBudget(ctx, tx, r, &current)
+		}
 		m, err := store.GetMessage(ctx, tx, message.ID)
 		if err != nil {
 			return err

@@ -21,6 +21,9 @@ import (
 )
 
 type DriverFactory func(harness.Sandbox) harness.Driver
+
+var errStoreAccess = errors.New("session database access failed")
+
 type AccountFactory func(context.Context, harness.Sandbox, string, session.Credentials) (credentials.Sync, error)
 type Executor struct {
 	ID              uuid.UUID
@@ -50,7 +53,11 @@ func NewExecutor(id uuid.UUID, s *store.Store, p harness.Platform) *Executor {
 	}, pauseRetryDelay: 5 * time.Second}
 }
 func (e *Executor) read(ctx context.Context) (store.SessionRecord, *store.RunRecord, error) {
-	return e.Store.Read(ctx, e.ID)
+	r, run, err := e.Store.Read(ctx, e.ID)
+	if err != nil {
+		err = errors.Join(errStoreAccess, err)
+	}
+	return r, run, err
 }
 func (e *Executor) state(ctx context.Context, state string, problem *session.Error) error {
 	return e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
@@ -212,7 +219,7 @@ func (e *Executor) Run(ctx context.Context) {
 		if err != nil {
 			if f, ok := errors.AsType[*harness.ExecutionError](err); ok {
 				err = e.failure(ctx, f)
-			} else {
+			} else if !errors.Is(err, errStoreAccess) {
 				observation := "reconnecting"
 				if errors.Is(err, harness.ErrUncertain) {
 					observation = "uncertain"
@@ -300,6 +307,21 @@ func (e *Executor) tick(ctx context.Context) error {
 	}
 	if run == nil {
 		return e.pause(ctx, record)
+	}
+	if store.BudgetExhausted(record) && run.CancelRequestedAt == nil && run.AgentStatus == nil && run.Status != session.Finalizing {
+		if err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
+			current, err := store.GetRun(ctx, tx, e.ID, run.ID)
+			if err != nil {
+				return err
+			}
+			return store.EnforceTokenBudget(ctx, tx, r, &current)
+		}); err != nil {
+			return err
+		}
+		record, run, err = e.read(ctx)
+		if err != nil || run == nil {
+			return err
+		}
 	}
 	if run.CancelRequestedAt != nil && run.ExecutionStartedAt == nil {
 		if run.Phase != nil && (*run.Phase == "after_create" || *run.Phase == "before_run") {

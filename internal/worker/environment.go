@@ -390,8 +390,13 @@ func (e *Executor) refresh(ctx context.Context, record store.SessionRecord) erro
 		return err
 	}
 	e.snapshot = snapshot
-	if err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error { return store.Reconcile(ctx, tx, r, snapshot) }); err != nil {
-		return err
+	if err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
+		if err := store.Reconcile(ctx, tx, r, snapshot); err != nil {
+			return err
+		}
+		return store.ApplyUsage(ctx, tx, r, snapshot.Usage)
+	}); err != nil {
+		return errors.Join(errStoreAccess, err)
 	}
 	e.driver.Committed()
 	return nil

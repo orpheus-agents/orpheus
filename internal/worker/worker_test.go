@@ -32,6 +32,7 @@ type remote struct {
 	metadata                                                                               map[string]string
 	processes                                                                              []harness.Process
 	turns                                                                                  []harness.Turn
+	usage                                                                                  []harness.UsageReport
 	creates, launches, starts, steers, cancels, pauses, resumes, renewals, opens, attaches int
 	seeds, syncs                                                                           int
 	lostCreate, lostLaunch, lostStart, lostSteer                                           bool
@@ -134,7 +135,7 @@ func (d *fakeDriver) OpenContext(_ context.Context, _ session.AgentConfiguration
 	return harness.Context{NativeID: "thread", HistoryPath: new("/history")}, nil
 }
 func (d *fakeDriver) HasUpdates() bool { return true }
-func (d *fakeDriver) Committed()       {}
+func (d *fakeDriver) Committed()       { d.r.usage = nil }
 func (d *fakeDriver) Start(_ context.Context, _ string, text string) (string, error) {
 	r := d.r
 	r.starts++
@@ -174,7 +175,7 @@ func (d *fakeDriver) Snapshot(context.Context, string, *string, int64) (harness.
 	if d.r.snapshotError != nil {
 		return harness.Snapshot{}, d.r.snapshotError
 	}
-	return harness.Snapshot{Turns: d.r.turns, Path: new("/history"), Offset: 100}, nil
+	return harness.Snapshot{Usage: d.r.usage, Turns: d.r.turns, Path: new("/history"), Offset: 100}, nil
 }
 func (d *fakeDriver) Recover(context.Context, *string, *string, *string) (harness.Snapshot, error) {
 	return d.Snapshot(context.Background(), "", nil, 0)

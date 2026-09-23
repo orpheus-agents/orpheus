@@ -43,7 +43,10 @@ SET sandbox_state = $2,
     harness_home = $12,
     slot_reserved = $13,
     next_run_number = $14,
-    next_event_sequence = $15
+    next_event_sequence = $15,
+    input_tokens = $16,
+    output_tokens = $17,
+    total_tokens = $18
 WHERE id = $1;
 
 -- name: SaveRun :exec
@@ -63,7 +66,10 @@ SET status = $2,
     final_message_id = $14,
     phase = $15,
     agent_status = $16,
-    agent_error = $17
+    agent_error = $17,
+    input_tokens = $18,
+    output_tokens = $19,
+    total_tokens = $20
 WHERE id = $1;
 
 -- name: InsertEvent :exec
