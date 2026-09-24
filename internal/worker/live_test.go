@@ -49,8 +49,8 @@ type faultDriver struct {
 	lost map[string]bool
 }
 
-func (d *faultDriver) Launch(ctx context.Context, env map[string]string, cwd string) (int, error) {
-	pid, err := d.Driver.Launch(ctx, env, cwd)
+func (d *faultDriver) Launch(ctx context.Context, env map[string]string, cwd string, source session.Credentials) (int, error) {
+	pid, err := d.Driver.Launch(ctx, env, cwd, source)
 	if err == nil && !d.lost["launch"] {
 		d.lost["launch"] = true
 		return 0, harness.ErrUncertain

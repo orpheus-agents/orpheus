@@ -65,9 +65,9 @@ type RPC struct {
 func NewRPC(s harness.Sandbox, timeout time.Duration) *RPC {
 	return &RPC{sandbox: s, timeout: timeout, pending: map[string]chan rpcMessage{}}
 }
-func (r *RPC) Launch(ctx context.Context, env map[string]string, cwd string) (int, error) {
+func (r *RPC) Launch(ctx context.Context, command string, env map[string]string, cwd string) (int, error) {
 	streamCtx, cancel := context.WithCancel(ctx)
-	stream, pid, err := r.sandbox.Start(streamCtx, "exec codex app-server", env, cwd)
+	stream, pid, err := r.sandbox.Start(streamCtx, command, env, cwd)
 	if err != nil {
 		cancel()
 		return 0, err

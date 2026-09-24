@@ -2,10 +2,12 @@ package codex
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -129,16 +131,41 @@ func TestNativePreparationAndAccountModes(t *testing.T) {
 			d := New(box, time.Second, 1024)
 			d.rpc = rpc
 			source := session.Credentials{Mode: mode, APIKeyEnv: "FIXTURE_KEY"}
-			env, err := d.Prepare(t.Context(), "/home", source)
-			if err != nil || env["CODEX_HOME"] != "/home" || strings.Contains(string(box.files["/home/config.toml"]), "private-key") {
-				t.Fatal(env, err)
+			box.run = func(_ context.Context, command string) ([]byte, error) {
+				if !strings.Contains(command, "${CODEX_HOME:-$HOME/.codex}") {
+					t.Fatal("Codex state directory did not follow image environment", command)
+				}
+				return []byte("/home/user/.codex"), nil
+			}
+			home, err := d.StateDir(t.Context())
+			if err != nil || home != "/home/user/.codex" || len(box.files) != 0 {
+				t.Fatal(home, box.files, err)
+			}
+			launchBox := &testBox{stream: &testStream{out: make(chan []byte), errout: make(chan []byte)}}
+			launcher := New(launchBox, time.Second, 1024)
+			defer func() { _ = launcher.Close() }()
+			if _, err := launcher.Launch(t.Context(), map[string]string{"TOKEN": "value"}, "/workspace", source); err != nil {
+				t.Fatal(err)
 			}
 			wantMode := "api"
 			if mode == "account" {
 				wantMode = "chatgpt"
 			}
-			if !strings.Contains(string(box.files["/home/config.toml"]), `forced_login_method = "`+wantMode+`"`) {
-				t.Fatal("wrong native login mode")
+			for _, option := range []string{
+				`cli_auth_credentials_store="file"`,
+				`forced_login_method="` + wantMode + `"`,
+				`approval_policy="never"`,
+				`sandbox_mode="danger-full-access"`,
+			} {
+				if !strings.Contains(launchBox.startCommand, " -c "+harness.Quote(option)) {
+					t.Fatal("missing Codex launch option", option, launchBox.startCommand)
+				}
+			}
+			if !strings.HasSuffix(launchBox.startCommand, " app-server") || launchBox.startCWD != "/workspace" || launchBox.startEnv["TOKEN"] != "value" {
+				t.Fatal("wrong Codex launch", launchBox.startCommand, launchBox.startCWD, launchBox.startEnv)
+			}
+			if _, ok := launchBox.startEnv["CODEX_HOME"]; ok {
+				t.Fatal("Codex home overridden", launchBox.startEnv)
 			}
 			if err := d.Initialize(t.Context(), source, true); err != nil {
 				t.Fatal(err)
@@ -164,6 +191,38 @@ func TestNativePreparationAndAccountModes(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRecoverResolvesCodexHomeOnlyForMissingHistoryPath(t *testing.T) {
+	thread, source, _ := historyFixture(t)
+	home := t.TempDir()
+	t.Setenv("CODEX_HOME", home)
+	data, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessions := filepath.Join(home, "sessions")
+	if err := os.MkdirAll(sessions, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sessions, thread.ID+".jsonl"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	box := &testBox{}
+	resolved := 0
+	box.run = func(ctx context.Context, command string) ([]byte, error) {
+		if strings.Contains(command, "${CODEX_HOME:-$HOME/.codex}") {
+			resolved++
+		}
+		return exec.CommandContext(ctx, "sh", "-c", command).Output()
+	}
+	d := New(box, time.Second, 524288)
+	if got, err := d.Recover(t.Context(), &thread.ID, nil, nil); err != nil || len(got.Turns) == 0 || resolved != 1 {
+		t.Fatal("missing-path recovery", got, resolved, err)
+	}
+	if got, err := d.Recover(t.Context(), &thread.ID, &source, nil); err != nil || len(got.Turns) == 0 || resolved != 1 {
+		t.Fatal("known-path recovery resolved home", got, resolved, err)
 	}
 }
 

@@ -38,19 +38,33 @@ func New(s harness.Sandbox, timeout time.Duration, limit int) *Driver {
 
 var _ harness.Driver = (*Driver)(nil)
 
-func (d *Driver) Prepare(ctx context.Context, home string, source session.Credentials) (map[string]string, error) {
+func (d *Driver) StateDir(ctx context.Context) (string, error) {
+	raw, err := d.rpc.sandbox.Run(ctx, `set -eu; d="${CODEX_HOME:-$HOME/.codex}"; mkdir -p "$d"; chmod 700 "$d"; printf '%s' "$d"`)
+	if err != nil {
+		return "", err
+	}
+	home := string(raw)
+	if !strings.HasPrefix(home, "/") || strings.ContainsAny(home, "\x00\r\n") {
+		return "", harness.Failure("environment_unavailable", "Codex state directory is unavailable.")
+	}
+	return home, nil
+}
+func (d *Driver) Launch(ctx context.Context, env map[string]string, cwd string, source session.Credentials) (int, error) {
 	mode := "api"
 	if source.Mode == "account" {
 		mode = "chatgpt"
 	}
-	content := "cli_auth_credentials_store = \"file\"\nforced_login_method = \"" + mode + "\"\napproval_policy = \"never\"\nsandbox_mode = \"danger-full-access\"\n"
-	if err := d.rpc.sandbox.Write(ctx, home+"/config.toml", []byte(content)); err != nil {
-		return nil, err
+	var command strings.Builder
+	command.WriteString("exec codex")
+	for _, option := range []string{
+		`cli_auth_credentials_store="file"`,
+		`forced_login_method="` + mode + `"`,
+		`approval_policy="never"`,
+		`sandbox_mode="danger-full-access"`,
+	} {
+		command.WriteString(" -c " + harness.Quote(option))
 	}
-	return map[string]string{"CODEX_HOME": home}, nil
-}
-func (d *Driver) Launch(ctx context.Context, env map[string]string, cwd string) (int, error) {
-	return d.rpc.Launch(ctx, env, cwd)
+	return d.rpc.Launch(ctx, command.String()+" app-server", env, cwd)
 }
 func (d *Driver) Attach(ctx context.Context, pid int) error { return d.rpc.Attach(ctx, pid) }
 func (d *Driver) Initialize(ctx context.Context, source session.Credentials, login bool) error {
@@ -108,6 +122,13 @@ func (d *Driver) OpenContext(ctx context.Context, agent session.AgentConfigurati
 	return harness.Context{NativeID: out.Thread.ID, HistoryPath: out.Thread.Path}, nil
 }
 func (d *Driver) Recover(ctx context.Context, id, path, home *string) (harness.Snapshot, error) {
+	if path == nil && id != nil && home == nil {
+		stateDir, err := d.StateDir(ctx)
+		if err != nil {
+			return harness.Snapshot{}, err
+		}
+		home = &stateDir
+	}
 	return recoverHistory(ctx, d.rpc.sandbox, id, path, home, d.limit)
 }
 func (d *Driver) HasUpdates() bool {

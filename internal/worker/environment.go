@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"errors"
-	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -109,25 +108,21 @@ func (e *Executor) ensureSandbox(ctx context.Context, record *store.SessionRecor
 	return e.state(ctx, "ready", nil)
 }
 func (e *Executor) preparePaths(ctx context.Context, record *store.SessionRecord) error {
-	if record.Workspace != nil && record.HarnessHome != nil {
+	if record.Workspace != nil {
 		return nil
 	}
-	// Resolve the selected sandbox user's home. Python is needed only by
-	// native_reader.py, not for preparing directories or selecting a user.
-	output, err := e.sandbox.Run(ctx, `set -eu; h="$HOME"; w="$h/workspace"; c="$h/.orpheus-codex"; mkdir -p "$w" "$c"; chmod 700 "$c"; printf '%s\000%s\000' "$w" "$c"`)
+	output, err := e.sandbox.Run(ctx, `set -eu; w="$HOME/workspace"; mkdir -p "$w"; printf '%s' "$w"`)
 	if err != nil {
 		return err
 	}
-	paths := strings.Split(strings.TrimSuffix(string(output), "\x00"), "\x00")
-	if len(paths) != 2 || !strings.HasPrefix(paths[0], "/") || !strings.HasPrefix(paths[1], "/") {
+	workspace := string(output)
+	if !strings.HasPrefix(workspace, "/") || strings.ContainsAny(workspace, "\x00\r\n") {
 		return harness.Failure("environment_unavailable", "Sandbox paths are unavailable.")
 	}
-	record.Workspace = &paths[0]
-	record.HarnessHome = &paths[1]
+	record.Workspace = &workspace
 	return e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
 		return store.UpdateSandbox(ctx, tx, r, func(r *store.SessionRecord) {
 			r.Workspace = record.Workspace
-			r.HarnessHome = record.HarnessHome
 		})
 	})
 }
@@ -221,6 +216,20 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 		}
 	}()
 	if e.account == nil && cfg.Credentials.Mode == "account" {
+		if record.HarnessHome == nil {
+			home, err := driver.StateDir(ctx)
+			if err != nil {
+				return err
+			}
+			record.HarnessHome = &home
+			if err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
+				return store.UpdateSandbox(ctx, tx, r, func(r *store.SessionRecord) {
+					r.HarnessHome = record.HarnessHome
+				})
+			}); err != nil {
+				return err
+			}
+		}
 		e.account, err = e.NewAccount(ctx, e.sandbox, *record.HarnessHome, cfg.Credentials)
 		if err != nil {
 			return harness.Failure("credentials_unavailable", "Account credentials are unavailable.")
@@ -260,18 +269,13 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 					return err
 				}
 			}
-			nativeEnv, err := driver.Prepare(ctx, *record.HarnessHome, cfg.Credentials)
-			if err != nil {
-				return err
-			}
-			maps.Copy(env, nativeEnv)
 			if proxy := e.Store.Settings.SandboxProxyURL; proxy != "" {
 				env["ALL_PROXY"] = proxy
 				env["NO_PROXY"] = "localhost,127.0.0.1"
 			}
 			env["ORPHEUS_LAUNCH_ID"] = o.ID.String()
 			result, err := e.invoke(ctx, o, func() (operationResult, error) {
-				pid, err := driver.Launch(ctx, env, *record.Workspace)
+				pid, err := driver.Launch(ctx, env, *record.Workspace, cfg.Credentials)
 				return operationResult{PID: pid}, err
 			})
 			if err != nil {

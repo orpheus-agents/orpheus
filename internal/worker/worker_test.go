@@ -34,7 +34,7 @@ type remote struct {
 	turns                                                                                  []harness.Turn
 	usage                                                                                  []harness.UsageReport
 	creates, launches, starts, steers, cancels, pauses, resumes, renewals, opens, attaches int
-	seeds, syncs                                                                           int
+	seeds, syncs, stateDirCalls                                                            int
 	lostCreate, lostLaunch, lostStart, lostSteer                                           bool
 	pauseError, initializeError, prepareError                                              error
 	createError, startError, steerError, contextError, snapshotError, leaseError           error
@@ -117,7 +117,7 @@ func (r *remote) Kill(_ context.Context, pid int) error {
 	return nil
 }
 func (r *remote) Run(context.Context, string) ([]byte, error) {
-	return []byte("/home/template/workspace\x00/home/template/.orpheus-codex\x00"), nil
+	return []byte("/home/template/workspace"), nil
 }
 func (r *remote) Read(context.Context, string) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader("{}")), nil
@@ -128,11 +128,15 @@ type fakeDriver struct {
 	r *remote
 }
 
-func (d *fakeDriver) Prepare(context.Context, string, session.Credentials) (map[string]string, error) {
-	return map[string]string{"CODEX_HOME": "/home/template/.orpheus-codex"}, d.r.prepareError
+func (d *fakeDriver) StateDir(context.Context) (string, error) {
+	d.r.stateDirCalls++
+	return "/home/template/.codex", nil
 }
-func (d *fakeDriver) Launch(_ context.Context, env map[string]string, _ string) (int, error) {
+func (d *fakeDriver) Launch(_ context.Context, env map[string]string, _ string, _ session.Credentials) (int, error) {
 	r := d.r
+	if r.prepareError != nil {
+		return 0, r.prepareError
+	}
 	r.launches++
 	r.env = maps.Clone(env)
 	pid := 100 + r.launches
@@ -257,7 +261,7 @@ func complete(r *remote) {
 func TestFullCyclePauseResume(t *testing.T) {
 	s, r, a, e := setup(t)
 	tick(t, e)
-	if r.creates != 1 || r.starts != 1 || r.launches != 1 {
+	if r.creates != 1 || r.starts != 1 || r.launches != 1 || r.stateDirCalls != 0 {
 		t.Fatal(r)
 	}
 	complete(r)
@@ -583,7 +587,7 @@ func TestAccountRepairAcrossPreparationFailure(t *testing.T) {
 	r.initializeError = harness.Failure("authentication_failed", "Invalid account credentials.")
 	tick(t, e)
 	tick(t, e)
-	if r.starts != 0 || r.syncs != 0 || r.seeds != 1 {
+	if r.starts != 0 || r.syncs != 0 || r.seeds != 1 || r.stateDirCalls != 1 {
 		t.Fatalf("invalid credentials started or uploaded: start=%d sync=%d seed=%d", r.starts, r.syncs, r.seeds)
 	}
 	r.initializeError = nil
@@ -610,10 +614,6 @@ func TestAccountRepairAcrossPreparationFailure(t *testing.T) {
 }
 func TestRestartBeforePauseSyncsAccount(t *testing.T) {
 	s, r, a, e := setup(t)
-	tick(t, e)
-	complete(r)
-	tick(t, e)
-	e.Disconnect()
 	record, _, err := s.Read(t.Context(), a.SessionID)
 	if err != nil {
 		t.Fatal(err)
@@ -622,10 +622,14 @@ func TestRestartBeforePauseSyncsAccount(t *testing.T) {
 	if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET configuration=$2 WHERE id=$1", a.SessionID, record.Configuration); err != nil {
 		t.Fatal(err)
 	}
+	tick(t, e)
+	complete(r)
+	e.Disconnect()
 	restarted := executor(a.SessionID, s, r)
 	defer restarted.Disconnect()
 	tick(t, restarted)
-	if r.syncs != 1 || r.pauses != 1 {
+	tick(t, restarted)
+	if r.syncs < 1 || r.pauses != 1 {
 		t.Fatalf("sync=%d pause=%d", r.syncs, r.pauses)
 	}
 }

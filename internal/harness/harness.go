@@ -96,8 +96,8 @@ type Platform interface {
 	Connect(context.Context, string, time.Duration) (Sandbox, error)
 }
 type Driver interface {
-	Prepare(context.Context, string, session.Credentials) (map[string]string, error)
-	Launch(context.Context, map[string]string, string) (int, error)
+	StateDir(context.Context) (string, error)
+	Launch(context.Context, map[string]string, string, session.Credentials) (int, error)
 	Attach(context.Context, int) error
 	Initialize(context.Context, session.Credentials, bool) error
 	OpenContext(context.Context, session.AgentConfiguration, string, *string) (Context, error)
