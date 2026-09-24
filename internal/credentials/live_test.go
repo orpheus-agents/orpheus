@@ -60,11 +60,12 @@ func TestLiveAccountFiles(t *testing.T) {
 			t.Error("sandbox cleanup failed")
 		}
 	})
-	rawHome, err := box.Run(ctx, "mktemp -d")
+	driver := codex.New(box, 30*time.Second, 524288)
+	defer func() { _ = driver.Close() }()
+	home, err := driver.StateDir(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	home := strings.TrimSpace(string(rawHome))
 	fixture := func(refresh string) []byte {
 		claims, _ := json.Marshal(map[string]any{"email": "fixture@example.test", "sub": "fixture", "exp": time.Now().Add(time.Hour).Unix(), "https://api.openai.com/auth": map[string]string{"chatgpt_account_id": "fixture-account", "chatgpt_plan_type": "plus"}})
 		raw, _ := json.Marshal(map[string]any{"auth_mode": "chatgpt", "OPENAI_API_KEY": nil, "tokens": map[string]string{"access_token": "fixture-access", "refresh_token": refresh, "id_token": "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString(claims) + ".fixture"}, "last_refresh": time.Now().UTC().Format(time.RFC3339)})
@@ -83,14 +84,8 @@ func TestLiveAccountFiles(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(mode)) != "user:600" {
 		t.Fatal("auth file owner or mode", err)
 	}
-	driver := codex.New(box, 30*time.Second, 524288)
-	defer func() { _ = driver.Close() }()
 	creds := session.Credentials{Mode: "account"}
-	env, err := driver.Prepare(ctx, home, creds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := driver.Launch(ctx, env, home); err != nil {
+	if _, err := driver.Launch(ctx, nil, home, creds); err != nil {
 		t.Fatal(err)
 	}
 	if err := driver.Initialize(ctx, creds, true); err != nil {

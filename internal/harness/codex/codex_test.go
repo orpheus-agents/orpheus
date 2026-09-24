@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,12 +39,18 @@ func (s *testStream) Close() error { return nil }
 
 type testBox struct {
 	harness.Sandbox
-	stream *testStream
-	run    func(context.Context, string) ([]byte, error)
-	files  map[string][]byte
+	stream       *testStream
+	startCommand string
+	startEnv     map[string]string
+	startCWD     string
+	run          func(context.Context, string) ([]byte, error)
+	files        map[string][]byte
 }
 
-func (b *testBox) Start(context.Context, string, map[string]string, string) (harness.Stream, int, error) {
+func (b *testBox) Start(_ context.Context, command string, env map[string]string, cwd string) (harness.Stream, int, error) {
+	b.startCommand = command
+	b.startEnv = maps.Clone(env)
+	b.startCWD = cwd
 	return b.stream, 123, nil
 }
 func (b *testBox) Attach(context.Context, int) (harness.Stream, error) { return b.stream, nil }
@@ -77,7 +84,7 @@ func newRPC(t *testing.T, respond func(map[string]json.RawMessage) any) (*RPC, *
 	}
 	box := &testBox{stream: stream}
 	rpc := NewRPC(box, 100*time.Millisecond)
-	if _, err := rpc.Launch(t.Context(), nil, ""); err != nil {
+	if _, err := rpc.Launch(t.Context(), "exec codex app-server", nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = rpc.Close() })
