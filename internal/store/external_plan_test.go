@@ -63,7 +63,7 @@ func TestExternalQueriesUseIndexes(t *testing.T) {
 	}
 	e := &explainQueries{DBTX: s.Pool, t: t}
 	q := db.New(e)
-	sessions, err := q.ListSessions(ctx, db.ListSessionsParams{Namespace: new("integration"), ExternalKey: new("issue:1111"), FirstPage: true, PageLimit: 2})
+	sessions, err := q.ListSessions(ctx, db.ListSessionsParams{Activity: "all", Namespace: new("integration"), ExternalKey: new("issue:1111"), FirstPage: true, PageLimit: 2})
 	if err != nil || len(sessions) != 1 {
 		t.Fatal(sessions, err)
 	}
@@ -87,14 +87,14 @@ func TestExternalQueriesUseIndexes(t *testing.T) {
 		run  func(*db.Queries) error
 	}{
 		{"sessions status", func(q *db.Queries) error {
-			v, err := q.ListSessions(ctx, db.ListSessionsParams{Status: new("running"), FirstPage: true, PageLimit: 51})
+			v, err := q.ListSessions(ctx, db.ListSessionsParams{Activity: "all", Status: new("running"), FirstPage: true, PageLimit: 51})
 			if err == nil && len(v) != 2 {
 				t.Fatal(len(v))
 			}
 			return err
 		}},
 		{"sessions namespace status", func(q *db.Queries) error {
-			_, err := q.ListSessions(ctx, db.ListSessionsParams{Namespace: new("rare"), Status: new("running"), FirstPage: true, PageLimit: 51})
+			_, err := q.ListSessions(ctx, db.ListSessionsParams{Activity: "all", Namespace: new("rare"), Status: new("running"), FirstPage: true, PageLimit: 51})
 			return err
 		}},
 		{"runs namespace", func(q *db.Queries) error {
@@ -106,7 +106,7 @@ func TestExternalQueriesUseIndexes(t *testing.T) {
 			return err
 		}},
 		{"sessions desc", func(q *db.Queries) error {
-			_, err := q.ListSessionsDesc(ctx, db.ListSessionsDescParams{FirstPage: true, PageLimit: 51})
+			_, err := q.ListSessionsDesc(ctx, db.ListSessionsDescParams{Activity: "all", FirstPage: true, PageLimit: 51})
 			return err
 		}},
 		{"runs desc", func(q *db.Queries) error {
@@ -135,14 +135,14 @@ func TestExternalQueriesUseIndexes(t *testing.T) {
 
 		warm := db.New(tx)
 		for range 6 {
-			if _, err := warm.ListSessions(ctx, db.ListSessionsParams{Namespace: new("integration"), FirstPage: true, PageLimit: 51}); err != nil {
+			if _, err := warm.ListSessions(ctx, db.ListSessionsParams{Activity: "all", Namespace: new("integration"), FirstPage: true, PageLimit: 51}); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := warm.ListAllRuns(ctx, db.ListAllRunsParams{Namespace: new("integration"), FirstPage: true, PageLimit: 51}); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if _, err := warm.ListSessions(ctx, db.ListSessionsParams{Namespace: new("rare"), FirstPage: true, PageLimit: 51}); err != nil {
+		if _, err := warm.ListSessions(ctx, db.ListSessionsParams{Activity: "all", Namespace: new("rare"), FirstPage: true, PageLimit: 51}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := warm.ListAllRuns(ctx, db.ListAllRunsParams{Namespace: new("rare"), FirstPage: true, PageLimit: 51}); err != nil {
@@ -154,7 +154,7 @@ func TestExternalQueriesUseIndexes(t *testing.T) {
 		}
 		e := &explainQueries{DBTX: tx, t: t, prepared: true}
 		q := db.New(e)
-		if _, err := q.ListSessionsDesc(ctx, db.ListSessionsDescParams{FirstPage: true, PageLimit: 51}); err != nil {
+		if _, err := q.ListSessionsDesc(ctx, db.ListSessionsDescParams{Activity: "all", FirstPage: true, PageLimit: 51}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := q.ListAllRunsDesc(ctx, db.ListAllRunsDescParams{FirstPage: true, PageLimit: 51}); err != nil {
@@ -163,25 +163,25 @@ func TestExternalQueriesUseIndexes(t *testing.T) {
 
 		for _, ascending := range []bool{false, true} {
 			if ascending {
-				if _, err := q.ListSessions(ctx, db.ListSessionsParams{AfterCreatedAt: sessions[0].CreatedAt, AfterID: uuid.MustParse("80000000-0000-0000-0000-000000000000"), PageLimit: 51}); err != nil {
+				if _, err := q.ListSessions(ctx, db.ListSessionsParams{Activity: "all", AfterCreatedAt: sessions[0].CreatedAt, AfterID: uuid.MustParse("80000000-0000-0000-0000-000000000000"), PageLimit: 51}); err != nil {
 					t.Fatal(err)
 				}
 			} else {
-				if _, err := q.ListSessionsDesc(ctx, db.ListSessionsDescParams{AfterCreatedAt: sessions[0].CreatedAt, AfterID: uuid.MustParse("80000000-0000-0000-0000-000000000000"), PageLimit: 51}); err != nil {
+				if _, err := q.ListSessionsDesc(ctx, db.ListSessionsDescParams{Activity: "all", AfterCreatedAt: sessions[0].CreatedAt, AfterID: uuid.MustParse("80000000-0000-0000-0000-000000000000"), PageLimit: 51}); err != nil {
 					t.Fatal(err)
 				}
 			}
 		}
 
 		for _, ns := range []string{"integration", "rare"} {
-			if _, err := q.ListSessions(ctx, db.ListSessionsParams{Namespace: &ns, FirstPage: true, PageLimit: 51}); err != nil {
+			if _, err := q.ListSessions(ctx, db.ListSessionsParams{Activity: "all", Namespace: &ns, FirstPage: true, PageLimit: 51}); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := q.ListAllRuns(ctx, db.ListAllRunsParams{Namespace: &ns, FirstPage: true, PageLimit: 51}); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if _, err := q.ListSessions(ctx, db.ListSessionsParams{Status: new("running"), FirstPage: true, PageLimit: 51}); err != nil {
+		if _, err := q.ListSessions(ctx, db.ListSessionsParams{Activity: "all", Status: new("running"), FirstPage: true, PageLimit: 51}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := q.ListAllRuns(ctx, db.ListAllRunsParams{Status: new("running"), FirstPage: true, PageLimit: 51}); err != nil {

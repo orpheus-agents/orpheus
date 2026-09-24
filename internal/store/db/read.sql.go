@@ -517,19 +517,25 @@ JOIN runs latest ON latest.session_id = s.id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR latest.status = $3::text)
 AND NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
-AND (s.created_at, s.id) > (CASE WHEN $4::boolean THEN '-infinity'::timestamptz ELSE $5::timestamptz END, $6::uuid)
+AND ($4::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($4::text = 'active'))
+AND ($5::timestamptz IS NULL OR latest.created_at >= $5::timestamptz)
+AND ($6::timestamptz IS NULL OR latest.created_at < $6::timestamptz)
+AND (s.created_at, s.id) > (CASE WHEN $7::boolean THEN '-infinity'::timestamptz ELSE $8::timestamptz END, $9::uuid)
 ORDER BY s.created_at ASC, s.id ASC
-LIMIT $7::int
+LIMIT $10::int
 `
 
 type ListSessionsParams struct {
-	Namespace      *string   `json:"namespace"`
-	ExternalKey    *string   `json:"external_key"`
-	Status         *string   `json:"status"`
-	FirstPage      bool      `json:"first_page"`
-	AfterCreatedAt time.Time `json:"after_created_at"`
-	AfterID        uuid.UUID `json:"after_id"`
-	PageLimit      int       `json:"page_limit"`
+	Namespace          *string    `json:"namespace"`
+	ExternalKey        *string    `json:"external_key"`
+	Status             *string    `json:"status"`
+	Activity           string     `json:"activity"`
+	LastRunCreatedFrom *time.Time `json:"last_run_created_from"`
+	LastRunCreatedTo   *time.Time `json:"last_run_created_to"`
+	FirstPage          bool       `json:"first_page"`
+	AfterCreatedAt     time.Time  `json:"after_created_at"`
+	AfterID            uuid.UUID  `json:"after_id"`
+	PageLimit          int        `json:"page_limit"`
 }
 
 func (q *Queries) ListSessions(ctx context.Context, arg ListSessionsParams) ([]Session, error) {
@@ -537,6 +543,171 @@ func (q *Queries) ListSessions(ctx context.Context, arg ListSessionsParams) ([]S
 		arg.Namespace,
 		arg.ExternalKey,
 		arg.Status,
+		arg.Activity,
+		arg.LastRunCreatedFrom,
+		arg.LastRunCreatedTo,
+		arg.FirstPage,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Session{}
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.Configuration,
+			&i.EnvCiphertext,
+			&i.SandboxState,
+			&i.SandboxLastKnownState,
+			&i.SandboxError,
+			&i.SandboxID,
+			&i.ProcessID,
+			&i.LaunchID,
+			&i.ThreadID,
+			&i.HistoryPath,
+			&i.HistoryOffset,
+			&i.Workspace,
+			&i.HarnessHome,
+			&i.SlotReserved,
+			&i.NextRunNumber,
+			&i.NextEventSequence,
+			&i.Namespace,
+			&i.ExternalKey,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSessionsByLatest = `-- name: ListSessionsByLatest :many
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens FROM runs latest JOIN sessions s ON s.id = latest.session_id
+WHERE NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
+AND ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
+AND ($3::text IS NULL OR latest.status = $3::text)
+AND ($4::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($4::text = 'active'))
+AND ($5::timestamptz IS NULL OR latest.created_at >= $5::timestamptz)
+AND ($6::timestamptz IS NULL OR latest.created_at < $6::timestamptz)
+AND (latest.created_at, s.id) > (CASE WHEN $7::boolean THEN '-infinity'::timestamptz ELSE $8::timestamptz END, $9::uuid)
+ORDER BY latest.created_at ASC, s.id ASC
+LIMIT $10::int
+`
+
+type ListSessionsByLatestParams struct {
+	Namespace          *string    `json:"namespace"`
+	ExternalKey        *string    `json:"external_key"`
+	Status             *string    `json:"status"`
+	Activity           string     `json:"activity"`
+	LastRunCreatedFrom *time.Time `json:"last_run_created_from"`
+	LastRunCreatedTo   *time.Time `json:"last_run_created_to"`
+	FirstPage          bool       `json:"first_page"`
+	AfterCreatedAt     time.Time  `json:"after_created_at"`
+	AfterID            uuid.UUID  `json:"after_id"`
+	PageLimit          int        `json:"page_limit"`
+}
+
+func (q *Queries) ListSessionsByLatest(ctx context.Context, arg ListSessionsByLatestParams) ([]Session, error) {
+	rows, err := q.db.Query(ctx, listSessionsByLatest,
+		arg.Namespace,
+		arg.ExternalKey,
+		arg.Status,
+		arg.Activity,
+		arg.LastRunCreatedFrom,
+		arg.LastRunCreatedTo,
+		arg.FirstPage,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Session{}
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.Configuration,
+			&i.EnvCiphertext,
+			&i.SandboxState,
+			&i.SandboxLastKnownState,
+			&i.SandboxError,
+			&i.SandboxID,
+			&i.ProcessID,
+			&i.LaunchID,
+			&i.ThreadID,
+			&i.HistoryPath,
+			&i.HistoryOffset,
+			&i.Workspace,
+			&i.HarnessHome,
+			&i.SlotReserved,
+			&i.NextRunNumber,
+			&i.NextEventSequence,
+			&i.Namespace,
+			&i.ExternalKey,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSessionsByLatestDesc = `-- name: ListSessionsByLatestDesc :many
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens FROM runs latest JOIN sessions s ON s.id = latest.session_id
+WHERE NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
+AND ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
+AND ($3::text IS NULL OR latest.status = $3::text)
+AND ($4::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($4::text = 'active'))
+AND ($5::timestamptz IS NULL OR latest.created_at >= $5::timestamptz)
+AND ($6::timestamptz IS NULL OR latest.created_at < $6::timestamptz)
+AND (latest.created_at, s.id) < (CASE WHEN $7::boolean THEN 'infinity'::timestamptz ELSE $8::timestamptz END, $9::uuid)
+ORDER BY latest.created_at DESC, s.id DESC
+LIMIT $10::int
+`
+
+type ListSessionsByLatestDescParams struct {
+	Namespace          *string    `json:"namespace"`
+	ExternalKey        *string    `json:"external_key"`
+	Status             *string    `json:"status"`
+	Activity           string     `json:"activity"`
+	LastRunCreatedFrom *time.Time `json:"last_run_created_from"`
+	LastRunCreatedTo   *time.Time `json:"last_run_created_to"`
+	FirstPage          bool       `json:"first_page"`
+	AfterCreatedAt     time.Time  `json:"after_created_at"`
+	AfterID            uuid.UUID  `json:"after_id"`
+	PageLimit          int        `json:"page_limit"`
+}
+
+func (q *Queries) ListSessionsByLatestDesc(ctx context.Context, arg ListSessionsByLatestDescParams) ([]Session, error) {
+	rows, err := q.db.Query(ctx, listSessionsByLatestDesc,
+		arg.Namespace,
+		arg.ExternalKey,
+		arg.Status,
+		arg.Activity,
+		arg.LastRunCreatedFrom,
+		arg.LastRunCreatedTo,
 		arg.FirstPage,
 		arg.AfterCreatedAt,
 		arg.AfterID,
@@ -590,19 +761,25 @@ JOIN runs latest ON latest.session_id = s.id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR latest.status = $3::text)
 AND NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
-AND (s.created_at, s.id) < (CASE WHEN $4::boolean THEN 'infinity'::timestamptz ELSE $5::timestamptz END, $6::uuid)
+AND ($4::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($4::text = 'active'))
+AND ($5::timestamptz IS NULL OR latest.created_at >= $5::timestamptz)
+AND ($6::timestamptz IS NULL OR latest.created_at < $6::timestamptz)
+AND (s.created_at, s.id) < (CASE WHEN $7::boolean THEN 'infinity'::timestamptz ELSE $8::timestamptz END, $9::uuid)
 ORDER BY s.created_at DESC, s.id DESC
-LIMIT $7::int
+LIMIT $10::int
 `
 
 type ListSessionsDescParams struct {
-	Namespace      *string   `json:"namespace"`
-	ExternalKey    *string   `json:"external_key"`
-	Status         *string   `json:"status"`
-	FirstPage      bool      `json:"first_page"`
-	AfterCreatedAt time.Time `json:"after_created_at"`
-	AfterID        uuid.UUID `json:"after_id"`
-	PageLimit      int       `json:"page_limit"`
+	Namespace          *string    `json:"namespace"`
+	ExternalKey        *string    `json:"external_key"`
+	Status             *string    `json:"status"`
+	Activity           string     `json:"activity"`
+	LastRunCreatedFrom *time.Time `json:"last_run_created_from"`
+	LastRunCreatedTo   *time.Time `json:"last_run_created_to"`
+	FirstPage          bool       `json:"first_page"`
+	AfterCreatedAt     time.Time  `json:"after_created_at"`
+	AfterID            uuid.UUID  `json:"after_id"`
+	PageLimit          int        `json:"page_limit"`
 }
 
 func (q *Queries) ListSessionsDesc(ctx context.Context, arg ListSessionsDescParams) ([]Session, error) {
@@ -610,6 +787,9 @@ func (q *Queries) ListSessionsDesc(ctx context.Context, arg ListSessionsDescPara
 		arg.Namespace,
 		arg.ExternalKey,
 		arg.Status,
+		arg.Activity,
+		arg.LastRunCreatedFrom,
+		arg.LastRunCreatedTo,
 		arg.FirstPage,
 		arg.AfterCreatedAt,
 		arg.AfterID,

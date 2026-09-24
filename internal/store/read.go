@@ -97,6 +97,7 @@ func (s *Store) ListSessions(ctx context.Context, limit int, cursor string, filt
 	if err != nil {
 		return out, err
 	}
+	filter = filter.sessionDefaults()
 	type position struct {
 		Date time.Time
 		ID   uuid.UUID
@@ -111,12 +112,17 @@ func (s *Store) ListSessions(ctx context.Context, limit int, cursor string, filt
 		}
 	}
 	err = s.Snapshot(ctx, func(tx pgx.Tx) error {
-		args := db.ListSessionsParams{Namespace: filter.Namespace, ExternalKey: filter.ExternalKey, Status: filter.Status, FirstPage: cursor == "", AfterCreatedAt: pos.Date, AfterID: pos.ID, PageLimit: limit + 1}
+		args := db.ListSessionsParams{Namespace: filter.Namespace, ExternalKey: filter.ExternalKey, Status: filter.Status, Activity: filter.Activity, LastRunCreatedFrom: filter.LastRunCreatedFrom, LastRunCreatedTo: filter.LastRunCreatedTo, FirstPage: cursor == "", AfterCreatedAt: pos.Date, AfterID: pos.ID, PageLimit: limit + 1}
 		var records []SessionRecord
 		var err error
-		if filter.Order == "desc" {
+		switch {
+		case filter.Sort == "last_run_created_at" && filter.Order == "desc":
+			records, err = sessionRecords(db.New(tx).ListSessionsByLatestDesc(ctx, db.ListSessionsByLatestDescParams(args)))
+		case filter.Sort == "last_run_created_at":
+			records, err = sessionRecords(db.New(tx).ListSessionsByLatest(ctx, db.ListSessionsByLatestParams(args)))
+		case filter.Order == "desc":
 			records, err = sessionRecords(db.New(tx).ListSessionsDesc(ctx, db.ListSessionsDescParams(args)))
-		} else {
+		default:
 			records, err = sessionRecords(db.New(tx).ListSessions(ctx, args))
 		}
 		if err != nil {
@@ -130,8 +136,12 @@ func (s *Store) ListSessions(ctx context.Context, limit int, cursor string, filt
 			out.Items = append(out.Items, v)
 		}
 		if len(records) > limit {
-			r := records[limit-1]
-			out.NextCursor = new(encodeCursor(scope, position{r.CreatedAt, r.ID}))
+			last := out.Items[len(out.Items)-1]
+			date := last.CreatedAt
+			if filter.Sort == "last_run_created_at" {
+				date = last.LastRunCreatedAt
+			}
+			out.NextCursor = new(encodeCursor(scope, position{date, last.ID}))
 		}
 		return nil
 	})

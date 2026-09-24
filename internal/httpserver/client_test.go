@@ -74,12 +74,24 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	if err != nil || got.JSON200 == nil || got.JSON200.ID != a.SessionID || got.JSON200.Configuration.Agent.Instructions != "profile instruction" {
 		t.Fatalf("session: %#v %v", got, err)
 	}
+	if got.JSON200.LastRunCreatedAt.IsZero() {
+		t.Fatal("session lacks latest run creation time")
+	}
 	if bytes.Contains(got.Body, []byte(`"codex":`)) || bytes.Contains(got.Body, []byte(`"effort":`)) {
 		t.Fatalf("internal Codex effort leaked into API: %s", got.Body)
 	}
 	listed, err := c.ListSessionsWithResponse(t.Context(), &client.ListSessionsParams{Namespace: body.Namespace, ExternalKey: body.ExternalKey})
 	if err != nil || listed.JSON200 == nil || len(listed.JSON200.Items) != 1 || listed.JSON200.Items[0].ID != a.SessionID {
 		t.Fatalf("sessions: %#v %v", listed, err)
+	}
+	active := client.ListSessionsParams{Activity: new(client.ListSessionsParamsActivity("active")), Sort: new(client.ListSessionsParamsSort("last_run_created_at")), Order: new(client.ListSessionsParamsOrder("desc"))}
+	listedActive, err := c.ListSessionsWithResponse(t.Context(), &active)
+	if err != nil || listedActive.JSON200 == nil || len(listedActive.JSON200.Items) != 1 || listedActive.JSON200.Items[0].LastRunCreatedAt.IsZero() {
+		t.Fatalf("active sessions: %#v %v", listedActive, err)
+	}
+	analytics, err := c.GetAnalyticsOverviewWithResponse(t.Context(), &client.GetAnalyticsOverviewParams{Namespace: body.Namespace})
+	if err != nil || analytics.JSON200 == nil || analytics.JSON200.Period.RunsCount != 1 || analytics.JSON200.Current.ActiveSessions != 1 {
+		t.Fatalf("analytics: %#v %v", analytics, err)
 	}
 	runs, err := c.ListRunsWithResponse(t.Context(), a.SessionID, &client.ListRunsParams{InputFingerprint: body.InputFingerprint})
 	if err != nil || runs.JSON200 == nil || len(runs.JSON200.Items) != 1 || runs.JSON200.Items[0].ID != a.RunID {
