@@ -19,42 +19,6 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for CodexEffort.
-const (
-	High    CodexEffort = "high"
-	Low     CodexEffort = "low"
-	Max     CodexEffort = "max"
-	Medium  CodexEffort = "medium"
-	Minimal CodexEffort = "minimal"
-	None    CodexEffort = "none"
-	Ultra   CodexEffort = "ultra"
-	Xhigh   CodexEffort = "xhigh"
-)
-
-// Valid indicates whether the value is a known member of the CodexEffort enum.
-func (e CodexEffort) Valid() bool {
-	switch e {
-	case High:
-		return true
-	case Low:
-		return true
-	case Max:
-		return true
-	case Medium:
-		return true
-	case Minimal:
-		return true
-	case None:
-		return true
-	case Ultra:
-		return true
-	case Xhigh:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ErrorPhase.
 const (
 	ErrorPhaseExecution    ErrorPhase = "execution"
@@ -778,20 +742,16 @@ type Accepted struct {
 
 // AgentConfiguration defines model for AgentConfiguration.
 type AgentConfiguration struct {
-	// Effort Reasoning effort for the Codex harness. Model-specific support is checked by Codex.
-	Effort       *CodexEffort `json:"effort,omitempty"`
-	Instructions string       `json:"instructions"`
-	Model        string       `json:"model"`
-	Profile      string       `json:"profile"`
+	Instructions string `json:"instructions"`
+	Model        string `json:"model"`
+	Profile      string `json:"profile"`
 }
 
 // AgentInput defines model for AgentInput.
 type AgentInput struct {
-	// Effort Reasoning effort for the Codex harness. Model-specific support is checked by Codex.
-	Effort       *CodexEffort `json:"effort,omitempty"`
-	Instructions *string      `json:"instructions,omitempty"`
-	Model        *string      `json:"model,omitempty"`
-	Profile      string       `json:"profile"`
+	Instructions *string `json:"instructions,omitempty"`
+	Model        *string `json:"model,omitempty"`
+	Profile      string  `json:"profile"`
 }
 
 // Cancelled defines model for Cancelled.
@@ -799,9 +759,6 @@ type Cancelled struct {
 	RunID  openapi_types.UUID `json:"run_id"`
 	Status RunStatus          `json:"status"`
 }
-
-// CodexEffort Reasoning effort for the Codex harness. Model-specific support is checked by Codex.
-type CodexEffort string
 
 // Configuration defines model for Configuration.
 type Configuration struct {

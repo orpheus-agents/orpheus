@@ -227,14 +227,14 @@ func TestContextWithoutInstructionsAndTurnEffort(t *testing.T) {
 	})
 	d := New(box, time.Second, 1024)
 	d.rpc = rpc
-	agent := session.AgentConfiguration{Model: "model", Effort: new("high")}
+	agent := session.AgentConfiguration{Model: "model", Codex: session.CodexConfiguration{Effort: "high"}}
 	if _, err := d.OpenContext(t.Context(), agent, "/workspace", nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := d.Start(t.Context(), agent, "thread", "first"); err != nil {
 		t.Fatal(err)
 	}
-	agent.Effort = nil
+	agent.Codex.Effort = ""
 	if _, err := d.Start(t.Context(), agent, "thread", "second"); err != nil {
 		t.Fatal(err)
 	}

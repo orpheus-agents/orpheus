@@ -120,8 +120,8 @@ func (d *Driver) Start(ctx context.Context, agent session.AgentConfiguration, th
 		Turn NativeTurn `json:"turn"`
 	}
 	params := map[string]any{"threadId": thread, "input": []map[string]string{{"type": "text", "text": text}}}
-	if agent.Effort != nil {
-		params["effort"] = *agent.Effort
+	if agent.Codex.Effort != "" {
+		params["effort"] = agent.Codex.Effort
 	}
 	if err := d.rpc.Call(ctx, "turn/start", params, &out); err != nil {
 		return "", err

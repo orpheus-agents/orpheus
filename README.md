@@ -14,8 +14,8 @@ cp orpheus.toml.dist orpheus.toml
 
 Set `AGENTBOX_API_KEY` and `OPENAI_API_KEY` in `.env`.
 Add `model = "your-model"` under `[profiles.default]` in `orpheus.toml`.
-Optionally set `effort = "medium"` there, or pass `agent.effort` when creating a
-session. If omitted, Codex uses the model default.
+Optionally set `effort = "medium"` under `[profiles.default.codex]`. If omitted,
+Codex uses the model default.
 
 ```sh
 make start
