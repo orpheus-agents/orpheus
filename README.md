@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="https://github.com/orpheus-agents/orpheus">
+    <img src="branding/logo/orpheus-logo-email.png" alt="Orpheus" width="240">
+  </a>
+</p>
+
 # Orpheus
 
 The orchestrator of AI agents working in [AgentBox](https://agentbox.ru) sandboxes.

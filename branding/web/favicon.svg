@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="-10 0 220 220" role="img" aria-label="Orpheus">
+  <defs>
+    <clipPath id="orpheus-favicon-ring">
+      <path clip-rule="evenodd" d="M81 5.5A38 38 0 0 1 119 5.5L181 41.3A38 38 0 0 1 200 74.2L200 145.8A38 38 0 0 1 181 178.7L119 214.5A38 38 0 0 1 81 214.5L19 178.7A38 38 0 0 1 0 145.8L0 74.2A38 38 0 0 1 19 41.3ZM61.8 84.48A6 6 0 0 0 58.8 89.68L58.8 130.32A6 6 0 0 0 61.8 135.52L97 155.84A6 6 0 0 0 103 155.84L138.2 135.52A6 6 0 0 0 141.2 130.32L141.2 89.68A6 6 0 0 0 138.2 84.48L103 64.16A6 6 0 0 0 97 64.16Z"/>
+    </clipPath>
+    <linearGradient id="orpheus-favicon-a" x1="7.9" y1="113.2" x2="108.2" y2="3.1" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#007b91"/>
+      <stop offset=".5" stop-color="#09bbb4"/>
+      <stop offset="1" stop-color="#3ff1b6"/>
+    </linearGradient>
+    <linearGradient id="orpheus-favicon-b" x1="110.4" y1="65.5" x2="206.5" y2="104.3" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#03b399"/>
+      <stop offset=".5" stop-color="#27dda2"/>
+      <stop offset="1" stop-color="#43f59f"/>
+    </linearGradient>
+    <linearGradient id="orpheus-favicon-c" x1="180.5" y1="135" x2="84.6" y2="212.2" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#027281"/>
+      <stop offset=".5" stop-color="#029b9d"/>
+      <stop offset="1" stop-color="#05bfae"/>
+    </linearGradient>
+    <linearGradient id="orpheus-favicon-d" x1="87" y1="184" x2="3.9" y2="136.1" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#008795"/>
+      <stop offset=".5" stop-color="#06a8ab"/>
+      <stop offset="1" stop-color="#3ad2bc"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#orpheus-favicon-ring)">
+    <path fill="url(#orpheus-favicon-b)" d="M100 110L93.82 -7.84L100 -8L202.19 51L218 135.3L100 135.3Z"/>
+    <path fill="url(#orpheus-favicon-a)" d="M100 110L3.34 177.68L-2.19 169L-2.19 51L100 -8L85.3 3.02A29.4 29.4 0 0 1 114.7 53.94L100 62.43Z"/>
+    <path fill="url(#orpheus-favicon-d)" d="M100 110L106.18 227.84L100 228L-2.19 169L14.7 176.22A29.4 29.4 0 0 1 44.1 125.3L58.8 133.79Z"/>
+    <path fill="url(#orpheus-favicon-c)" d="M100 110L141.2 127.3L218 127.3L202.19 169L100 228L114.7 216.98A29.4 29.4 0 0 1 85.3 166.06L100 157.57Z"/>
+    <circle cx="170.6" cy="127.3" r="29.4" fill="url(#orpheus-favicon-b)"/>
+  </g>
+</svg>
