@@ -120,17 +120,12 @@ docker-build:
 	$(COMPOSE) build app
 	docker build -f .docker/app/prod/Dockerfile -t orpheus:local .
 
+# Keep integration and race tests serial: they share the test database and S3 service.
+CHECK_JOBS ?= 4
+
 check: generate-check
-	$(MAKE) tidy-check
-	$(MAKE) gofix-check
-	$(MAKE) lint
-	$(MAKE) deadcode
-	$(MAKE) sqlc-check
-	$(MAKE) test
-	$(MAKE) test-go-race
-	$(MAKE) vuln
-	$(MAKE) build
-	$(MAKE) build-client
+	$(MAKE) -j$(CHECK_JOBS) tidy-check gofix-check lint deadcode sqlc-check test-go test-reader vuln build build-client
+	$(MAKE) -j1 test-integration test-migrations test-go-race
 
 .PHONY: smoke
 smoke: docker-build
