@@ -24,6 +24,14 @@ The API is available at `http://localhost:8000`. Session requests require
 `Authorization: Bearer <key>` using a key from `PUBLIC_API_KEYS` in `.env`.
 Run `make stop` to stop the project; database data is preserved.
 
+Run and hook deadlines are independent of the sandbox timeout. The worker creates
+and reconnects sandboxes with a five-minute lease and renews it once per minute
+while preparing, executing or finalizing a run. A one-hour run does not require
+requesting more than one hour from AgentBox to cover hooks and cleanup. If the
+worker stops renewing, AgentBox auto-pauses the sandbox when the lease expires;
+after a run, Orpheus explicitly pauses it. The AgentBox plan's maximum uninterrupted
+sandbox lifetime still applies: lease renewal does not extend that limit.
+
 ## Go API client
 
 Connectors import `github.com/orpheus-agents/orpheus/client`. The public HTTP client

@@ -42,11 +42,16 @@ type remote struct {
 	pauseHook                                                                              func()
 	killed                                                                                 []int
 	env                                                                                    map[string]string
+	maxTimeout                                                                             time.Duration
+	timeouts                                                                               []time.Duration
 }
 
 func (r *remote) ID() string { return "sandbox" }
-func (r *remote) Create(_ context.Context, _ string, _ time.Duration, meta map[string]string) (harness.Sandbox, error) {
+func (r *remote) Create(_ context.Context, _ string, timeout time.Duration, meta map[string]string) (harness.Sandbox, error) {
 	r.creates++
+	if err := r.checkTimeout(timeout); err != nil {
+		return nil, err
+	}
 	if r.createError != nil {
 		return nil, r.createError
 	}
@@ -70,8 +75,11 @@ func (r *remote) Info(context.Context, string) (string, error) {
 	}
 	return r.state, nil
 }
-func (r *remote) Connect(context.Context, string, time.Duration) (harness.Sandbox, error) {
+func (r *remote) Connect(_ context.Context, _ string, timeout time.Duration) (harness.Sandbox, error) {
 	r.resumes++
+	if err := r.checkTimeout(timeout); err != nil {
+		return nil, err
+	}
 	r.state = "running"
 	return r, nil
 }
@@ -86,7 +94,20 @@ func (r *remote) Pause(context.Context) error {
 	r.state = "paused"
 	return nil
 }
-func (r *remote) SetTimeout(context.Context, time.Duration) error { r.renewals++; return r.leaseError }
+func (r *remote) SetTimeout(_ context.Context, timeout time.Duration) error {
+	r.renewals++
+	if err := r.checkTimeout(timeout); err != nil {
+		return err
+	}
+	return r.leaseError
+}
+func (r *remote) checkTimeout(timeout time.Duration) error {
+	r.timeouts = append(r.timeouts, timeout)
+	if r.maxTimeout > 0 && (timeout <= 0 || timeout > r.maxTimeout) {
+		return harness.ErrEnvironmentRejected
+	}
+	return nil
+}
 func (r *remote) Processes(context.Context) ([]harness.Process, error) {
 	return slices.Clone(r.processes), nil
 }

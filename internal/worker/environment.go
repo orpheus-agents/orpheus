@@ -16,9 +16,12 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/store"
 )
 
+// Renew a short lease independently of run and hook deadlines. Requesting the
+// entire run plus preparation time can exceed the AgentBox plan's timeout limit.
+// AgentBox still enforces its maximum uninterrupted sandbox lifetime.
+const sandboxLeaseTimeout = 5 * time.Minute
+
 func (e *Executor) ensureSandbox(ctx context.Context, record *store.SessionRecord, run *store.RunRecord) error {
-	cfg := record.Configuration
-	timeout := time.Duration(cfg.Public.Limits.RunTimeoutSeconds+3*cfg.Public.Hooks.TimeoutSeconds)*time.Second + e.Store.Settings.CancelGrace + 300*time.Second
 	if record.SandboxID == nil {
 		if err := e.state(ctx, "provisioning", nil); err != nil {
 			return err
@@ -42,7 +45,7 @@ func (e *Executor) ensureSandbox(ctx context.Context, record *store.SessionRecor
 			}
 		} else {
 			result, err = e.invoke(ctx, o, func() (operationResult, error) {
-				box, err := e.Platform.Create(ctx, cfg.Public.Sandbox.Template, timeout, map[string]string{"orpheus_session_id": e.ID.String(), "orpheus_operation_id": o.ID.String()})
+				box, err := e.Platform.Create(ctx, record.Configuration.Public.Sandbox.Template, sandboxLeaseTimeout, map[string]string{"orpheus_session_id": e.ID.String(), "orpheus_operation_id": o.ID.String()})
 				if err != nil {
 					return operationResult{}, err
 				}
@@ -83,7 +86,7 @@ func (e *Executor) ensureSandbox(ctx context.Context, record *store.SessionRecor
 		if err := e.opStatus(ctx, o.ID, "sending", nil); err != nil {
 			return err
 		}
-		box, err := e.Platform.Connect(ctx, *record.SandboxID, timeout)
+		box, err := e.Platform.Connect(ctx, *record.SandboxID, sandboxLeaseTimeout)
 		if err != nil {
 			return err
 		}
@@ -92,14 +95,14 @@ func (e *Executor) ensureSandbox(ctx context.Context, record *store.SessionRecor
 			return err
 		}
 	case e.timeoutRunID != run.ID || !time.Now().Before(e.timeoutRenewAt):
-		if err := e.sandbox.SetTimeout(ctx, timeout); err != nil {
+		if err := e.sandbox.SetTimeout(ctx, sandboxLeaseTimeout); err != nil {
 			return err
 		}
 	default:
 		return nil
 	}
 	e.timeoutRunID = run.ID
-	e.timeoutRenewAt = time.Now().Add(min(60*time.Second, timeout/2))
+	e.timeoutRenewAt = time.Now().Add(time.Minute)
 	e.pauseAuthSynced = false
 	e.pauseRetryAt = time.Time{}
 	e.pauseRetryDelay = 5 * time.Second

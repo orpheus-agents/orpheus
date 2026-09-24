@@ -396,6 +396,7 @@ components:
                     minimum: 1
                     maximum: 9223372036854775807
                 run_timeout_seconds:
+                    description: Agent execution deadline, independent of the periodically renewed sandbox timeout. AgentBox plan limits on uninterrupted sandbox lifetime still apply.
                     default: 3600
                     exclusiveMinimum: 0
                     maximum: 2.147483647e+09
@@ -413,6 +414,7 @@ components:
                     minimum: 1
                     maximum: 9223372036854775807
                 run_timeout_seconds:
+                    description: Agent execution deadline, independent of the periodically renewed sandbox timeout. AgentBox plan limits on uninterrupted sandbox lifetime still apply.
                     default: 3600
                     exclusiveMinimum: 0
                     maximum: 2.147483647e+09

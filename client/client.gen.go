@@ -951,15 +951,19 @@ type JSONResultType string
 // Limits defines model for Limits.
 type Limits struct {
 	// MaxSessionTokens Session-wide input and output token budget. Omission uses DEFAULT_MAX_SESSION_TOKENS (100000000 by default); explicit null is invalid.
-	MaxSessionTokens  int64 `json:"max_session_tokens"`
-	RunTimeoutSeconds int   `json:"run_timeout_seconds"`
+	MaxSessionTokens int64 `json:"max_session_tokens"`
+
+	// RunTimeoutSeconds Agent execution deadline, independent of the periodically renewed sandbox timeout. AgentBox plan limits on uninterrupted sandbox lifetime still apply.
+	RunTimeoutSeconds int `json:"run_timeout_seconds"`
 }
 
 // LimitsInput defines model for LimitsInput.
 type LimitsInput struct {
 	// MaxSessionTokens Session-wide input and output token budget. Omission uses DEFAULT_MAX_SESSION_TOKENS (100000000 by default); explicit null is invalid.
-	MaxSessionTokens  *int64 `json:"max_session_tokens,omitempty"`
-	RunTimeoutSeconds *int   `json:"run_timeout_seconds,omitempty"`
+	MaxSessionTokens *int64 `json:"max_session_tokens,omitempty"`
+
+	// RunTimeoutSeconds Agent execution deadline, independent of the periodically renewed sandbox timeout. AgentBox plan limits on uninterrupted sandbox lifetime still apply.
+	RunTimeoutSeconds *int `json:"run_timeout_seconds,omitempty"`
 }
 
 // Message defines model for Message.
