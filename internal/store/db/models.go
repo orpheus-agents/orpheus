@@ -12,6 +12,23 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
+type BrowserLoginRequest struct {
+	ID                  string    `json:"id"`
+	RequestID           string    `json:"request_id"`
+	BrowserNonceHash    []byte    `json:"browser_nonce_hash"`
+	ReturnPath          string    `json:"return_path"`
+	ExpiresAt           time.Time `json:"expires_at"`
+	PreviousSessionHash []byte    `json:"previous_session_hash"`
+}
+
+type BrowserSession struct {
+	TokenHash   []byte    `json:"token_hash"`
+	Subject     string    `json:"subject"`
+	DisplayName string    `json:"display_name"`
+	CreatedAt   time.Time `json:"created_at"`
+	ExpiresAt   time.Time `json:"expires_at"`
+}
+
 type HookExecution struct {
 	ID                 uuid.UUID       `json:"id"`
 	SessionID          uuid.UUID       `json:"session_id"`

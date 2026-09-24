@@ -22,6 +22,18 @@ func TestRuntimeRequirements(t *testing.T) {
 	if _, _, err := s.Runtime(false); err != nil {
 		t.Fatal(err)
 	}
+	s.BrowserAuth.Mode = "anonymous"
+	if _, _, err := s.Runtime(true); err != nil {
+		t.Fatal("anonymous requires service keys", err)
+	}
+	s.BrowserAuth.Mode = "saml"
+	if _, _, err := s.Runtime(true); err == nil {
+		t.Fatal("serve accepted missing SAML configuration")
+	}
+	if _, _, err := s.Runtime(false); err != nil {
+		t.Fatal("worker requires SAML configuration", err)
+	}
+	s.BrowserAuth.Mode = "api_only"
 	s.PublicAPIKeys = []string{"key"}
 	if _, _, err := s.Runtime(true); err != nil {
 		t.Fatal(err)

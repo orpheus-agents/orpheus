@@ -28,8 +28,9 @@ make start
 curl -fsS http://localhost:8000/ready
 ```
 
-The API is available at `http://localhost:8000`. Session requests require
+The API is available at `http://localhost:8000`. By default, session requests require
 `Authorization: Bearer <key>` using a key from `PUBLIC_API_KEYS` in `.env`.
+For read-only browser access, see [browser authentication](docs/browser-auth.md).
 Run `make stop` to stop the project; database data is preserved.
 
 Run and hook deadlines are independent of the sandbox timeout. The worker creates
@@ -88,6 +89,7 @@ directory. Use `migrate --dir /path/to/migrations up` or
 | `make lint` | Go, OpenAPI, Dockerfile and Python reader checks |
 | `make test` | Unit, reader, PostgreSQL, S3 and migration tests |
 | `make test-go-race` | Unit and integration tests with the race detector |
+| `make test-saml` | Signed SAML round trip through the production HTTP handler and isolated Keycloak; no UI required |
 | `make test-live` | Real AgentBox/Codex, lost-response recovery, reconnect and account-file checks |
 | `make vuln` | govulncheck and Trivy vulnerability/configuration scans |
 | `make build` | Compile the application inside the tools container |
