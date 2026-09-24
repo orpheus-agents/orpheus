@@ -277,6 +277,31 @@ func (e *Executor) Tick(ctx context.Context) error {
 	}
 	return err
 }
+
+func (e *Executor) finalizeRun(ctx context.Context, record store.SessionRecord, run store.RunRecord) error {
+	if err := e.preparePaths(ctx, &record); err != nil {
+		return err
+	}
+	done, hookError, err := e.runHook(ctx, record, run, "after_run")
+	if err != nil || !done {
+		return err
+	}
+	if run.AgentStatus == nil {
+		return harness.ErrUncertain
+	}
+	status, problem := *run.AgentStatus, run.AgentError
+	if status == session.Completed && hookError != nil {
+		status, problem = session.Failed, hookError
+	}
+	return e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
+		current, err := store.GetRun(ctx, tx, e.ID, run.ID)
+		if err != nil {
+			return err
+		}
+		return store.Finish(ctx, tx, r, &current, status, problem, current.StopMethod)
+	})
+}
+
 func (e *Executor) tick(ctx context.Context) error {
 	record, run, err := e.read(ctx)
 	if err != nil {
@@ -362,27 +387,7 @@ func (e *Executor) tick(ctx context.Context) error {
 		return err
 	}
 	if run.Status == session.Finalizing {
-		if err := e.preparePaths(ctx, &record); err != nil {
-			return err
-		}
-		done, hookError, err := e.runHook(ctx, record, *run, "after_run")
-		if err != nil || !done {
-			return err
-		}
-		if run.AgentStatus == nil {
-			return harness.ErrUncertain
-		}
-		status, problem := *run.AgentStatus, run.AgentError
-		if status == session.Completed && hookError != nil {
-			status, problem = session.Failed, hookError
-		}
-		return e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
-			current, err := store.GetRun(ctx, tx, e.ID, run.ID)
-			if err != nil {
-				return err
-			}
-			return store.Finish(ctx, tx, r, &current, status, problem, current.StopMethod)
-		})
+		return e.finalizeRun(ctx, record, *run)
 	}
 	if run.ExecutionStartedAt == nil {
 		if err := e.preparePaths(ctx, &record); err != nil {
@@ -465,7 +470,7 @@ func (e *Executor) tick(ctx context.Context) error {
 		return err
 	}
 	if run.Status == session.Finalizing {
-		return nil
+		return e.finalizeRun(ctx, record, *run)
 	}
 	if run.CancelRequestedAt != nil {
 		err = e.cancelRun(ctx, record, *run)

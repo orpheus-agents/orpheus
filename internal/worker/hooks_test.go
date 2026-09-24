@@ -225,6 +225,25 @@ func TestHooksFullCycleAndFinalMessage(t *testing.T) {
 	}
 }
 
+func TestCompletedStepsAdvanceWithinOneTick(t *testing.T) {
+	s, box, a, e := setupHooks(t, true, false)
+	tickUntil(t, e, func() bool { return box.starts == 1 })
+	complete(box.remote)
+	tick(t, e)
+	if len(box.invoked) != 3 || !strings.Contains(box.invoked[2], "after_run") {
+		t.Fatalf("after_run did not start when the agent completed: %q", box.invoked)
+	}
+	run, err := s.Run(t.Context(), a.SessionID, a.RunID)
+	if err != nil || run.Status != session.Finalizing {
+		t.Fatalf("run did not enter finalization: %v %v", run.Status, err)
+	}
+	tick(t, e)
+	run, err = s.Run(t.Context(), a.SessionID, a.RunID)
+	if err != nil || run.Status != session.Completed || len(box.invoked) != 3 || box.cleanups != 3 {
+		t.Fatalf("completed hook did not finish the run in the same tick: %v %d %d %v", run.Status, len(box.invoked), box.cleanups, err)
+	}
+}
+
 func TestRunEnvironmentReachesOnlyRunHooks(t *testing.T) {
 	_, box, _, e := setupHooks(t, true, false, map[string]string{"TOKEN": "run-value", "TASK_ID": "42"})
 	tickUntil(t, e, func() bool { return box.starts == 1 })
@@ -359,8 +378,8 @@ func TestHookResultRecoveredWithoutRelaunch(t *testing.T) {
 		h, err := s.Hook(t.Context(), a.RunID, "after_create")
 		return err == nil && h != nil && h.Status == "completed"
 	})
-	if len(box.invoked) != 1 {
-		t.Fatal("hook repeated while recovering result")
+	if len(box.invoked) != 2 || !strings.Contains(box.invoked[0], "after_create") || !strings.Contains(box.invoked[1], "before_run") {
+		t.Fatal("recovered hook repeated or next hook did not start", box.invoked)
 	}
 }
 
