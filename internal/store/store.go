@@ -188,7 +188,7 @@ func SessionView(ctx context.Context, q db.DBTX, s SessionRecord) (session.Sessi
 	if err != nil {
 		return session.Session{}, err
 	}
-	out := session.Session{Usage: s.Usage(), Namespace: s.Namespace, ExternalKey: s.ExternalKey, ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, Status: r.Status, Phase: r.Phase, FinalMessage: v.FinalMessage, Error: r.Error}
+	out := session.Session{Usage: s.Usage(), Namespace: s.Namespace, ExternalKey: s.ExternalKey, ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, LastRunCreatedAt: r.CreatedAt, Status: r.Status, Phase: r.Phase, FinalMessage: v.FinalMessage, Error: r.Error}
 	if !r.Status.Terminal() {
 		out.ActiveRunID = &r.ID
 	}

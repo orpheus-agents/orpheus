@@ -4,6 +4,9 @@ JOIN runs latest ON latest.session_id = s.id
 WHERE (sqlc.narg(namespace)::text IS NULL OR s.namespace = sqlc.narg(namespace)::text) AND (sqlc.narg(external_key)::text IS NULL OR s.external_key = sqlc.narg(external_key)::text)
 AND (sqlc.narg(status)::text IS NULL OR latest.status = sqlc.narg(status)::text)
 AND NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
+AND (sqlc.arg(activity)::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = (sqlc.arg(activity)::text = 'active'))
+AND (sqlc.narg(last_run_created_from)::timestamptz IS NULL OR latest.created_at >= sqlc.narg(last_run_created_from)::timestamptz)
+AND (sqlc.narg(last_run_created_to)::timestamptz IS NULL OR latest.created_at < sqlc.narg(last_run_created_to)::timestamptz)
 AND (s.created_at, s.id) > (CASE WHEN sqlc.arg(first_page)::boolean THEN '-infinity'::timestamptz ELSE sqlc.arg(after_created_at)::timestamptz END, sqlc.arg(after_id)::uuid)
 ORDER BY s.created_at ASC, s.id ASC
 LIMIT sqlc.arg(page_limit)::int;
@@ -14,8 +17,35 @@ JOIN runs latest ON latest.session_id = s.id
 WHERE (sqlc.narg(namespace)::text IS NULL OR s.namespace = sqlc.narg(namespace)::text) AND (sqlc.narg(external_key)::text IS NULL OR s.external_key = sqlc.narg(external_key)::text)
 AND (sqlc.narg(status)::text IS NULL OR latest.status = sqlc.narg(status)::text)
 AND NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
+AND (sqlc.arg(activity)::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = (sqlc.arg(activity)::text = 'active'))
+AND (sqlc.narg(last_run_created_from)::timestamptz IS NULL OR latest.created_at >= sqlc.narg(last_run_created_from)::timestamptz)
+AND (sqlc.narg(last_run_created_to)::timestamptz IS NULL OR latest.created_at < sqlc.narg(last_run_created_to)::timestamptz)
 AND (s.created_at, s.id) < (CASE WHEN sqlc.arg(first_page)::boolean THEN 'infinity'::timestamptz ELSE sqlc.arg(after_created_at)::timestamptz END, sqlc.arg(after_id)::uuid)
 ORDER BY s.created_at DESC, s.id DESC
+LIMIT sqlc.arg(page_limit)::int;
+
+-- name: ListSessionsByLatest :many
+SELECT s.* FROM runs latest JOIN sessions s ON s.id = latest.session_id
+WHERE NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
+AND (sqlc.narg(namespace)::text IS NULL OR s.namespace = sqlc.narg(namespace)::text) AND (sqlc.narg(external_key)::text IS NULL OR s.external_key = sqlc.narg(external_key)::text)
+AND (sqlc.narg(status)::text IS NULL OR latest.status = sqlc.narg(status)::text)
+AND (sqlc.arg(activity)::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = (sqlc.arg(activity)::text = 'active'))
+AND (sqlc.narg(last_run_created_from)::timestamptz IS NULL OR latest.created_at >= sqlc.narg(last_run_created_from)::timestamptz)
+AND (sqlc.narg(last_run_created_to)::timestamptz IS NULL OR latest.created_at < sqlc.narg(last_run_created_to)::timestamptz)
+AND (latest.created_at, s.id) > (CASE WHEN sqlc.arg(first_page)::boolean THEN '-infinity'::timestamptz ELSE sqlc.arg(after_created_at)::timestamptz END, sqlc.arg(after_id)::uuid)
+ORDER BY latest.created_at ASC, s.id ASC
+LIMIT sqlc.arg(page_limit)::int;
+
+-- name: ListSessionsByLatestDesc :many
+SELECT s.* FROM runs latest JOIN sessions s ON s.id = latest.session_id
+WHERE NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
+AND (sqlc.narg(namespace)::text IS NULL OR s.namespace = sqlc.narg(namespace)::text) AND (sqlc.narg(external_key)::text IS NULL OR s.external_key = sqlc.narg(external_key)::text)
+AND (sqlc.narg(status)::text IS NULL OR latest.status = sqlc.narg(status)::text)
+AND (sqlc.arg(activity)::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = (sqlc.arg(activity)::text = 'active'))
+AND (sqlc.narg(last_run_created_from)::timestamptz IS NULL OR latest.created_at >= sqlc.narg(last_run_created_from)::timestamptz)
+AND (sqlc.narg(last_run_created_to)::timestamptz IS NULL OR latest.created_at < sqlc.narg(last_run_created_to)::timestamptz)
+AND (latest.created_at, s.id) < (CASE WHEN sqlc.arg(first_page)::boolean THEN 'infinity'::timestamptz ELSE sqlc.arg(after_created_at)::timestamptz END, sqlc.arg(after_id)::uuid)
+ORDER BY latest.created_at DESC, s.id DESC
 LIMIT sqlc.arg(page_limit)::int;
 
 -- name: ListRuns :many

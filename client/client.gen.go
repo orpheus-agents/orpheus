@@ -19,6 +19,24 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AnalyticsOverviewBucket.
+const (
+	AnalyticsOverviewBucketDay  AnalyticsOverviewBucket = "day"
+	AnalyticsOverviewBucketHour AnalyticsOverviewBucket = "hour"
+)
+
+// Valid indicates whether the value is a known member of the AnalyticsOverviewBucket enum.
+func (e AnalyticsOverviewBucket) Valid() bool {
+	switch e {
+	case AnalyticsOverviewBucketDay:
+		return true
+	case AnalyticsOverviewBucketHour:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BrowserAuthSessionMode.
 const (
 	APIOnly   BrowserAuthSessionMode = "api_only"
@@ -700,6 +718,45 @@ func (e UnavailableResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetAnalyticsOverviewParamsWindow.
+const (
+	N24H GetAnalyticsOverviewParamsWindow = "24h"
+	N30D GetAnalyticsOverviewParamsWindow = "30d"
+	N7D  GetAnalyticsOverviewParamsWindow = "7d"
+)
+
+// Valid indicates whether the value is a known member of the GetAnalyticsOverviewParamsWindow enum.
+func (e GetAnalyticsOverviewParamsWindow) Valid() bool {
+	switch e {
+	case N24H:
+		return true
+	case N30D:
+		return true
+	case N7D:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAnalyticsOverviewParamsBucket.
+const (
+	GetAnalyticsOverviewParamsBucketDay  GetAnalyticsOverviewParamsBucket = "day"
+	GetAnalyticsOverviewParamsBucketHour GetAnalyticsOverviewParamsBucket = "hour"
+)
+
+// Valid indicates whether the value is a known member of the GetAnalyticsOverviewParamsBucket enum.
+func (e GetAnalyticsOverviewParamsBucket) Valid() bool {
+	switch e {
+	case GetAnalyticsOverviewParamsBucketDay:
+		return true
+	case GetAnalyticsOverviewParamsBucketHour:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListAllRunsParamsOrder.
 const (
 	ListAllRunsParamsOrderAsc  ListAllRunsParamsOrder = "asc"
@@ -712,6 +769,45 @@ func (e ListAllRunsParamsOrder) Valid() bool {
 	case ListAllRunsParamsOrderAsc:
 		return true
 	case ListAllRunsParamsOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListSessionsParamsActivity.
+const (
+	Active   ListSessionsParamsActivity = "active"
+	All      ListSessionsParamsActivity = "all"
+	Inactive ListSessionsParamsActivity = "inactive"
+)
+
+// Valid indicates whether the value is a known member of the ListSessionsParamsActivity enum.
+func (e ListSessionsParamsActivity) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case All:
+		return true
+	case Inactive:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListSessionsParamsSort.
+const (
+	CreatedAt        ListSessionsParamsSort = "created_at"
+	LastRunCreatedAt ListSessionsParamsSort = "last_run_created_at"
+)
+
+// Valid indicates whether the value is a known member of the ListSessionsParamsSort enum.
+func (e ListSessionsParamsSort) Valid() bool {
+	switch e {
+	case CreatedAt:
+		return true
+	case LastRunCreatedAt:
 		return true
 	default:
 		return false
@@ -774,6 +870,48 @@ type AgentInput struct {
 	Model        *string `json:"model,omitempty"`
 	Profile      string  `json:"profile"`
 }
+
+// AggregateUsage Totals for runs accepted in the period. Decimal strings preserve values beyond JavaScript Number precision.
+type AggregateUsage struct {
+	InputTokens  string `json:"input_tokens"`
+	OutputTokens string `json:"output_tokens"`
+	TotalTokens  string `json:"total_tokens"`
+}
+
+// AnalyticsBucket defines model for AnalyticsBucket.
+type AnalyticsBucket struct {
+	ByStatus  StatusCounts `json:"by_status"`
+	From      time.Time    `json:"from"`
+	RunsCount int64        `json:"runs_count"`
+	To        time.Time    `json:"to"`
+}
+
+// AnalyticsOverview defines model for AnalyticsOverview.
+type AnalyticsOverview struct {
+	AsOf    time.Time               `json:"as_of"`
+	Bucket  AnalyticsOverviewBucket `json:"bucket"`
+	Current struct {
+		ActiveSessions int64 `json:"active_sessions"`
+	} `json:"current"`
+	From      time.Time `json:"from"`
+	Namespace *string   `json:"namespace"`
+
+	// Period Runs accepted during [from,to), including their latest recorded usage and full lifetime through as_of.
+	Period struct {
+		ByStatus       StatusCounts `json:"by_status"`
+		RunsCount      int64        `json:"runs_count"`
+		RuntimeSeconds float64      `json:"runtime_seconds"`
+
+		// Usage Totals for runs accepted in the period. Decimal strings preserve values beyond JavaScript Number precision.
+		Usage AggregateUsage `json:"usage"`
+	} `json:"period"`
+	Series   []AnalyticsBucket `json:"series"`
+	Timezone string            `json:"timezone"`
+	To       time.Time         `json:"to"`
+}
+
+// AnalyticsOverviewBucket defines model for AnalyticsOverview.Bucket.
+type AnalyticsOverviewBucket string
 
 // BrowserAuthSession defines model for BrowserAuthSession.
 type BrowserAuthSession struct {
@@ -1185,7 +1323,10 @@ type Session struct {
 	ExternalKey  *string            `json:"external_key"`
 	FinalMessage *Message           `json:"final_message"`
 	ID           openapi_types.UUID `json:"id"`
-	LastRunID    openapi_types.UUID `json:"last_run_id"`
+
+	// LastRunCreatedAt Creation time of the latest run, not the last activity time.
+	LastRunCreatedAt time.Time          `json:"last_run_created_at"`
+	LastRunID        openapi_types.UUID `json:"last_run_id"`
 
 	// Namespace Logical integration or workflow name. Opaque identifier, 1–128 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
 	Namespace *string       `json:"namespace"`
@@ -1204,6 +1345,18 @@ type SessionPhase string
 type SessionPage struct {
 	Items      []Session `json:"items"`
 	NextCursor *string   `json:"next_cursor"`
+}
+
+// StatusCounts defines model for StatusCounts.
+type StatusCounts struct {
+	Accepted   int64 `json:"accepted"`
+	Cancelled  int64 `json:"cancelled"`
+	Cancelling int64 `json:"cancelling"`
+	Completed  int64 `json:"completed"`
+	Failed     int64 `json:"failed"`
+	Finalizing int64 `json:"finalizing"`
+	Running    int64 `json:"running"`
+	Starting   int64 `json:"starting"`
 }
 
 // TextMessage defines model for TextMessage.
@@ -1306,6 +1459,33 @@ type Usage struct {
 	TotalTokens  int64 `json:"total_tokens"`
 }
 
+// GetAnalyticsOverviewParams defines parameters for GetAnalyticsOverview.
+type GetAnalyticsOverviewParams struct {
+	// Window Server-relative sliding window. Defaults to 24h; cannot be combined with from/to.
+	Window *GetAnalyticsOverviewParamsWindow `form:"window,omitempty" json:"window,omitempty"`
+
+	// From Inclusive RFC 3339 timestamp with offset; requires to.
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Exclusive RFC 3339 timestamp with offset; requires from and cannot be later than as_of. Range at most 31 days.
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Bucket Local calendar hour or day; at most 800 buckets.
+	Bucket *GetAnalyticsOverviewParamsBucket `form:"bucket,omitempty" json:"bucket,omitempty"`
+
+	// Timezone IANA timezone for bucket boundaries; timestamps in the response are UTC.
+	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
+
+	// Namespace Exact namespace match; omission includes every namespace and null.
+	Namespace *string `form:"namespace,omitempty" json:"namespace,omitempty"`
+}
+
+// GetAnalyticsOverviewParamsWindow defines parameters for GetAnalyticsOverview.
+type GetAnalyticsOverviewParamsWindow string
+
+// GetAnalyticsOverviewParamsBucket defines parameters for GetAnalyticsOverview.
+type GetAnalyticsOverviewParamsBucket string
+
 // ListAllRunsParams defines parameters for ListAllRuns.
 type ListAllRunsParams struct {
 	Namespace        *string                 `form:"namespace,omitempty" json:"namespace,omitempty"`
@@ -1322,13 +1502,30 @@ type ListAllRunsParamsOrder string
 
 // ListSessionsParams defines parameters for ListSessions.
 type ListSessionsParams struct {
-	Namespace   *string                  `form:"namespace,omitempty" json:"namespace,omitempty"`
-	ExternalKey *string                  `form:"external_key,omitempty" json:"external_key,omitempty"`
-	Status      *RunStatus               `form:"status,omitempty" json:"status,omitempty"`
-	Order       *ListSessionsParamsOrder `form:"order,omitempty" json:"order,omitempty"`
-	Limit       *int                     `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor      *string                  `form:"cursor,omitempty" json:"cursor,omitempty"`
+	// Activity Whether the latest run is unfinished; combined with status using AND.
+	Activity *ListSessionsParamsActivity `form:"activity,omitempty" json:"activity,omitempty"`
+
+	// Sort Timestamp used for order and cursor position.
+	Sort *ListSessionsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// LastRunCreatedFrom Inclusive lower bound for the latest run creation time; requires last_run_created_to.
+	LastRunCreatedFrom *time.Time `form:"last_run_created_from,omitempty" json:"last_run_created_from,omitempty"`
+
+	// LastRunCreatedTo Exclusive upper bound for the latest run creation time; requires last_run_created_from. Range at most 31 days.
+	LastRunCreatedTo *time.Time               `form:"last_run_created_to,omitempty" json:"last_run_created_to,omitempty"`
+	Namespace        *string                  `form:"namespace,omitempty" json:"namespace,omitempty"`
+	ExternalKey      *string                  `form:"external_key,omitempty" json:"external_key,omitempty"`
+	Status           *RunStatus               `form:"status,omitempty" json:"status,omitempty"`
+	Order            *ListSessionsParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Limit            *int                     `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor           *string                  `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
+
+// ListSessionsParamsActivity defines parameters for ListSessions.
+type ListSessionsParamsActivity string
+
+// ListSessionsParamsSort defines parameters for ListSessions.
+type ListSessionsParamsSort string
 
 // ListSessionsParamsOrder defines parameters for ListSessions.
 type ListSessionsParamsOrder string
@@ -2003,6 +2200,13 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
+	// GetAnalyticsOverview Dashboard analytics snapshot
+	//
+	// Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
+	//
+	// Corresponds with GET /api/v1/analytics/overview (the `GetAnalyticsOverview` operationId).
+	GetAnalyticsOverview(ctx context.Context, params *GetAnalyticsOverviewParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// AuthSession Read browser authentication state
 	//
 	// Public browser state; Authorization is ignored. Invalid cookies are cleared. All responses use Cache-Control no-store.
@@ -2132,6 +2336,23 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /saml/metadata (the `SamlMetadata` operationId).
 	SamlMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+// GetAnalyticsOverview Dashboard analytics snapshot
+//
+// Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
+//
+// Corresponds with GET /api/v1/analytics/overview (the `GetAnalyticsOverview` operationId).
+func (c *Client) GetAnalyticsOverview(ctx context.Context, params *GetAnalyticsOverviewParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAnalyticsOverviewRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 // AuthSession Read browser authentication state
@@ -2484,6 +2705,120 @@ func (c *Client) SamlMetadata(ctx context.Context, reqEditors ...RequestEditorFn
 	return c.Client.Do(req)
 }
 
+// NewGetAnalyticsOverviewRequest constructs an http.Request for the GetAnalyticsOverview method
+func NewGetAnalyticsOverviewRequest(server string, params *GetAnalyticsOverviewParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/analytics/overview")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Window != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "window", *params.Window, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Bucket != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "bucket", *params.Bucket, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Timezone != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "timezone", *params.Timezone, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Namespace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "namespace", *params.Namespace, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewAuthSessionRequest constructs an http.Request for the AuthSession method
 func NewAuthSessionRequest(server string) (*http.Request, error) {
 	var err error
@@ -2664,6 +2999,54 @@ func NewListSessionsRequest(server string, params *ListSessionsParams) (*http.Re
 		// styled parameters, preserving literal commas as delimiters
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
+
+		if params.Activity != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "activity", *params.Activity, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Sort != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sort", *params.Sort, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.LastRunCreatedFrom != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "last_run_created_from", *params.LastRunCreatedFrom, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.LastRunCreatedTo != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "last_run_created_to", *params.LastRunCreatedTo, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
 
 		if params.Namespace != nil {
 
@@ -3641,6 +4024,15 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
+	// GetAnalyticsOverviewWithResponse Dashboard analytics snapshot
+	//
+	// Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/analytics/overview (the `GetAnalyticsOverview` operationId).
+	GetAnalyticsOverviewWithResponse(ctx context.Context, params *GetAnalyticsOverviewParams, reqEditors ...RequestEditorFn) (*GetAnalyticsOverviewHTTPResponse, error)
+
 	// AuthSessionWithResponse Read browser authentication state
 	//
 	// Public browser state; Authorization is ignored. Invalid cookies are cleared. All responses use Cache-Control no-store.
@@ -3802,6 +4194,68 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /saml/metadata (the `SamlMetadata` operationId).
 	SamlMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*SamlMetadataHTTPResponse, error)
+}
+
+type GetAnalyticsOverviewHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AnalyticsOverview
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *ErrorResponse
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *ErrorResponse
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAnalyticsOverviewHTTPResponse) GetJSON200() *AnalyticsOverview {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAnalyticsOverviewHTTPResponse) GetJSON401() *ErrorResponse {
+	return r.JSON401
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetAnalyticsOverviewHTTPResponse) GetJSON422() *ErrorResponse {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetAnalyticsOverviewHTTPResponse) GetJSON503() *ErrorResponse {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAnalyticsOverviewHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAnalyticsOverviewHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAnalyticsOverviewHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAnalyticsOverviewHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
 }
 
 type AuthSessionHTTPResponse struct {
@@ -5332,6 +5786,21 @@ func (r SamlMetadataHTTPResponse) ContentType() string {
 	return ""
 }
 
+// GetAnalyticsOverviewWithResponse Dashboard analytics snapshot
+//
+// Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/analytics/overview (the `GetAnalyticsOverview` operationId).
+func (c *ClientWithResponses) GetAnalyticsOverviewWithResponse(ctx context.Context, params *GetAnalyticsOverviewParams, reqEditors ...RequestEditorFn) (*GetAnalyticsOverviewHTTPResponse, error) {
+	rsp, err := c.GetAnalyticsOverview(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAnalyticsOverviewHTTPResponse(rsp)
+}
+
 // AuthSessionWithResponse Read browser authentication state
 //
 // Public browser state; Authorization is ignored. Invalid cookies are cleared. All responses use Cache-Control no-store.
@@ -5624,6 +6093,53 @@ func (c *ClientWithResponses) SamlMetadataWithResponse(ctx context.Context, reqE
 		return nil, err
 	}
 	return ParseSamlMetadataHTTPResponse(rsp)
+}
+
+// ParseGetAnalyticsOverviewHTTPResponse parses an HTTP response from a GetAnalyticsOverviewWithResponse call
+func ParseGetAnalyticsOverviewHTTPResponse(rsp *http.Response) (*GetAnalyticsOverviewHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAnalyticsOverviewHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AnalyticsOverview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseAuthSessionHTTPResponse parses an HTTP response from a AuthSessionWithResponse call

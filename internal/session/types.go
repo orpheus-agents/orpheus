@@ -227,19 +227,20 @@ type SandboxState struct {
 	Workspace      *string `json:"workspace"`
 }
 type Session struct {
-	Usage         Usage         `json:"usage"`
-	Namespace     *string       `json:"namespace"`
-	ExternalKey   *string       `json:"external_key"`
-	ID            uuid.UUID     `json:"id"`
-	CreatedAt     time.Time     `json:"created_at"`
-	Configuration Configuration `json:"configuration"`
-	Sandbox       SandboxState  `json:"sandbox"`
-	ActiveRunID   *uuid.UUID    `json:"active_run_id"`
-	LastRunID     uuid.UUID     `json:"last_run_id"`
-	Status        Status        `json:"status"`
-	Phase         *string       `json:"phase"`
-	FinalMessage  *Message      `json:"final_message"`
-	Error         *Error        `json:"error"`
+	Usage            Usage         `json:"usage"`
+	Namespace        *string       `json:"namespace"`
+	ExternalKey      *string       `json:"external_key"`
+	ID               uuid.UUID     `json:"id"`
+	CreatedAt        time.Time     `json:"created_at"`
+	Configuration    Configuration `json:"configuration"`
+	Sandbox          SandboxState  `json:"sandbox"`
+	ActiveRunID      *uuid.UUID    `json:"active_run_id"`
+	LastRunID        uuid.UUID     `json:"last_run_id"`
+	LastRunCreatedAt time.Time     `json:"last_run_created_at"`
+	Status           Status        `json:"status"`
+	Phase            *string       `json:"phase"`
+	FinalMessage     *Message      `json:"final_message"`
+	Error            *Error        `json:"error"`
 }
 type Cancellation struct {
 	RunID  uuid.UUID `json:"run_id"`
