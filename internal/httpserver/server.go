@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/api"
+	"github.com/orpheus-agents/orpheus/internal/browserauth"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
 )
@@ -19,6 +20,7 @@ import (
 type Server struct {
 	Store   *store.Store
 	streams context.Context
+	auth    *browserauth.Service
 }
 
 var _ api.StrictServerInterface = (*Server)(nil)
@@ -189,12 +191,13 @@ func (s *Server) StreamEvents(ctx context.Context, r api.StreamEventsRequestObje
 	if _, err := s.Store.Events(ctx, r.Sid, after, 1); err != nil {
 		return nil, err
 	}
-	return &eventStream{ctx: ctx, streams: s.streams, store: s.Store, id: r.Sid, after: after}, nil
+	return &eventStream{ctx: ctx, streams: s.streams, store: s.Store, auth: s.auth, id: r.Sid, after: after}, nil
 }
 
 // A custom visitor allows a deadline on each write without imposing a total
 // lifetime limit on SSE. No database transaction spans a network write.
 type eventStream struct {
+	auth    *browserauth.Service
 	ctx     context.Context
 	streams context.Context
 	store   *store.Store
@@ -206,20 +209,23 @@ func (e *eventStream) VisitStreamEventsResponse(w http.ResponseWriter) error {
 	ctx, cancel := context.WithCancel(e.ctx)
 	defer cancel()
 	control := http.NewResponseController(w)
-	shutdownDone := make(chan struct{})
-	stop := context.AfterFunc(e.streams, func() {
-		defer close(shutdownDone)
-		cancel()
-		// Wake a client-blocked write as well as an idle stream or database read.
-		_ = control.SetWriteDeadline(time.Now())
-	})
+	if identity, ok := e.ctx.Value(browserIdentityKey{}).(*browserauth.Identity); ok {
+		authorized, stopAuth := watchBrowserSession(ctx, e.auth, identity, 25*time.Second)
+		defer stopAuth()
+		ctx = authorized
+	}
+	stopShutdown := context.AfterFunc(e.streams, cancel)
+	defer stopShutdown()
+	interrupted := make(chan struct{})
+	stopInterrupt := context.AfterFunc(ctx, func() { defer close(interrupted); _ = control.SetWriteDeadline(time.Now()) })
 	defer func() {
-		if !stop() {
-			<-shutdownDone
+		if !stopInterrupt() {
+			<-interrupted
 		}
 	}()
+
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 	for {

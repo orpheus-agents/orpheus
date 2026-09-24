@@ -75,6 +75,15 @@ services:
       TEST_DATABASE_URL: postgres://orpheus:orpheus@test-db:5432/orpheus_test
       TEST_S3_ENDPOINT: http://test-s3:9000
 
+  test-keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4
+    profiles: [saml-test]
+    command: [start-dev]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: fixture-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: fixture-only-password
+    tmpfs: [/opt/keycloak/data]
+
   test-s3:
     image: rustfs/rustfs:1.0.0
     profiles: [test]

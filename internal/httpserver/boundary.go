@@ -3,7 +3,6 @@ package httpserver
 import (
 	"bytes"
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
@@ -17,6 +16,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers/legacy"
 	"github.com/orpheus-agents/orpheus/internal/api"
+	"github.com/orpheus-agents/orpheus/internal/browserauth"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
 )
@@ -53,6 +53,10 @@ func writeError(w http.ResponseWriter, err error) {
 	}{problem.Problem})
 }
 func Handler(s *store.Store, streams context.Context) (http.Handler, error) {
+	auth, err := browserauth.New(s.Settings.BrowserAuth, s.Pool)
+	if err != nil {
+		return nil, err
+	}
 	spec, err := api.GetSpec()
 	if err != nil {
 		return nil, err
@@ -65,27 +69,34 @@ func Handler(s *store.Store, streams context.Context) (http.Handler, error) {
 	validationError := func(w http.ResponseWriter, _ *http.Request, err error) {
 		writeError(w, validationProblem(err))
 	}
-	strict := api.NewStrictHandlerWithOptions(&Server{Store: s, streams: streams}, nil, api.StrictHTTPServerOptions{RequestErrorHandlerFunc: validationError, ResponseErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) { writeError(w, err) }})
+	strict := api.NewStrictHandlerWithOptions(&Server{Store: s, streams: streams, auth: auth}, []api.StrictMiddlewareFunc{browserRequestMiddleware}, api.StrictHTTPServerOptions{RequestErrorHandlerFunc: validationError, ResponseErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) { writeError(w, err) }})
 	generated := api.HandlerWithOptions(strict, api.StdHTTPServerOptions{ErrorHandlerFunc: validationError})
 	return http.HandlerFunc(func(base http.ResponseWriter, r *http.Request) {
 		w := &responseWriter{ResponseWriter: base}
+		if strings.HasPrefix(r.URL.Path, "/api/v1") || strings.HasPrefix(r.URL.Path, "/auth/") || r.URL.Path == "/saml/metadata" {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		if r.URL.Path == "/openapi.json" && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(spec)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/v1") {
-			scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
-			authorized := 0
-			if ok && strings.EqualFold(scheme, "Bearer") {
-				for _, key := range s.Settings.PublicAPIKeys {
-					authorized |= subtle.ConstantTimeCompare([]byte(token), []byte(key))
+			if r.URL.Path != "/api/v1/auth/session" {
+				operation := ""
+				if route, _, routeErr := router.FindRoute(r); routeErr == nil {
+					operation = route.Operation.OperationID
+				}
+				identity, err := authorize(r, auth, s.Settings.PublicAPIKeys, operation)
+				if err != nil {
+					writeError(w, err)
+					return
+				}
+				if identity != nil {
+					r = r.WithContext(context.WithValue(r.Context(), browserIdentityKey{}, identity))
 				}
 			}
-			if authorized == 0 {
-				writeError(w, session.Problem(401, "unauthorized", "A valid Bearer key is required."))
-				return
-			}
+
 			if r.Method == http.MethodPost {
 				raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.Settings.MaxRequestBytes))
 				if err != nil {

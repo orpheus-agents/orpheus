@@ -1,5 +1,27 @@
 components:
     schemas:
+        BrowserAuthSession:
+            type: object
+            additionalProperties: false
+            required: [mode, authenticated, read_access, user, expires_at]
+            properties:
+                mode:
+                    type: string
+                    enum: [api_only, saml, anonymous]
+                authenticated:
+                    type: boolean
+                read_access:
+                    type: boolean
+                user:
+                    type: [object, "null"]
+                    additionalProperties: false
+                    required: [display_name]
+                    properties:
+                        display_name:
+                            type: string
+                expires_at:
+                    type: [string, "null"]
+                    format: date-time
         RunStatus:
             type: string
             enum: [accepted, starting, running, cancelling, finalizing, completed, failed, cancelled]
@@ -1195,6 +1217,11 @@ components:
             title: UnavailableResponse
             type: object
     securitySchemes:
+        BrowserSession:
+            type: apiKey
+            in: cookie
+            name: __Host-orpheus_session
+            description: Read-only browser session issued after SAML login. Anonymous read access is a deployment option, not a production security scheme.
         HTTPBearer:
             scheme: bearer
             type: http
@@ -1207,6 +1234,104 @@ info:
     version: 0.1.0
 openapi: 3.1.0
 paths:
+    /api/v1/auth/session:
+        get:
+            operationId: auth_session
+            summary: Read browser authentication state
+            security: []
+            description: Public browser state; Authorization is ignored. Invalid cookies are cleared. All responses use Cache-Control no-store.
+            responses:
+                "200":
+                    description: Read browser authentication state
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BrowserAuthSession'
+                default:
+                    description: Storage unavailable (503).
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+    /auth/login:
+        get:
+            operationId: browser_login
+            summary: Start SP-initiated SAML login
+            security: []
+            description: SAML mode only; otherwise 404 auth_not_enabled. next must be a local absolute path (not auth routes); default /api/v1/auth/session. No Host or proxy header trust.
+            parameters:
+                - in: query
+                  name: next
+                  schema:
+                      type: string
+                      maxLength: 2048
+            responses:
+                "302":
+                    description: Start SP-initiated SAML login
+                    headers:
+                        Location:
+                            schema:
+                                type: string
+                            description: SAML IdP URL.
+                default:
+                    description: Invalid return path (400), authentication disabled (404), request validation failed (422), or authentication/storage unavailable (503).
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+    /auth/callback:
+        post:
+            operationId: browser_callback
+            summary: Consume a signed SAML HTTP-POST response
+            security: []
+            description: SAML mode only. Body is application/x-www-form-urlencoded with exactly one SAMLResponse and RelayState, at most 1 MiB. One-time request and browser nonce are required. Unsolicited responses are rejected.
+            responses:
+                "303":
+                    description: Consume a signed SAML HTTP-POST response
+                    headers:
+                        Location:
+                            schema:
+                                type: string
+                            description: Validated local return path.
+                default:
+                    description: Invalid login state (400), invalid SAML response (401), authentication disabled (404), oversized form (413), or authentication/storage unavailable (503).
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+    /auth/logout:
+        post:
+            operationId: browser_logout
+            summary: Revoke the local browser session
+            security: []
+            description: Requires the configured Origin and X-Orpheus-CSRF header equal to 1. Idempotent; clears the cookie. Does not terminate the IdP session.
+            responses:
+                "204":
+                    description: Revoke the local browser session
+                default:
+                    description: Invalid origin or CSRF header (403), or storage unavailable (503).
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+    /saml/metadata:
+        get:
+            operationId: saml_metadata
+            summary: Read service provider metadata
+            security: []
+            responses:
+                "200":
+                    description: Read service provider metadata
+                    content:
+                        application/samlmetadata+xml:
+                            schema:
+                                type: string
+                default:
+                    description: Authentication disabled (404), or metadata unavailable (503).
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
     /api/v1/runs:
         get:
             description: List All Runs
@@ -1322,6 +1447,7 @@ paths:
                     description: Service Unavailable
             security:
                 - HTTPBearer: []
+                - BrowserSession: []
             summary: List All Runs
     /api/v1/sessions:
         get:
@@ -1430,6 +1556,7 @@ paths:
                     description: Service Unavailable
             security:
                 - HTTPBearer: []
+                - BrowserSession: []
             summary: List Sessions
         post:
             description: Create Session
@@ -1474,6 +1601,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Unauthorized
+                "403":
+                    description: Browser sessions allow reading only (read_only_access).
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
                 "404":
                     content:
                         application/json:
@@ -1582,6 +1715,7 @@ paths:
                     description: Service Unavailable
             security:
                 - HTTPBearer: []
+                - BrowserSession: []
             summary: Read Session
     /api/v1/sessions/{sid}/events:
         get:
@@ -1668,6 +1802,7 @@ paths:
                     description: Service Unavailable
             security:
                 - HTTPBearer: []
+                - BrowserSession: []
             summary: Events
     /api/v1/sessions/{sid}/events/stream:
         get:
@@ -1753,6 +1888,7 @@ paths:
                     description: Service Unavailable
             security:
                 - HTTPBearer: []
+                - BrowserSession: []
             summary: Stream Events
     /api/v1/sessions/{sid}/history:
         get:
@@ -1857,6 +1993,7 @@ paths:
                     description: Service Unavailable
             security:
                 - HTTPBearer: []
+                - BrowserSession: []
             summary: History
     /api/v1/sessions/{sid}/runs:
         get:
@@ -1964,6 +2101,7 @@ paths:
                     description: Service Unavailable
             security:
                 - HTTPBearer: []
+                - BrowserSession: []
             summary: List Runs
         post:
             description: Create Run
@@ -2015,6 +2153,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Unauthorized
+                "403":
+                    description: Browser sessions allow reading only (read_only_access).
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
                 "404":
                     content:
                         application/json:
@@ -2130,6 +2274,7 @@ paths:
                     description: Service Unavailable
             security:
                 - HTTPBearer: []
+                - BrowserSession: []
             summary: Read Run
     /api/v1/sessions/{sid}/runs/{rid}/cancel:
         post:
@@ -2175,6 +2320,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Unauthorized
+                "403":
+                    description: Browser sessions allow reading only (read_only_access).
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
                 "404":
                     content:
                         application/json:
@@ -2272,6 +2423,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorResponse'
                     description: Unauthorized
+                "403":
+                    description: Browser sessions allow reading only (read_only_access).
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
                 "404":
                     content:
                         application/json:

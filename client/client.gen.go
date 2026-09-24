@@ -19,6 +19,27 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for BrowserAuthSessionMode.
+const (
+	APIOnly   BrowserAuthSessionMode = "api_only"
+	Anonymous BrowserAuthSessionMode = "anonymous"
+	Saml      BrowserAuthSessionMode = "saml"
+)
+
+// Valid indicates whether the value is a known member of the BrowserAuthSessionMode enum.
+func (e BrowserAuthSessionMode) Valid() bool {
+	switch e {
+	case APIOnly:
+		return true
+	case Anonymous:
+		return true
+	case Saml:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorPhase.
 const (
 	ErrorPhaseExecution    ErrorPhase = "execution"
@@ -754,6 +775,20 @@ type AgentInput struct {
 	Profile      string  `json:"profile"`
 }
 
+// BrowserAuthSession defines model for BrowserAuthSession.
+type BrowserAuthSession struct {
+	Authenticated bool                   `json:"authenticated"`
+	ExpiresAt     *time.Time             `json:"expires_at"`
+	Mode          BrowserAuthSessionMode `json:"mode"`
+	ReadAccess    bool                   `json:"read_access"`
+	User          *struct {
+		DisplayName string `json:"display_name"`
+	} `json:"user"`
+}
+
+// BrowserAuthSessionMode defines model for BrowserAuthSession.Mode.
+type BrowserAuthSessionMode string
+
 // Cancelled defines model for Cancelled.
 type Cancelled struct {
 	RunID  openapi_types.UUID `json:"run_id"`
@@ -1343,6 +1378,11 @@ type CreateRunParams struct {
 // SendMessageParams defines parameters for SendMessage.
 type SendMessageParams struct {
 	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
+}
+
+// BrowserLoginParams defines parameters for BrowserLogin.
+type BrowserLoginParams struct {
+	Next *string `form:"next,omitempty" json:"next,omitempty"`
 }
 
 // CreateSessionJSONRequestBody defines body for CreateSession for application/json ContentType.
@@ -1963,6 +2003,13 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
+	// AuthSession Read browser authentication state
+	//
+	// Public browser state; Authorization is ignored. Invalid cookies are cleared. All responses use Cache-Control no-store.
+	//
+	// Corresponds with GET /api/v1/auth/session (the `AuthSession` operationId).
+	AuthSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAllRuns List All Runs
 	//
 	// Corresponds with GET /api/v1/runs (the `ListAllRuns` operationId).
@@ -2050,6 +2097,27 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/sessions/{sid}/runs/{rid}/messages (the `SendMessage` operationId).
 	SendMessage(ctx context.Context, sid openapi_types.UUID, rid openapi_types.UUID, params *SendMessageParams, body SendMessageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// BrowserCallback Consume a signed SAML HTTP-POST response
+	//
+	// SAML mode only. Body is application/x-www-form-urlencoded with exactly one SAMLResponse and RelayState, at most 1 MiB. One-time request and browser nonce are required. Unsolicited responses are rejected.
+	//
+	// Corresponds with POST /auth/callback (the `BrowserCallback` operationId).
+	BrowserCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// BrowserLogin Start SP-initiated SAML login
+	//
+	// SAML mode only; otherwise 404 auth_not_enabled. next must be a local absolute path (not auth routes); default /api/v1/auth/session. No Host or proxy header trust.
+	//
+	// Corresponds with GET /auth/login (the `BrowserLogin` operationId).
+	BrowserLogin(ctx context.Context, params *BrowserLoginParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// BrowserLogout Revoke the local browser session
+	//
+	// Requires the configured Origin and X-Orpheus-CSRF header equal to 1. Idempotent; clears the cookie. Does not terminate the IdP session.
+	//
+	// Corresponds with POST /auth/logout (the `BrowserLogout` operationId).
+	BrowserLogout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// Health Health
 	//
 	// Corresponds with GET /health (the `Health` operationId).
@@ -2059,6 +2127,28 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /ready (the `Ready` operationId).
 	Ready(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SamlMetadata Read service provider metadata
+	//
+	// Corresponds with GET /saml/metadata (the `SamlMetadata` operationId).
+	SamlMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+// AuthSession Read browser authentication state
+//
+// Public browser state; Authorization is ignored. Invalid cookies are cleared. All responses use Cache-Control no-store.
+//
+// Corresponds with GET /api/v1/auth/session (the `AuthSession` operationId).
+func (c *Client) AuthSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAuthSessionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 // ListAllRuns List All Runs
@@ -2298,6 +2388,57 @@ func (c *Client) SendMessage(ctx context.Context, sid openapi_types.UUID, rid op
 	return c.Client.Do(req)
 }
 
+// BrowserCallback Consume a signed SAML HTTP-POST response
+//
+// SAML mode only. Body is application/x-www-form-urlencoded with exactly one SAMLResponse and RelayState, at most 1 MiB. One-time request and browser nonce are required. Unsolicited responses are rejected.
+//
+// Corresponds with POST /auth/callback (the `BrowserCallback` operationId).
+func (c *Client) BrowserCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBrowserCallbackRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// BrowserLogin Start SP-initiated SAML login
+//
+// SAML mode only; otherwise 404 auth_not_enabled. next must be a local absolute path (not auth routes); default /api/v1/auth/session. No Host or proxy header trust.
+//
+// Corresponds with GET /auth/login (the `BrowserLogin` operationId).
+func (c *Client) BrowserLogin(ctx context.Context, params *BrowserLoginParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBrowserLoginRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// BrowserLogout Revoke the local browser session
+//
+// Requires the configured Origin and X-Orpheus-CSRF header equal to 1. Idempotent; clears the cookie. Does not terminate the IdP session.
+//
+// Corresponds with POST /auth/logout (the `BrowserLogout` operationId).
+func (c *Client) BrowserLogout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBrowserLogoutRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // Health Health
 //
 // Corresponds with GET /health (the `Health` operationId).
@@ -2326,6 +2467,48 @@ func (c *Client) Ready(ctx context.Context, reqEditors ...RequestEditorFn) (*htt
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// SamlMetadata Read service provider metadata
+//
+// Corresponds with GET /saml/metadata (the `SamlMetadata` operationId).
+func (c *Client) SamlMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSamlMetadataRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// NewAuthSessionRequest constructs an http.Request for the AuthSession method
+func NewAuthSessionRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/auth/session")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewListAllRunsRequest constructs an http.Request for the ListAllRuns method
@@ -3225,6 +3408,114 @@ func NewSendMessageRequestWithBody(server string, sid openapi_types.UUID, rid op
 	return req, nil
 }
 
+// NewBrowserCallbackRequest constructs an http.Request for the BrowserCallback method
+func NewBrowserCallbackRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/auth/callback")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewBrowserLoginRequest constructs an http.Request for the BrowserLogin method
+func NewBrowserLoginRequest(server string, params *BrowserLoginParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/auth/login")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Next != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "next", *params.Next, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewBrowserLogoutRequest constructs an http.Request for the BrowserLogout method
+func NewBrowserLogoutRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/auth/logout")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewHealthRequest constructs an http.Request for the Health method
 func NewHealthRequest(server string) (*http.Request, error) {
 	var err error
@@ -3262,6 +3553,33 @@ func NewReadyRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/ready")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSamlMetadataRequest constructs an http.Request for the SamlMetadata method
+func NewSamlMetadataRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/saml/metadata")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3322,6 +3640,15 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+
+	// AuthSessionWithResponse Read browser authentication state
+	//
+	// Public browser state; Authorization is ignored. Invalid cookies are cleared. All responses use Cache-Control no-store.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/auth/session (the `AuthSession` operationId).
+	AuthSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*AuthSessionHTTPResponse, error)
 
 	// ListAllRunsWithResponse List All Runs
 	//
@@ -3428,6 +3755,33 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/sessions/{sid}/runs/{rid}/messages (the `SendMessage` operationId).
 	SendMessageWithResponse(ctx context.Context, sid openapi_types.UUID, rid openapi_types.UUID, params *SendMessageParams, body SendMessageJSONRequestBody, reqEditors ...RequestEditorFn) (*SendMessageHTTPResponse, error)
 
+	// BrowserCallbackWithResponse Consume a signed SAML HTTP-POST response
+	//
+	// SAML mode only. Body is application/x-www-form-urlencoded with exactly one SAMLResponse and RelayState, at most 1 MiB. One-time request and browser nonce are required. Unsolicited responses are rejected.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /auth/callback (the `BrowserCallback` operationId).
+	BrowserCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BrowserCallbackHTTPResponse, error)
+
+	// BrowserLoginWithResponse Start SP-initiated SAML login
+	//
+	// SAML mode only; otherwise 404 auth_not_enabled. next must be a local absolute path (not auth routes); default /api/v1/auth/session. No Host or proxy header trust.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /auth/login (the `BrowserLogin` operationId).
+	BrowserLoginWithResponse(ctx context.Context, params *BrowserLoginParams, reqEditors ...RequestEditorFn) (*BrowserLoginHTTPResponse, error)
+
+	// BrowserLogoutWithResponse Revoke the local browser session
+	//
+	// Requires the configured Origin and X-Orpheus-CSRF header equal to 1. Idempotent; clears the cookie. Does not terminate the IdP session.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /auth/logout (the `BrowserLogout` operationId).
+	BrowserLogoutWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BrowserLogoutHTTPResponse, error)
+
 	// HealthWithResponse Health
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -3441,6 +3795,61 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /ready (the `Ready` operationId).
 	ReadyWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadyHTTPResponse, error)
+
+	// SamlMetadataWithResponse Read service provider metadata
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /saml/metadata (the `SamlMetadata` operationId).
+	SamlMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*SamlMetadataHTTPResponse, error)
+}
+
+type AuthSessionHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *BrowserAuthSession
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r AuthSessionHTTPResponse) GetJSON200() *BrowserAuthSession {
+	return r.JSON200
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r AuthSessionHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AuthSessionHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AuthSessionHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AuthSessionHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AuthSessionHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
 }
 
 type ListAllRunsHTTPResponse struct {
@@ -3651,6 +4060,8 @@ type CreateSessionHTTPResponse struct {
 	JSON400 *ErrorResponse
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *ErrorResponse
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *ErrorResponse
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *ErrorResponse
 	// JSON409 the response for an HTTP 409 `application/json` response
@@ -3680,6 +4091,11 @@ func (r CreateSessionHTTPResponse) GetJSON400() *ErrorResponse {
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r CreateSessionHTTPResponse) GetJSON401() *ErrorResponse {
 	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateSessionHTTPResponse) GetJSON403() *ErrorResponse {
+	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
@@ -4233,6 +4649,8 @@ type CreateRunHTTPResponse struct {
 	JSON400 *ErrorResponse
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *ErrorResponse
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *ErrorResponse
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *ErrorResponse
 	// JSON409 the response for an HTTP 409 `application/json` response
@@ -4262,6 +4680,11 @@ func (r CreateRunHTTPResponse) GetJSON400() *ErrorResponse {
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r CreateRunHTTPResponse) GetJSON401() *ErrorResponse {
 	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateRunHTTPResponse) GetJSON403() *ErrorResponse {
+	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
@@ -4431,6 +4854,8 @@ type CancelRunHTTPResponse struct {
 	JSON400 *ErrorResponse
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *ErrorResponse
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *ErrorResponse
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *ErrorResponse
 	// JSON409 the response for an HTTP 409 `application/json` response
@@ -4463,6 +4888,11 @@ func (r CancelRunHTTPResponse) GetJSON400() *ErrorResponse {
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r CancelRunHTTPResponse) GetJSON401() *ErrorResponse {
 	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CancelRunHTTPResponse) GetJSON403() *ErrorResponse {
+	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
@@ -4538,6 +4968,8 @@ type SendMessageHTTPResponse struct {
 	JSON400 *ErrorResponse
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *ErrorResponse
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *ErrorResponse
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *ErrorResponse
 	// JSON409 the response for an HTTP 409 `application/json` response
@@ -4567,6 +4999,11 @@ func (r SendMessageHTTPResponse) GetJSON400() *ErrorResponse {
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r SendMessageHTTPResponse) GetJSON401() *ErrorResponse {
 	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r SendMessageHTTPResponse) GetJSON403() *ErrorResponse {
+	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
@@ -4622,6 +5059,143 @@ func (r SendMessageHTTPResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SendMessageHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// BrowserCallbackHTTPResponse303Headers the declared response headers of an HTTP 303 response for BrowserCallback
+type BrowserCallbackHTTPResponse303Headers struct {
+	Location *string
+}
+
+type BrowserCallbackHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+	// Headers303 the parsed response headers for an HTTP 303 response
+	Headers303 *BrowserCallbackHTTPResponse303Headers
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r BrowserCallbackHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r BrowserCallbackHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r BrowserCallbackHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BrowserCallbackHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r BrowserCallbackHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// BrowserLoginHTTPResponse302Headers the declared response headers of an HTTP 302 response for BrowserLogin
+type BrowserLoginHTTPResponse302Headers struct {
+	Location *string
+}
+
+type BrowserLoginHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+	// Headers302 the parsed response headers for an HTTP 302 response
+	Headers302 *BrowserLoginHTTPResponse302Headers
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r BrowserLoginHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r BrowserLoginHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r BrowserLoginHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BrowserLoginHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r BrowserLoginHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type BrowserLogoutHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r BrowserLogoutHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r BrowserLogoutHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r BrowserLogoutHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BrowserLogoutHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r BrowserLogoutHTTPResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -4715,6 +5289,62 @@ func (r ReadyHTTPResponse) ContentType() string {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
+}
+
+type SamlMetadataHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r SamlMetadataHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SamlMetadataHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SamlMetadataHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SamlMetadataHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SamlMetadataHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// AuthSessionWithResponse Read browser authentication state
+//
+// Public browser state; Authorization is ignored. Invalid cookies are cleared. All responses use Cache-Control no-store.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/auth/session (the `AuthSession` operationId).
+func (c *ClientWithResponses) AuthSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*AuthSessionHTTPResponse, error) {
+	rsp, err := c.AuthSession(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAuthSessionHTTPResponse(rsp)
 }
 
 // ListAllRunsWithResponse List All Runs
@@ -4912,6 +5542,51 @@ func (c *ClientWithResponses) SendMessageWithResponse(ctx context.Context, sid o
 	return ParseSendMessageHTTPResponse(rsp)
 }
 
+// BrowserCallbackWithResponse Consume a signed SAML HTTP-POST response
+//
+// SAML mode only. Body is application/x-www-form-urlencoded with exactly one SAMLResponse and RelayState, at most 1 MiB. One-time request and browser nonce are required. Unsolicited responses are rejected.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /auth/callback (the `BrowserCallback` operationId).
+func (c *ClientWithResponses) BrowserCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BrowserCallbackHTTPResponse, error) {
+	rsp, err := c.BrowserCallback(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBrowserCallbackHTTPResponse(rsp)
+}
+
+// BrowserLoginWithResponse Start SP-initiated SAML login
+//
+// SAML mode only; otherwise 404 auth_not_enabled. next must be a local absolute path (not auth routes); default /api/v1/auth/session. No Host or proxy header trust.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /auth/login (the `BrowserLogin` operationId).
+func (c *ClientWithResponses) BrowserLoginWithResponse(ctx context.Context, params *BrowserLoginParams, reqEditors ...RequestEditorFn) (*BrowserLoginHTTPResponse, error) {
+	rsp, err := c.BrowserLogin(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBrowserLoginHTTPResponse(rsp)
+}
+
+// BrowserLogoutWithResponse Revoke the local browser session
+//
+// Requires the configured Origin and X-Orpheus-CSRF header equal to 1. Idempotent; clears the cookie. Does not terminate the IdP session.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /auth/logout (the `BrowserLogout` operationId).
+func (c *ClientWithResponses) BrowserLogoutWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BrowserLogoutHTTPResponse, error) {
+	rsp, err := c.BrowserLogout(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBrowserLogoutHTTPResponse(rsp)
+}
+
 // HealthWithResponse Health
 //
 // Returns a wrapper object for the known response body format(s).
@@ -4936,6 +5611,52 @@ func (c *ClientWithResponses) ReadyWithResponse(ctx context.Context, reqEditors 
 		return nil, err
 	}
 	return ParseReadyHTTPResponse(rsp)
+}
+
+// SamlMetadataWithResponse Read service provider metadata
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /saml/metadata (the `SamlMetadata` operationId).
+func (c *ClientWithResponses) SamlMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*SamlMetadataHTTPResponse, error) {
+	rsp, err := c.SamlMetadata(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSamlMetadataHTTPResponse(rsp)
+}
+
+// ParseAuthSessionHTTPResponse parses an HTTP response from a AuthSessionWithResponse call
+func ParseAuthSessionHTTPResponse(rsp *http.Response) (*AuthSessionHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AuthSessionHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BrowserAuthSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseListAllRunsHTTPResponse parses an HTTP response from a ListAllRunsWithResponse call
@@ -5136,6 +5857,13 @@ func ParseCreateSessionHTTPResponse(rsp *http.Response) (*CreateSessionHTTPRespo
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
@@ -5635,6 +6363,13 @@ func ParseCreateRunHTTPResponse(rsp *http.Response) (*CreateRunHTTPResponse, err
 		}
 		response.JSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5819,6 +6554,13 @@ func ParseCancelRunHTTPResponse(rsp *http.Response) (*CancelRunHTTPResponse, err
 		}
 		response.JSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5901,6 +6643,13 @@ func ParseSendMessageHTTPResponse(rsp *http.Response) (*SendMessageHTTPResponse,
 		}
 		response.JSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5961,6 +6710,119 @@ func ParseSendMessageHTTPResponse(rsp *http.Response) (*SendMessageHTTPResponse,
 	return response, nil
 }
 
+// ParseBrowserCallbackHTTPResponse parses an HTTP response from a BrowserCallbackWithResponse call
+func ParseBrowserCallbackHTTPResponse(rsp *http.Response) (*BrowserCallbackHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BrowserCallbackHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 303:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 303:
+		var headers BrowserCallbackHTTPResponse303Headers
+		if values := rsp.Header.Values("Location"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Location", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.Location = &value
+		}
+		response.Headers303 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseBrowserLoginHTTPResponse parses an HTTP response from a BrowserLoginWithResponse call
+func ParseBrowserLoginHTTPResponse(rsp *http.Response) (*BrowserLoginHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BrowserLoginHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 302:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 302:
+		var headers BrowserLoginHTTPResponse302Headers
+		if values := rsp.Header.Values("Location"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Location", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.Location = &value
+		}
+		response.Headers302 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseBrowserLogoutHTTPResponse parses an HTTP response from a BrowserLogoutWithResponse call
+func ParseBrowserLogoutHTTPResponse(rsp *http.Response) (*BrowserLogoutHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BrowserLogoutHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseHealthHTTPResponse parses an HTTP response from a HealthWithResponse call
 func ParseHealthHTTPResponse(rsp *http.Response) (*HealthHTTPResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -6014,6 +6876,32 @@ func ParseReadyHTTPResponse(rsp *http.Response) (*ReadyHTTPResponse, error) {
 			return nil, err
 		}
 		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSamlMetadataHTTPResponse parses an HTTP response from a SamlMetadataWithResponse call
+func ParseSamlMetadataHTTPResponse(rsp *http.Response) (*SamlMetadataHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SamlMetadataHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
 
 	}
 
