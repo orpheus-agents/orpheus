@@ -29,11 +29,15 @@ type Auth struct {
 	Store     string `toml:"store"`
 	Key       string `toml:"key"`
 }
+type CodexProfile struct {
+	Effort string `toml:"effort"`
+}
 type Profile struct {
-	Harness      string  `toml:"harness"`
-	Model        *string `toml:"model"`
-	Instructions string  `toml:"instructions"`
-	Auth         Auth    `toml:"auth"`
+	Harness      string       `toml:"harness"`
+	Model        *string      `toml:"model"`
+	Codex        CodexProfile `toml:"codex"`
+	Instructions string       `toml:"instructions"`
+	Auth         Auth         `toml:"auth"`
 }
 type Profiles struct {
 	Profiles         map[string]Profile                 `toml:"profiles"`
@@ -45,9 +49,12 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 	// different, as are forbidden fields in either authentication variant.
 	var source struct {
 		Profiles map[string]struct {
-			Harness      string  `toml:"harness"`
-			Model        *string `toml:"model"`
-			Instructions string  `toml:"instructions"`
+			Harness string  `toml:"harness"`
+			Model   *string `toml:"model"`
+			Codex   struct {
+				Effort *string `toml:"effort"`
+			} `toml:"codex"`
+			Instructions string `toml:"instructions"`
 			Auth         struct {
 				Mode      string  `toml:"mode"`
 				APIKeyEnv *string `toml:"api_key_env"`
@@ -84,7 +91,10 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 	}
 	for name, raw := range source.Profiles {
 		v := Profile{Harness: raw.Harness, Model: raw.Model, Instructions: raw.Instructions, Auth: Auth{Mode: raw.Auth.Mode}}
-		if strings.TrimSpace(name) == "" || v.Harness != "codex" || (v.Model != nil && *v.Model == "") {
+		if raw.Codex.Effort != nil {
+			v.Codex.Effort = *raw.Codex.Effort
+		}
+		if strings.TrimSpace(name) == "" || v.Harness != "codex" || (v.Model != nil && *v.Model == "") || (raw.Codex.Effort != nil && !validCodexEffort(v.Codex.Effort)) {
 			return p, errors.New("invalid profile")
 		}
 		switch v.Auth.Mode {
@@ -107,6 +117,10 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 		p.Profiles[name] = v
 	}
 	return p, nil
+}
+
+func validCodexEffort(value string) bool {
+	return slices.Contains([]string{"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}, value)
 }
 func LoadProfiles(path string) (Profiles, error) {
 	f, err := os.Open(path)
@@ -226,6 +240,9 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if model == nil || strings.TrimSpace(*model) == "" {
 		return out, invalid("An explicit model is required.", "configuration", "agent", "model")
 	}
+	if profile.Codex.Effort != "" && !validCodexEffort(profile.Codex.Effort) {
+		return out, invalid("Invalid Codex reasoning effort.", "configuration", "agent", "effort")
+	}
 	instructions := profile.Instructions
 	if in.Agent.Instructions != nil {
 		instructions = *in.Agent.Instructions
@@ -251,7 +268,7 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if refs == nil {
 		refs = []string{}
 	}
-	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs}, Limits: in.Limits, Hooks: hooks}, Credentials: creds}
+	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Codex: session.CodexConfiguration{Effort: profile.Codex.Effort}, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs}, Limits: in.Limits, Hooks: hooks}, Credentials: creds}
 	return out, nil
 }
 func Environment(cipher *secret.Cipher, id uuid.UUID, token *string, cfg session.Configuration, allowlist []string) (map[string]string, error) {

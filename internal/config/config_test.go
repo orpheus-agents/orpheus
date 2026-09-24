@@ -15,6 +15,8 @@ func TestResolve(t *testing.T) {
 harness="codex"
 model="model"
 instructions="default instructions"
+[profiles.default.codex]
+effort="medium"
 [profiles.default.auth]
 mode="api_key"
 api_key_env="OPENAI_API_KEY"
@@ -27,12 +29,12 @@ api_key_env="OPENAI_API_KEY"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Public.Agent.Instructions != "default instructions" {
+	if first.Public.Agent.Instructions != "default instructions" || first.Public.Agent.Codex.Effort != "medium" {
 		t.Fatal(first)
 	}
 	in.Agent.Instructions = new("")
 	next, err := Resolve(in, p, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens)
-	if err != nil || next.Public.Agent.Instructions != "" {
+	if err != nil || next.Public.Agent.Instructions != "" || next.Public.Agent.Codex.Effort != "medium" {
 		t.Fatal(next, err)
 	}
 	if _, err := Resolve(in, p, nil, DefaultMaxSessionTokens); err == nil {
@@ -57,6 +59,59 @@ api_key_env="OPENAI_API_KEY"
 	}
 	if _, err := Environment(c, id, token, first.Public, nil); err == nil {
 		t.Fatal("revoked allowlist accepted")
+	}
+}
+func TestOptionalCodexEffort(t *testing.T) {
+	const profile = `[profiles.default]
+harness="codex"
+model="model"
+[profiles.default.auth]
+mode="api_key"
+api_key_env="OPENAI_API_KEY"
+`
+	p, err := ReadProfiles(strings.NewReader(profile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
+	got, err := Resolve(in, p, nil, DefaultMaxSessionTokens)
+	if err != nil || got.Public.Agent.Codex.Effort != "" {
+		t.Fatal(got, err)
+	}
+	profiles, err := ReadProfiles(strings.NewReader(profile + `[profiles.quick]
+harness="codex"
+model="model"
+[profiles.quick.codex]
+effort="low"
+[profiles.quick.auth]
+mode="api_key"
+api_key_env="OPENAI_API_KEY"
+[profiles.deep]
+harness="codex"
+model="model"
+[profiles.deep.codex]
+effort="high"
+[profiles.deep.auth]
+mode="api_key"
+api_key_env="OPENAI_API_KEY"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]string{"quick": "low", "deep": "high"} {
+		in.Agent.Profile = name
+		resolved, err := Resolve(in, profiles, nil, DefaultMaxSessionTokens)
+		if err != nil || resolved.Public.Agent.Codex.Effort != want || resolved.Credentials.APIKeyEnv != "OPENAI_API_KEY" {
+			t.Fatalf("profile %s: %#v %v", name, resolved, err)
+		}
+	}
+	for _, value := range []string{"", " ", "invalid", "HIGH"} {
+		if _, err := ReadProfiles(strings.NewReader(strings.Replace(profile, "[profiles.default.auth]", "[profiles.default.codex]\neffort=\""+value+"\"\n[profiles.default.auth]", 1))); err == nil {
+			t.Fatalf("invalid profile effort %q accepted", value)
+		}
+	}
+	if _, err := ReadProfiles(strings.NewReader(strings.Replace(profile, "model=\"model\"", "model=\"model\"\neffort=\"high\"", 1))); err == nil {
+		t.Fatal("top-level effort accepted")
 	}
 }
 func TestSandboxValidation(t *testing.T) {

@@ -162,7 +162,7 @@ func TestRequestBoundary(t *testing.T) {
 	tests := []struct {
 		body   string
 		status int
-	}{{`{`, 400}, {validBody + "{}", 400}, {strings.Replace(validBody, `"text":"hello"`, `"text":"hello","text":"secret"`, 1), 400}, {strings.Replace(validBody, `"text":"hello"`, `"text":12`, 1), 422}, {strings.Replace(validBody, `"profile":"default"`, `"profile":"default","unknown":"secret"`, 1), 422}, {strings.Replace(validBody, `"profile":"default"`, `"profile":"default","model":null`, 1), 422}, {strings.Replace(validBody, `"template":"codex"`, `"template":"codex","env":null`, 1), 422}, {strings.Replace(validBody, `"text":"hello"`, `"text":" "`, 1), 422}, {strings.Replace(validBody, `"text":"hello"`, `"text":NaN`, 1), 400}, {strings.Replace(validBody, "hello", string([]byte{0xff}), 1), 400}}
+	}{{`{`, 400}, {validBody + "{}", 400}, {strings.Replace(validBody, `"text":"hello"`, `"text":"hello","text":"secret"`, 1), 400}, {strings.Replace(validBody, `"text":"hello"`, `"text":12`, 1), 422}, {strings.Replace(validBody, `"profile":"default"`, `"profile":"default","unknown":"secret"`, 1), 422}, {strings.Replace(validBody, `"profile":"default"`, `"profile":"default","model":null`, 1), 422}, {strings.Replace(validBody, `"profile":"default"`, `"profile":"default","effort":"high"`, 1), 422}, {strings.Replace(validBody, `"template":"codex"`, `"template":"codex","env":null`, 1), 422}, {strings.Replace(validBody, `"text":"hello"`, `"text":" "`, 1), 422}, {strings.Replace(validBody, `"text":"hello"`, `"text":NaN`, 1), 400}, {strings.Replace(validBody, "hello", string([]byte{0xff}), 1), 400}}
 	for i, tc := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			status, _, raw := requestHTTP(t, server, "POST", "/api/v1/sessions", tc.body, "key", uuid.NewString())

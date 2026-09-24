@@ -3,6 +3,7 @@
 package httpserver
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"testing"
@@ -14,7 +15,10 @@ import (
 // Exercise the public generated client against the real HTTP boundary and store,
 // so a spec that generates compilable but incompatible wire types fails CI.
 func TestGeneratedClientAgainstServer(t *testing.T) {
-	server, _ := testServer(t)
+	server, s := testServer(t)
+	profile := s.Profiles.Profiles["default"]
+	profile.Codex.Effort = "high"
+	s.Profiles.Profiles["default"] = profile
 	c, err := client.NewClientWithResponses(server.URL, client.WithHTTPClient(server.Client()), client.WithRequestEditorFn(func(_ context.Context, r *http.Request) error {
 		r.Header.Set("Authorization", "Bearer key")
 		return nil
@@ -69,6 +73,9 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	got, err := c.GetSessionWithResponse(t.Context(), a.SessionID)
 	if err != nil || got.JSON200 == nil || got.JSON200.ID != a.SessionID || got.JSON200.Configuration.Agent.Instructions != "profile instruction" {
 		t.Fatalf("session: %#v %v", got, err)
+	}
+	if bytes.Contains(got.Body, []byte(`"codex":`)) || bytes.Contains(got.Body, []byte(`"effort":`)) {
+		t.Fatalf("internal Codex effort leaked into API: %s", got.Body)
 	}
 	listed, err := c.ListSessionsWithResponse(t.Context(), &client.ListSessionsParams{Namespace: body.Namespace, ExternalKey: body.ExternalKey})
 	if err != nil || listed.JSON200 == nil || len(listed.JSON200.Items) != 1 || listed.JSON200.Items[0].ID != a.SessionID {

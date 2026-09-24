@@ -82,11 +82,10 @@ func (d *Driver) Initialize(ctx context.Context, source session.Credentials, log
 	return nil
 }
 func (d *Driver) OpenContext(ctx context.Context, agent session.AgentConfiguration, cwd string, id *string) (harness.Context, error) {
-	var instructions *string
+	params := map[string]any{"model": agent.Model, "cwd": cwd, "approvalPolicy": "never", "sandbox": "danger-full-access"}
 	if agent.Instructions != "" {
-		instructions = &agent.Instructions
+		params["developerInstructions"] = agent.Instructions
 	}
-	params := map[string]any{"model": agent.Model, "cwd": cwd, "approvalPolicy": "never", "sandbox": "danger-full-access", "baseInstructions": instructions}
 	if id != nil {
 		params["threadId"] = *id
 		if err := d.rpc.Call(ctx, "thread/resume", params, nil); err != nil {
@@ -116,11 +115,15 @@ func (d *Driver) HasUpdates() bool {
 	return notify || dirty || len(d.usage) > 0 || d.thread == nil || !time.Now().Before(d.readAt)
 }
 func (d *Driver) Committed() { clear(d.outputs); d.usage = nil }
-func (d *Driver) Start(ctx context.Context, thread, text string) (string, error) {
+func (d *Driver) Start(ctx context.Context, agent session.AgentConfiguration, thread, text string) (string, error) {
 	var out struct {
 		Turn NativeTurn `json:"turn"`
 	}
-	if err := d.rpc.Call(ctx, "turn/start", map[string]any{"threadId": thread, "input": []map[string]string{{"type": "text", "text": text}}}, &out); err != nil {
+	params := map[string]any{"threadId": thread, "input": []map[string]string{{"type": "text", "text": text}}}
+	if agent.Codex.Effort != "" {
+		params["effort"] = agent.Codex.Effort
+	}
+	if err := d.rpc.Call(ctx, "turn/start", params, &out); err != nil {
 		return "", err
 	}
 	if out.Turn.ID == "" {

@@ -2,6 +2,10 @@
 harness = "codex"
 # Set the model here or provide agent.model when creating a session.
 
+# Optional Codex reasoning effort for this profile:
+# [profiles.default.codex]
+# effort = "medium"
+
 [profiles.default.auth]
 mode = "api_key"
 api_key_env = "OPENAI_API_KEY"

@@ -57,8 +57,8 @@ func (d *faultDriver) Launch(ctx context.Context, env map[string]string, cwd str
 	}
 	return pid, err
 }
-func (d *faultDriver) Start(ctx context.Context, thread, text string) (string, error) {
-	id, err := d.Driver.Start(ctx, thread, text)
+func (d *faultDriver) Start(ctx context.Context, agent session.AgentConfiguration, thread, text string) (string, error) {
+	id, err := d.Driver.Start(ctx, agent, thread, text)
 	if err == nil && !d.lost["start"] {
 		d.lost["start"] = true
 		return "", harness.ErrUncertain

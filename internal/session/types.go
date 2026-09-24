@@ -93,10 +93,14 @@ type ConfigurationInput struct {
 	Limits  Limits       `json:"limits"`
 	Hooks   *HooksInput  `json:"hooks,omitzero"`
 }
+type CodexConfiguration struct {
+	Effort string `json:"effort,omitzero"`
+}
 type AgentConfiguration struct {
-	Profile      string `json:"profile"`
-	Model        string `json:"model"`
-	Instructions string `json:"instructions"`
+	Profile      string             `json:"profile"`
+	Model        string             `json:"model"`
+	Codex        CodexConfiguration `json:"codex,omitzero"`
+	Instructions string             `json:"instructions"`
 }
 type SandboxConfiguration struct {
 	Template string   `json:"template"`
