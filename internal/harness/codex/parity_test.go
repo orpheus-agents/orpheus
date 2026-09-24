@@ -179,8 +179,11 @@ func TestContextCreateResumeAndLoss(t *testing.T) {
 		}
 		var params map[string]any
 		_ = json.Unmarshal(req["params"], &params)
-		if params["model"] != "model" || params["cwd"] != "/workspace" || params["baseInstructions"] != "instructions" || params["approvalPolicy"] != "never" {
+		if params["model"] != "model" || params["cwd"] != "/workspace" || params["developerInstructions"] != "instructions" || params["approvalPolicy"] != "never" {
 			t.Fatal(params)
+		}
+		if _, ok := params["baseInstructions"]; ok {
+			t.Fatal("workflow replaced Codex base instructions", params)
 		}
 		return map[string]any{"id": req["id"], "result": map[string]any{"thread": map[string]string{"id": "thread", "path": "/history"}}}
 	})
@@ -202,6 +205,56 @@ func TestContextCreateResumeAndLoss(t *testing.T) {
 	f, ok := errors.AsType[*harness.ExecutionError](err)
 	if !ok || f.Code != "context_lost" || strings.Contains(err.Error(), "private") {
 		t.Fatal(err)
+	}
+}
+
+func TestContextWithoutInstructionsAndTurnEffort(t *testing.T) {
+	var calls []map[string]any
+	rpc, box := newRPC(t, func(req map[string]json.RawMessage) any {
+		var method string
+		_ = json.Unmarshal(req["method"], &method)
+		var params map[string]any
+		_ = json.Unmarshal(req["params"], &params)
+		calls = append(calls, map[string]any{"method": method, "params": params})
+		result := map[string]any{}
+		switch method {
+		case "thread/start":
+			result["thread"] = map[string]string{"id": "thread"}
+		case "turn/start":
+			result["turn"] = map[string]string{"id": "turn"}
+		}
+		return map[string]any{"id": req["id"], "result": result}
+	})
+	d := New(box, time.Second, 1024)
+	d.rpc = rpc
+	agent := session.AgentConfiguration{Model: "model", Effort: new("high")}
+	if _, err := d.OpenContext(t.Context(), agent, "/workspace", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Start(t.Context(), agent, "thread", "first"); err != nil {
+		t.Fatal(err)
+	}
+	agent.Effort = nil
+	if _, err := d.Start(t.Context(), agent, "thread", "second"); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 3 {
+		t.Fatal(calls)
+	}
+	thread := calls[0]["params"].(map[string]any)
+	if _, ok := thread["developerInstructions"]; ok {
+		t.Fatal("empty developer instructions were sent", thread)
+	}
+	if _, ok := thread["baseInstructions"]; ok {
+		t.Fatal("base instructions were replaced", thread)
+	}
+	first := calls[1]["params"].(map[string]any)
+	second := calls[2]["params"].(map[string]any)
+	if first["effort"] != "high" || first["threadId"] != "thread" {
+		t.Fatal(first)
+	}
+	if _, ok := second["effort"]; ok {
+		t.Fatal("unset effort was sent", second)
 	}
 }
 

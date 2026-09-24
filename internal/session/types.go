@@ -57,6 +57,7 @@ func Problem(status int, code, message string) *APIError {
 type AgentInput struct {
 	Profile      string  `json:"profile"`
 	Model        *string `json:"model,omitzero"`
+	Effort       *string `json:"effort,omitzero"`
 	Instructions *string `json:"instructions,omitzero"`
 }
 type SandboxInput struct {
@@ -94,9 +95,10 @@ type ConfigurationInput struct {
 	Hooks   *HooksInput  `json:"hooks,omitzero"`
 }
 type AgentConfiguration struct {
-	Profile      string `json:"profile"`
-	Model        string `json:"model"`
-	Instructions string `json:"instructions"`
+	Profile      string  `json:"profile"`
+	Model        string  `json:"model"`
+	Effort       *string `json:"effort,omitzero"`
+	Instructions string  `json:"instructions"`
 }
 type SandboxConfiguration struct {
 	Template string   `json:"template"`

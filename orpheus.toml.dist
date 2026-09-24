@@ -1,6 +1,8 @@
 [profiles.default]
 harness = "codex"
 # Set the model here or provide agent.model when creating a session.
+# Optional Codex reasoning effort; agent.effort overrides it per session.
+# effort = "medium"
 
 [profiles.default.auth]
 mode = "api_key"

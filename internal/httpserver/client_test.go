@@ -45,7 +45,7 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	params := &client.CreateSessionParams{IdempotencyKey: new(uuid.NewString())}
 	body := client.CreateSession{
 		Namespace: new("connector/test"), ExternalKey: new("source:thread"), InputFingerprint: new("revision:1"),
-		Configuration: client.ConfigurationInput{Agent: client.AgentInput{Profile: "default"}, Sandbox: client.SandboxInput{Template: "codex"}, Hooks: &client.HooksInput{BeforeRun: new("#!/bin/sh\ntrue\n"), AfterRun: new("#!/bin/sh\ntrue\n")}},
+		Configuration: client.ConfigurationInput{Agent: client.AgentInput{Profile: "default", Effort: new(client.High)}, Sandbox: client.SandboxInput{Template: "codex"}, Hooks: &client.HooksInput{BeforeRun: new("#!/bin/sh\ntrue\n"), AfterRun: new("#!/bin/sh\ntrue\n")}},
 		Message:       client.TextMessage{Text: "hello", ExternalKey: new("post:1")}, Env: &map[string]string{"RUN_INPUT": "fixture"},
 	}
 	created, err := c.CreateSessionWithResponse(t.Context(), params, body)
@@ -67,7 +67,7 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	}
 
 	got, err := c.GetSessionWithResponse(t.Context(), a.SessionID)
-	if err != nil || got.JSON200 == nil || got.JSON200.ID != a.SessionID || got.JSON200.Configuration.Agent.Instructions != "profile instruction" {
+	if err != nil || got.JSON200 == nil || got.JSON200.ID != a.SessionID || got.JSON200.Configuration.Agent.Instructions != "profile instruction" || got.JSON200.Configuration.Agent.Effort == nil || *got.JSON200.Configuration.Agent.Effort != client.High {
 		t.Fatalf("session: %#v %v", got, err)
 	}
 	listed, err := c.ListSessionsWithResponse(t.Context(), &client.ListSessionsParams{Namespace: body.Namespace, ExternalKey: body.ExternalKey})

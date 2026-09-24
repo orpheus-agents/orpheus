@@ -32,6 +32,7 @@ type Auth struct {
 type Profile struct {
 	Harness      string  `toml:"harness"`
 	Model        *string `toml:"model"`
+	Effort       *string `toml:"effort"`
 	Instructions string  `toml:"instructions"`
 	Auth         Auth    `toml:"auth"`
 }
@@ -47,6 +48,7 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 		Profiles map[string]struct {
 			Harness      string  `toml:"harness"`
 			Model        *string `toml:"model"`
+			Effort       *string `toml:"effort"`
 			Instructions string  `toml:"instructions"`
 			Auth         struct {
 				Mode      string  `toml:"mode"`
@@ -83,8 +85,8 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 		p.CredentialStores[name] = s
 	}
 	for name, raw := range source.Profiles {
-		v := Profile{Harness: raw.Harness, Model: raw.Model, Instructions: raw.Instructions, Auth: Auth{Mode: raw.Auth.Mode}}
-		if strings.TrimSpace(name) == "" || v.Harness != "codex" || (v.Model != nil && *v.Model == "") {
+		v := Profile{Harness: raw.Harness, Model: raw.Model, Effort: raw.Effort, Instructions: raw.Instructions, Auth: Auth{Mode: raw.Auth.Mode}}
+		if strings.TrimSpace(name) == "" || v.Harness != "codex" || (v.Model != nil && *v.Model == "") || (v.Effort != nil && !validEffort(*v.Effort)) {
 			return p, errors.New("invalid profile")
 		}
 		switch v.Auth.Mode {
@@ -107,6 +109,10 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 		p.Profiles[name] = v
 	}
 	return p, nil
+}
+
+func validEffort(value string) bool {
+	return slices.Contains([]string{"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}, value)
 }
 func LoadProfiles(path string) (Profiles, error) {
 	f, err := os.Open(path)
@@ -226,6 +232,13 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if model == nil || strings.TrimSpace(*model) == "" {
 		return out, invalid("An explicit model is required.", "configuration", "agent", "model")
 	}
+	effort := profile.Effort
+	if in.Agent.Effort != nil {
+		effort = in.Agent.Effort
+	}
+	if effort != nil && !validEffort(*effort) {
+		return out, invalid("Invalid Codex reasoning effort.", "configuration", "agent", "effort")
+	}
 	instructions := profile.Instructions
 	if in.Agent.Instructions != nil {
 		instructions = *in.Agent.Instructions
@@ -251,7 +264,7 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if refs == nil {
 		refs = []string{}
 	}
-	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs}, Limits: in.Limits, Hooks: hooks}, Credentials: creds}
+	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Effort: effort, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs}, Limits: in.Limits, Hooks: hooks}, Credentials: creds}
 	return out, nil
 }
 func Environment(cipher *secret.Cipher, id uuid.UUID, token *string, cfg session.Configuration, allowlist []string) (map[string]string, error) {

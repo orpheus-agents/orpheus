@@ -157,7 +157,7 @@ func (d *fakeDriver) OpenContext(_ context.Context, _ session.AgentConfiguration
 }
 func (d *fakeDriver) HasUpdates() bool { return true }
 func (d *fakeDriver) Committed()       { d.r.usage = nil }
-func (d *fakeDriver) Start(_ context.Context, _ string, text string) (string, error) {
+func (d *fakeDriver) Start(_ context.Context, _ session.AgentConfiguration, _ string, text string) (string, error) {
 	r := d.r
 	r.starts++
 	if r.startError != nil {

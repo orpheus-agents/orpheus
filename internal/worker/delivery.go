@@ -91,7 +91,7 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 	}
 	result, deliveryErr := e.invoke(ctx, o, func() (operationResult, error) {
 		if kind == "start" {
-			id, err := e.driver.Start(ctx, *record.ThreadID, message.Text)
+			id, err := e.driver.Start(ctx, record.Configuration.Public.Agent, *record.ThreadID, message.Text)
 			return operationResult{TurnID: id}, err
 		}
 		if run.NativeTurnID == nil {

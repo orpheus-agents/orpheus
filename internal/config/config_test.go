@@ -14,6 +14,7 @@ func TestResolve(t *testing.T) {
 	p, err := ReadProfiles(strings.NewReader(`[profiles.default]
 harness="codex"
 model="model"
+effort="medium"
 instructions="default instructions"
 [profiles.default.auth]
 mode="api_key"
@@ -27,14 +28,20 @@ api_key_env="OPENAI_API_KEY"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Public.Agent.Instructions != "default instructions" {
+	if first.Public.Agent.Instructions != "default instructions" || first.Public.Agent.Effort == nil || *first.Public.Agent.Effort != "medium" {
 		t.Fatal(first)
 	}
 	in.Agent.Instructions = new("")
+	in.Agent.Effort = new("high")
 	next, err := Resolve(in, p, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens)
-	if err != nil || next.Public.Agent.Instructions != "" {
+	if err != nil || next.Public.Agent.Instructions != "" || next.Public.Agent.Effort == nil || *next.Public.Agent.Effort != "high" {
 		t.Fatal(next, err)
 	}
+	in.Agent.Effort = new("invalid")
+	if _, err := Resolve(in, p, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens); err == nil {
+		t.Fatal("invalid effort accepted")
+	}
+	in.Agent.Effort = nil
 	if _, err := Resolve(in, p, nil, DefaultMaxSessionTokens); err == nil {
 		t.Fatal("allowlist bypass")
 	}
@@ -57,6 +64,33 @@ api_key_env="OPENAI_API_KEY"
 	}
 	if _, err := Environment(c, id, token, first.Public, nil); err == nil {
 		t.Fatal("revoked allowlist accepted")
+	}
+}
+func TestOptionalCodexEffort(t *testing.T) {
+	const profile = `[profiles.default]
+harness="codex"
+model="model"
+[profiles.default.auth]
+mode="api_key"
+api_key_env="OPENAI_API_KEY"
+`
+	p, err := ReadProfiles(strings.NewReader(profile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
+	got, err := Resolve(in, p, nil, DefaultMaxSessionTokens)
+	if err != nil || got.Public.Agent.Effort != nil {
+		t.Fatal(got, err)
+	}
+	for _, value := range []string{"", " ", "invalid", "HIGH"} {
+		if _, err := ReadProfiles(strings.NewReader(strings.Replace(profile, "model=\"model\"", "model=\"model\"\neffort=\""+value+"\"", 1))); err == nil {
+			t.Fatalf("invalid profile effort %q accepted", value)
+		}
+		in.Agent.Effort = &value
+		if _, err := Resolve(in, p, nil, DefaultMaxSessionTokens); err == nil {
+			t.Fatalf("invalid session effort %q accepted", value)
+		}
 	}
 }
 func TestSandboxValidation(t *testing.T) {

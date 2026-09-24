@@ -1,5 +1,9 @@
 components:
     schemas:
+        CodexEffort:
+            description: Reasoning effort for the Codex harness. Model-specific support is checked by Codex.
+            enum: [none, minimal, low, medium, high, xhigh, max, ultra]
+            type: string
         RunStatus:
             type: string
             enum: [accepted, starting, running, cancelling, finalizing, completed, failed, cancelled]
@@ -26,6 +30,8 @@ components:
         AgentConfiguration:
             additionalProperties: false
             properties:
+                effort:
+                    $ref: '#/components/schemas/CodexEffort'
                 instructions:
                     title: Instructions
                     type: string
@@ -44,6 +50,8 @@ components:
         AgentInput:
             additionalProperties: false
             properties:
+                effort:
+                    $ref: '#/components/schemas/CodexEffort'
                 instructions:
                     default: ""
                     title: Instructions
