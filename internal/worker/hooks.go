@@ -482,6 +482,18 @@ func (e *Executor) runHook(ctx context.Context, record store.SessionRecord, run 
 			return false, nil, err
 		}
 	}
+	// A result observed in this tick is already durable. Continue the run
+	// immediately instead of waiting for the next worker poll.
+	h, err = e.Store.Hook(ctx, run.ID, name)
+	if err != nil {
+		return false, nil, err
+	}
+	if h == nil || h.Status == "completed" {
+		return true, nil, nil
+	}
+	if h.Status == "failed" || h.Status == "cancelled" || h.Status == "skipped" {
+		return true, h.Error, nil
+	}
 	return false, nil, nil
 }
 
