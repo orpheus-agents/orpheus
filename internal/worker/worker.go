@@ -125,7 +125,8 @@ func (e *Executor) invoke(ctx context.Context, o store.Operation, call func() (o
 	}
 	result, err := call()
 	if err != nil {
-		if errors.Is(err, harness.ErrRejected) || errors.Is(err, harness.ErrNotFound) {
+		_, executionFailure := errors.AsType[*harness.ExecutionError](err)
+		if errors.Is(err, harness.ErrRejected) || errors.Is(err, harness.ErrNotFound) || executionFailure {
 			if saveErr := e.opStatus(ctx, o.ID, "failed", nil); saveErr != nil {
 				return result, saveErr
 			}

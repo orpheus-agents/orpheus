@@ -79,7 +79,7 @@ func TestRunEnvironmentAdmissionAndReplay(t *testing.T) {
 	if _, err := s.Cancel(t.Context(), a.SessionID, a.RunID); err != nil {
 		t.Fatal(err)
 	}
-	next, err := s.Accept(t.Context(), Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "next"})
+	next, err := s.Accept(t.Context(), Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

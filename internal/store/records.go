@@ -41,6 +41,7 @@ func runRecord(v db.Run, err error) (RunRecord, error) {
 func messageRecord(v db.Message, err error) (MessageRecord, error) {
 	return MessageRecord{
 		ExternalKey:        v.ExternalKey,
+		Metadata:           v.Metadata,
 		ID:                 v.ID,
 		SessionID:          v.SessionID,
 		RunID:              v.RunID,

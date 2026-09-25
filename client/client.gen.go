@@ -903,6 +903,7 @@ func (e ListRunsParamsOrder) Valid() bool {
 
 // Accepted defines model for Accepted.
 type Accepted struct {
+	// MessageID ID of the last accepted message in the ordered batch.
 	MessageID openapi_types.UUID `json:"message_id"`
 	RunID     openapi_types.UUID `json:"run_id"`
 	SessionID openapi_types.UUID `json:"session_id"`
@@ -1051,8 +1052,10 @@ type CreateRun struct {
 	EnvFrom *[]string `json:"env_from,omitempty"`
 
 	// InputFingerprint Opaque input snapshot version for this run; does not deduplicate requests. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
-	InputFingerprint *string     `json:"input_fingerprint,omitempty"`
-	Message          TextMessage `json:"message"`
+	InputFingerprint *string `json:"input_fingerprint,omitempty"`
+
+	// Messages Ordered user messages accepted atomically. The last starts the run; earlier messages are injected into the agent context first.
+	Messages []TextMessage `json:"messages"`
 }
 
 // CreateSession defines model for CreateSession.
@@ -1069,8 +1072,10 @@ type CreateSession struct {
 	ExternalKey *string `json:"external_key,omitempty"`
 
 	// InputFingerprint Opaque input snapshot version for the first run; does not deduplicate requests. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
-	InputFingerprint *string     `json:"input_fingerprint,omitempty"`
-	Message          TextMessage `json:"message"`
+	InputFingerprint *string `json:"input_fingerprint,omitempty"`
+
+	// Messages Ordered user messages accepted atomically. The last starts the run; earlier messages are injected into the agent context first.
+	Messages []TextMessage `json:"messages"`
 
 	// Namespace Logical integration or workflow name. Opaque identifier, 1–128 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
 	Namespace *string `json:"namespace,omitempty"`
@@ -1239,9 +1244,12 @@ type Message struct {
 	Error          *Error                 `json:"error"`
 
 	// ExternalKey External key supplied for an incoming message; null for agent messages. Opaque identifier, 1–512 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
-	ExternalKey        *string            `json:"external_key"`
-	ID                 openapi_types.UUID `json:"id"`
-	Kind               *MessageKind       `json:"kind"`
+	ExternalKey *string            `json:"external_key"`
+	ID          openapi_types.UUID `json:"id"`
+	Kind        *MessageKind       `json:"kind"`
+
+	// Metadata Opaque integration data for an incoming message; never sent to the agent. Null for messages without metadata and agent messages.
+	Metadata           *json.RawMessage   `json:"metadata"`
 	Position           *Position          `json:"position"`
 	RegisteredSequence string             `json:"registered_sequence"`
 	Role               MessageRole        `json:"role"`
@@ -1402,7 +1410,8 @@ type SandboxStateState string
 
 // SendMessage defines model for SendMessage.
 type SendMessage struct {
-	Message TextMessage `json:"message"`
+	// Messages Ordered user messages accepted atomically for the active run.
+	Messages []TextMessage `json:"messages"`
 }
 
 // Session defines model for Session.
@@ -1456,7 +1465,10 @@ type StatusCounts struct {
 type TextMessage struct {
 	// ExternalKey External message or event key; not unique and not sent to the harness. Opaque identifier, 1–512 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
 	ExternalKey *string `json:"external_key,omitempty"`
-	Text        string  `json:"text"`
+
+	// Metadata Opaque integration data retained with the message, never sent to the agent. If present, must be a JSON object.
+	Metadata *json.RawMessage `json:"metadata,omitempty"`
+	Text     string           `json:"text"`
 }
 
 // TextResult defines model for TextResult.

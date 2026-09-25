@@ -133,15 +133,16 @@ type ResolvedConfiguration struct {
 	Credentials Credentials   `json:"credentials"`
 }
 type TextMessage struct {
-	ExternalKey *string `json:"external_key,omitzero"`
-	Text        string  `json:"text"`
+	ExternalKey *string         `json:"external_key,omitzero"`
+	Text        string          `json:"text"`
+	Metadata    json.RawMessage `json:"metadata,omitzero"`
 }
 type CreateSession struct {
 	Namespace        *string            `json:"namespace,omitzero"`
 	ExternalKey      *string            `json:"external_key,omitzero"`
 	InputFingerprint *string            `json:"input_fingerprint,omitzero"`
 	Configuration    ConfigurationInput `json:"configuration"`
-	Message          TextMessage        `json:"message"`
+	Messages         []TextMessage      `json:"messages"`
 	Env              map[string]string  `json:"env,omitzero"`
 	EnvFrom          []string           `json:"env_from,omitzero"`
 }
@@ -155,18 +156,19 @@ type Position struct {
 	ItemIndex int `json:"item_index"`
 }
 type Message struct {
-	ExternalKey        *string   `json:"external_key"`
-	ID                 uuid.UUID `json:"id"`
-	SessionID          uuid.UUID `json:"session_id"`
-	RunID              uuid.UUID `json:"run_id"`
-	Role               string    `json:"role"`
-	Kind               *string   `json:"kind"`
-	Text               string    `json:"text"`
-	DeliveryStatus     *string   `json:"delivery_status"`
-	Error              *Error    `json:"error"`
-	RegisteredSequence string    `json:"registered_sequence"`
-	Position           *Position `json:"position"`
-	CreatedAt          time.Time `json:"created_at"`
+	ExternalKey        *string         `json:"external_key"`
+	Metadata           json.RawMessage `json:"metadata"`
+	ID                 uuid.UUID       `json:"id"`
+	SessionID          uuid.UUID       `json:"session_id"`
+	RunID              uuid.UUID       `json:"run_id"`
+	Role               string          `json:"role"`
+	Kind               *string         `json:"kind"`
+	Text               string          `json:"text"`
+	DeliveryStatus     *string         `json:"delivery_status"`
+	Error              *Error          `json:"error"`
+	RegisteredSequence string          `json:"registered_sequence"`
+	Position           *Position       `json:"position"`
+	CreatedAt          time.Time       `json:"created_at"`
 }
 type ToolCall struct {
 	ID                 uuid.UUID       `json:"id"`

@@ -5,6 +5,7 @@ package httpserver
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -50,7 +51,7 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	body := client.CreateSession{
 		Namespace: new("connector/test"), ExternalKey: new("source:thread"), InputFingerprint: new("revision:1"),
 		Configuration: client.ConfigurationInput{Agent: client.AgentInput{Profile: "default"}, Sandbox: client.SandboxInput{Template: "codex"}, Hooks: &client.HooksInput{BeforeRun: new("#!/bin/sh\ntrue\n"), AfterRun: new("#!/bin/sh\ntrue\n")}},
-		Message:       client.TextMessage{Text: "hello", ExternalKey: new("post:1")}, Env: &map[string]string{"RUN_INPUT": "fixture"},
+		Messages:      []client.TextMessage{{Text: "hello", ExternalKey: new("post:1"), Metadata: new(json.RawMessage(`{"big":9007199254740993}`))}}, Env: &map[string]string{"RUN_INPUT": "fixture"},
 	}
 	created, err := c.CreateSessionWithResponse(t.Context(), params, body)
 	if err != nil {
@@ -64,7 +65,7 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	if err != nil || replay.JSON202 == nil || *replay.JSON202 != a {
 		t.Fatalf("idempotent replay: %#v %v", replay, err)
 	}
-	body.Message.Text = "different input"
+	body.Messages[0].Text = "different input"
 	conflict, err := c.CreateSessionWithResponse(t.Context(), params, body)
 	if err != nil || conflict.JSON409 == nil || conflict.JSON409.Error.Code != "idempotency_conflict" {
 		t.Fatalf("conflict: %#v %v", conflict, err)
@@ -110,14 +111,14 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 		t.Fatalf("history: %#v %v", history, err)
 	}
 	item, err := history.JSON200.Items[0].AsMessageItem()
-	if err != nil || item.Message.ID != a.MessageID || item.Message.Text != "hello" {
+	if err != nil || item.Message.ID != a.MessageID || item.Message.Text != "hello" || item.Message.Metadata == nil || string(*item.Message.Metadata) != `{"big":9007199254740993}` {
 		t.Fatalf("message union: %#v %v", item, err)
 	}
 	events, err := c.GetEventsWithResponse(t.Context(), a.SessionID, &client.GetEventsParams{After: new("0"), Limit: new(1)})
 	if err != nil || events.JSON200 == nil || len(events.JSON200.Items) != 1 || !events.JSON200.HasMore || events.JSON200.NextCursor == "0" {
 		t.Fatalf("events: %#v %v", events, err)
 	}
-	clarification, err := c.SendMessageWithResponse(t.Context(), a.SessionID, a.RunID, &client.SendMessageParams{IdempotencyKey: new(uuid.NewString())}, client.SendMessage{Message: client.TextMessage{Text: "next"}})
+	clarification, err := c.SendMessageWithResponse(t.Context(), a.SessionID, a.RunID, &client.SendMessageParams{IdempotencyKey: new(uuid.NewString())}, client.SendMessage{Messages: []client.TextMessage{{Text: "next"}}})
 	if err != nil || clarification.JSON409 == nil {
 		t.Fatalf("message to accepted run: %#v %v", clarification, err)
 	}

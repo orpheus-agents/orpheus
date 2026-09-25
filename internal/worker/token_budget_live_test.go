@@ -47,7 +47,7 @@ func TestLiveCodexTokenBudget(t *testing.T) {
 	defer cancel()
 	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{
 		Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "live"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 240, MaxSessionTokens: 1}},
-		Message:       session.TextMessage{Text: "Use exec_command to run sleep 60 with yield_time_ms=1000. Keep polling the command until it exits. Do not finish the task before the command exits. Then reply DONE."},
+		Messages:      []session.TextMessage{{Text: "Use exec_command to run sleep 60 with yield_time_ms=1000. Keep polling the command until it exits. Do not finish the task before the command exits. Then reply DONE."}},
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ func TestLiveCodexTokenBudget(t *testing.T) {
 				if record.SandboxState != "paused" {
 					t.Fatal("sandbox was not paused", record.SandboxState)
 				}
-				_, err := s.Accept(ctx, store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "Continue"})
+				_, err := s.Accept(ctx, store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "Continue"}}})
 				if apiError, ok := errors.AsType[*session.APIError](err); !ok || apiError.Problem.Code != "token_limit_exceeded" {
 					t.Fatal("exhausted session accepted work", err)
 				}

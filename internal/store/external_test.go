@@ -21,7 +21,7 @@ func externalAdmission() Admission {
 	a.Create.Namespace = new("redmine")
 	a.Create.ExternalKey = new("prod:issue:7")
 	a.Create.InputFingerprint = new("v1")
-	a.Create.Message.ExternalKey = new("journal:1")
+	a.Create.Messages[0].ExternalKey = new("journal:1")
 	return a
 }
 
@@ -120,7 +120,7 @@ func TestExternalPagination(t *testing.T) {
 	if _, err := s.Cancel(t.Context(), a.SessionID, a.RunID); err != nil {
 		t.Fatal(err)
 	}
-	next, err := s.Accept(t.Context(), Admission{Key: uuid.New(), SessionID: a.SessionID, Text: "next", InputFingerprint: new("v1")})
+	next, err := s.Accept(t.Context(), Admission{Key: uuid.New(), SessionID: a.SessionID, Messages: []session.TextMessage{{Text: "next"}}, InputFingerprint: new("v1")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestExternalHistorySnapshotAndRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := s.Accept(t.Context(), Admission{Key: uuid.New(), SessionID: a.SessionID, RunID: a.RunID, Text: "second", MessageExternalKey: new("journal:1")})
+	b, err := s.Accept(t.Context(), Admission{Key: uuid.New(), SessionID: a.SessionID, RunID: a.RunID, Messages: []session.TextMessage{{Text: "second", ExternalKey: new("journal:1")}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestExternalHistorySnapshotAndRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := s.Accept(t.Context(), Admission{Key: uuid.New(), SessionID: a.SessionID, RunID: a.RunID, Text: "third", MessageExternalKey: new("journal:1")})
+	c, err := s.Accept(t.Context(), Admission{Key: uuid.New(), SessionID: a.SessionID, RunID: a.RunID, Messages: []session.TextMessage{{Text: "third", ExternalKey: new("journal:1")}}})
 	if err != nil {
 		t.Fatal(err)
 	}

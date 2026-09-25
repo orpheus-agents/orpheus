@@ -152,7 +152,7 @@ func TestSandboxValidation(t *testing.T) {
 		}
 	}
 	for _, text := range []string{"", " \n", "a\x00b"} {
-		if ValidateText(text) == nil {
+		if ValidateText(text, 0) == nil {
 			t.Fatal("invalid text accepted")
 		}
 	}

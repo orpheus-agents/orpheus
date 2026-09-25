@@ -227,9 +227,9 @@ func validateEnvironment(env map[string]string, from []string, prefix []any) err
 	}
 	return nil
 }
-func ValidateText(text string) error {
+func ValidateText(text string, index int) error {
 	if !session.ValidText(text) {
-		return invalid("A nonblank text without NUL is required.", "message", "text")
+		return invalid("A nonblank text without NUL is required.", "messages", index, "text")
 	}
 	return nil
 }

@@ -44,6 +44,44 @@ func historyFixture(t *testing.T) (Thread, string, int64) {
 	pair.Thread.Path = &path
 	return pair.Thread, path, int64(data.Len())
 }
+
+// Captured from Codex 0.154 after thread/inject_items on a fresh thread.
+func TestInjectedRolloutItemsHaveNoNativeTurn(t *testing.T) {
+	path, err := filepath.Abs("testdata/injected-rollout.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var texts []string
+	for line := range bytes.SplitSeq(bytes.TrimSpace(raw), []byte{'\n'}) {
+		var record struct {
+			Type    string `json:"type"`
+			Payload struct {
+				Role    string `json:"role"`
+				Content []struct {
+					Text string `json:"text"`
+				} `json:"content"`
+			} `json:"payload"`
+		}
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatal(err)
+		}
+		if record.Type != "response_item" || record.Payload.Role != "user" || len(record.Payload.Content) != 1 {
+			t.Fatalf("unexpected injected record: %s", line)
+		}
+		texts = append(texts, record.Payload.Content[0].Text)
+	}
+	if !slices.Equal(texts, []string{"FIRST injected", "SECOND injected"}) {
+		t.Fatalf("injected texts: %q", texts)
+	}
+	snapshot, err := recoverHistory(t.Context(), &testBox{}, nil, &path, nil, 524288)
+	if err != nil || len(snapshot.Turns) != 0 {
+		t.Fatalf("injected items incorrectly became native turn items: %+v %v", snapshot, err)
+	}
+}
 func fixtureDriver(t *testing.T, thread *Thread) (*Driver, *testBox, *int) {
 	t.Helper()
 	reads := 0

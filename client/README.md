@@ -41,7 +41,7 @@ func create(ctx context.Context, baseURL, token, idempotencyKey string) (*client
                 Agent: client.AgentInput{Profile: "default"},
                 Sandbox: client.SandboxInput{Template: "my-template"},
             },
-            Message: client.TextMessage{Text: "Hello", ExternalKey: new("source:post-id")},
+            Messages: []client.TextMessage{{Text: "Hello", ExternalKey: new("source:post-id")}},
         },
     )
     if err != nil {
@@ -56,6 +56,13 @@ func create(ctx context.Context, baseURL, token, idempotencyKey string) (*client
 
 Pass the server origin, optionally with a reverse-proxy path prefix, rather than
 a URL ending in `/api/v1`. The generated methods append the API paths.
+
+`CreateSession`, `CreateRun`, and `SendMessage` accept a nonempty ordered `Messages`
+slice. Admission is atomic, and `Accepted.MessageID` identifies its last element.
+Each `TextMessage` may include `Metadata` as a JSON object. Orpheus stores it with
+the message and returns it in history and `message.updated` events; only `Text`
+is passed to the agent. Use `ExternalKey` to identify a source item, and
+`Metadata` for the accepted snapshot needed by the connector after restart.
 
 - `ClientWithResponses` reads and closes JSON response bodies. A nil Go error is
   not proof of API success: inspect `StatusCode()` and `JSON200`/`JSON202` or the

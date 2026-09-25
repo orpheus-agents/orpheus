@@ -20,10 +20,18 @@ WITH objects AS (
    ORDER BY type, data->>'id', sequence DESC
   ), positioned AS (
    SELECT objects.type, objects.data, runs.number AS rn,
-    CASE WHEN objects.data->'position' = 'null'::jsonb THEN 1 ELSE 0 END AS unknown,
+    CASE WHEN objects.type = 'message.updated' AND objects.data->'position' = 'null'::jsonb
+       AND input_message.role = 'user' AND input_message.delivery_number <= start_message.delivery_number
+      THEN 0 WHEN objects.data->'position' = 'null'::jsonb THEN 1 ELSE 0 END AS unknown,
     COALESCE((objects.data->'position'->>'item_index')::bigint,0)::bigint AS idx,
     (objects.data->>'registered_sequence')::bigint AS seq
    FROM objects JOIN runs ON runs.id = (objects.data->>'run_id')::uuid
+   LEFT JOIN messages input_message ON objects.type = 'message.updated' AND input_message.id = (objects.data->>'id')::uuid
+   LEFT JOIN LATERAL (
+     SELECT m.delivery_number FROM operations o JOIN messages m ON m.id = o.message_id
+     WHERE o.session_id = $7 AND o.run_id = runs.id AND o.kind = 'start'
+     ORDER BY o.created_at LIMIT 1
+   ) start_message ON true
    WHERE ($9::uuid IS NULL OR runs.id = $9::uuid)
   ) SELECT type, data, rn, unknown, idx, seq FROM positioned
   WHERE ($1::boolean OR (rn, unknown, idx, seq)>($2::bigint, $3::bigint, $4::bigint, $5::bigint)) ORDER BY rn, unknown, idx, seq LIMIT $6::int
@@ -100,10 +108,18 @@ WITH objects AS (
      AND m.external_key = $9::text
   ), positioned AS (
    SELECT objects.type, objects.data, runs.number AS rn,
-    CASE WHEN objects.data->'position' = 'null'::jsonb THEN 1 ELSE 0 END AS unknown,
+    CASE WHEN objects.type = 'message.updated' AND objects.data->'position' = 'null'::jsonb
+       AND input_message.role = 'user' AND input_message.delivery_number <= start_message.delivery_number
+      THEN 0 WHEN objects.data->'position' = 'null'::jsonb THEN 1 ELSE 0 END AS unknown,
     COALESCE((objects.data->'position'->>'item_index')::bigint,0)::bigint AS idx,
     (objects.data->>'registered_sequence')::bigint AS seq
    FROM objects JOIN runs ON runs.id = (objects.data->>'run_id')::uuid
+   LEFT JOIN messages input_message ON objects.type = 'message.updated' AND input_message.id = (objects.data->>'id')::uuid
+   LEFT JOIN LATERAL (
+     SELECT m.delivery_number FROM operations o JOIN messages m ON m.id = o.message_id
+     WHERE o.session_id = $7 AND o.run_id = runs.id AND o.kind = 'start'
+     ORDER BY o.created_at LIMIT 1
+   ) start_message ON true
    WHERE ($10::uuid IS NULL OR runs.id = $10::uuid)
   ) SELECT type, data, rn, unknown, idx, seq FROM positioned
   WHERE ($1::boolean OR (rn, unknown, idx, seq)>($2::bigint, $3::bigint, $4::bigint, $5::bigint)) ORDER BY rn, unknown, idx, seq LIMIT $6::int

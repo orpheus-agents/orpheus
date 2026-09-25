@@ -32,10 +32,11 @@ type remote struct {
 	metadata                                                                               map[string]string
 	processes                                                                              []harness.Process
 	turns                                                                                  []harness.Turn
+	injected                                                                               []string
 	usage                                                                                  []harness.UsageReport
 	creates, launches, starts, steers, cancels, pauses, resumes, renewals, opens, attaches int
 	seeds, syncs, stateDirCalls                                                            int
-	lostCreate, lostLaunch, lostStart, lostSteer                                           bool
+	lostCreate, lostLaunch, lostStart, lostStartWithoutTurn, lostSteer                     bool
 	pauseError, initializeError, prepareError                                              error
 	createError, startError, steerError, contextError, snapshotError, leaseError           error
 	logins                                                                                 []bool
@@ -161,14 +162,20 @@ func (d *fakeDriver) OpenContext(_ context.Context, _ session.AgentConfiguration
 }
 func (d *fakeDriver) HasUpdates() bool { return true }
 func (d *fakeDriver) Committed()       { d.r.usage = nil }
-func (d *fakeDriver) Start(_ context.Context, _ session.AgentConfiguration, _ string, text string) (string, error) {
+func (d *fakeDriver) Start(_ context.Context, _ session.AgentConfiguration, _ string, texts []string) (string, error) {
 	r := d.r
 	r.starts++
 	if r.startError != nil {
 		return "", r.startError
 	}
+	if r.lostStartWithoutTurn {
+		r.injected = append(r.injected, texts[:len(texts)-1]...)
+		r.lostStartWithoutTurn = false
+		return "", harness.ErrUncertain
+	}
 	id := fmt.Sprintf("turn-%d", r.starts)
-	r.turns = append(r.turns, harness.Turn{NativeID: id, Status: session.Running, Items: []harness.Item{{NativeID: id + "-user", Type: "user", Index: 0, Text: text}}})
+	r.injected = append(r.injected, texts[:len(texts)-1]...)
+	r.turns = append(r.turns, harness.Turn{NativeID: id, Status: session.Running, Items: []harness.Item{{NativeID: id + "-user", Type: "user", Index: 0, Text: texts[len(texts)-1]}}})
 	if r.lostStart {
 		r.lostStart = false
 		return "", harness.ErrUncertain
@@ -216,7 +223,7 @@ func (a *fakeAccount) Close() error                { return nil }
 func setup(t *testing.T) (*store.Store, *remote, session.Acceptance, *Executor) {
 	return setupWithEnvironment(t, session.SandboxInput{Template: "codex"}, nil)
 }
-func setupWithEnvironment(t *testing.T, sandbox session.SandboxInput, runEnv map[string]string) (*store.Store, *remote, session.Acceptance, *Executor) {
+func setupWithEnvironment(t *testing.T, sandbox session.SandboxInput, runEnv map[string]string, metadata ...json.RawMessage) (*store.Store, *remote, session.Acceptance, *Executor) {
 	t.Helper()
 	pool := testutil.Database(t)
 	c, _ := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
@@ -224,7 +231,11 @@ func setupWithEnvironment(t *testing.T, sandbox session.SandboxInput, runEnv map
 	settings.DatabaseURL = pool.Config().ConnString()
 	settings.WorkerPoll = time.Millisecond
 	s := &store.Store{Pool: pool, Settings: settings, Cipher: c, Profiles: config.Profiles{Profiles: map[string]config.Profile{"p": {Harness: "codex", Model: new("model"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}}
-	a, err := s.Accept(t.Context(), store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "p"}, Sandbox: sandbox, Limits: session.Limits{RunTimeoutSeconds: 3600}}, Message: session.TextMessage{Text: "task"}, Env: runEnv}})
+	message := session.TextMessage{Text: "task"}
+	if len(metadata) > 0 {
+		message.Metadata = metadata[0]
+	}
+	a, err := s.Accept(t.Context(), store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "p"}, Sandbox: sandbox, Limits: session.Limits{RunTimeoutSeconds: 3600}}, Messages: []session.TextMessage{message}, Env: runEnv}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,12 +282,178 @@ func TestFullCyclePauseResume(t *testing.T) {
 	if err != nil || view.Status != session.Completed || view.FinalMessage == nil || view.FinalMessage.Text != "DONE" || view.Sandbox.State != "paused" {
 		t.Fatal(view, err)
 	}
-	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "again"}); err != nil {
+	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "again"}}}); err != nil {
 		t.Fatal(err)
 	}
 	tick(t, e)
 	if r.creates != 1 || r.launches != 1 || r.starts != 2 || r.opens != 1 {
 		t.Fatalf("cycle create=%d launch=%d starts=%d opens=%d", r.creates, r.launches, r.starts, r.opens)
+	}
+}
+func TestMessageMetadataDoesNotReachHarness(t *testing.T) {
+	s, r, a, e := setupWithEnvironment(t, session.SandboxInput{Template: "codex"}, nil, json.RawMessage(`{"connector":"private-contract"}`))
+	tick(t, e)
+	if len(r.turns) != 1 || len(r.turns[0].Items) != 1 || r.turns[0].Items[0].Text != "task" {
+		t.Fatalf("initial harness input contains metadata: %+v", r.turns)
+	}
+	message, err := store.GetMessage(t.Context(), s.Pool, a.MessageID)
+	var stored map[string]string
+	if err != nil || json.Unmarshal(message.Metadata, &stored) != nil || stored["connector"] != "private-contract" {
+		t.Fatalf("metadata lost in delivery: %+v %v", message, err)
+	}
+	_, err = s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "clarify", Metadata: json.RawMessage(`{"connector":"steer-contract"}`)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tick(t, e)
+	if len(r.turns[0].Items) != 2 || r.turns[0].Items[1].Text != "clarify" {
+		t.Fatalf("steer harness input contains metadata: %+v", r.turns[0].Items)
+	}
+}
+
+func TestBatchedStartRecoversAllMessagesAfterLostAcknowledgement(t *testing.T) {
+	s, r, a, e := setup(t)
+	tick(t, e)
+	complete(r)
+	tick(t, e)
+	tick(t, e)
+	batch := []session.TextMessage{{Text: "first"}, {Text: "second"}, {Text: "third", Metadata: json.RawMessage(`{"connector":"batch"}`)}}
+	accepted, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: batch})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.lostStart = true
+	if err := e.Tick(t.Context()); !errors.Is(err, harness.ErrUncertain) {
+		t.Fatalf("want uncertain start, got %v", err)
+	}
+	if r.starts != 2 || len(r.turns) != 2 || len(r.turns[1].Items) != 1 || !slices.Equal(r.injected, []string{"first", "second"}) {
+		t.Fatalf("fake Codex did not isolate injected items: turns=%+v injected=%+v", r.turns, r.injected)
+	}
+	if r.turns[1].Items[0].Text != "third" {
+		t.Fatalf("turn/start did not receive last item: %+v", r.turns[1].Items)
+	}
+	e.Disconnect()
+	e = executor(a.SessionID, s, r)
+	defer e.Disconnect()
+	tick(t, e)
+	tick(t, e)
+	if r.starts != 2 {
+		t.Fatalf("batch duplicated: %d starts", r.starts)
+	}
+	history, err := s.History(t.Context(), a.SessionID, &accepted.RunID, 100, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var delivered int
+	var initialOrder []string
+	for _, item := range history.Items {
+		if item.Message != nil && item.Message.Role == "user" && item.Message.RunID == accepted.RunID && item.Message.DeliveryStatus != nil && *item.Message.DeliveryStatus == "delivered" {
+			initialOrder = append(initialOrder, item.Message.Text)
+			delivered++
+		}
+	}
+	if delivered != 3 || !slices.Equal(initialOrder, []string{"first", "second", "third"}) {
+		t.Fatalf("delivered %d of 3 batch messages in order %q", delivered, initialOrder)
+	}
+	_, err = s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, RunID: accepted.RunID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "clarification one"}, {Text: "clarification two"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.lostSteer = true
+	if err := e.Tick(t.Context()); !errors.Is(err, harness.ErrUncertain) {
+		t.Fatalf("want uncertain steer, got %v", err)
+	}
+	e.Disconnect()
+	e = executor(a.SessionID, s, r)
+	defer e.Disconnect()
+	for range 4 {
+		tick(t, e)
+	}
+	if r.steers != 2 || len(r.turns[1].Items) != 3 || r.turns[1].Items[1].Text != "clarification one" || r.turns[1].Items[2].Text != "clarification two" {
+		t.Fatalf("clarification batch not delivered in order: %+v", r.turns[1].Items)
+	}
+	complete(r)
+	tick(t, e)
+	history, err = s.History(t.Context(), a.SessionID, &accepted.RunID, 100, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"first", "second", "third", "clarification one", "clarification two", "DONE"}
+	var got []string
+	for _, item := range history.Items {
+		if item.Message != nil {
+			got = append(got, item.Message.Text)
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("native history order: got %q want %q", got, want)
+	}
+}
+
+func TestRejectedBatchedStartRetiresContext(t *testing.T) {
+	s, r, a, e := setup(t)
+	tick(t, e)
+	complete(r)
+	tick(t, e)
+	tick(t, e)
+	next, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "injected"}, {Text: "start"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.startError = harness.Failure("context_lost", "Batched start rejected after injection.")
+	tick(t, e)
+	run, err := s.Run(t.Context(), a.SessionID, next.RunID)
+	if err != nil || run.Status != session.Failed || run.Error == nil || run.Error.Code != "context_lost" {
+		t.Fatalf("run did not fail: %+v %v", run, err)
+	}
+	view, err := s.Session(t.Context(), a.SessionID)
+	if err != nil || view.Sandbox.State != "unavailable" {
+		t.Fatalf("context remained reusable: %+v %v", view.Sandbox, err)
+	}
+	_, err = s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}})
+	problem, ok := errors.AsType[*session.APIError](err)
+	if !ok || problem.Problem.Code != "session_unavailable" {
+		t.Fatalf("contaminated context accepted new run: %v", err)
+	}
+}
+
+func TestUnconfirmedBatchedStartRetiresContextOnCancellation(t *testing.T) {
+	s, r, a, e := setup(t)
+	tick(t, e)
+	complete(r)
+	tick(t, e)
+	tick(t, e)
+	next, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "injected"}, {Text: "start"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.lostStartWithoutTurn = true
+	if err := e.Tick(t.Context()); !errors.Is(err, harness.ErrUncertain) {
+		t.Fatalf("want uncertain start, got %v", err)
+	}
+	e.Disconnect()
+	e = executor(a.SessionID, s, r)
+	defer e.Disconnect()
+	tick(t, e)
+	if _, err := s.Cancel(t.Context(), a.SessionID, next.RunID); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, e)
+	if err := s.Mutate(t.Context(), a.SessionID, false, func(tx pgx.Tx, _ *store.SessionRecord) error {
+		_, err := tx.Exec(t.Context(), "UPDATE runs SET cancel_attempted_at=now()-interval '60 seconds' WHERE id=$1", next.RunID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, e)
+	view, err := s.Session(t.Context(), a.SessionID)
+	if err != nil || view.Sandbox.State != "unavailable" {
+		t.Fatalf("unconfirmed injected context remained reusable: %+v %v", view.Sandbox, err)
+	}
+	_, err = s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}})
+	problem, ok := errors.AsType[*session.APIError](err)
+	if !ok || problem.Problem.Code != "session_unavailable" {
+		t.Fatalf("contaminated context accepted new run: %v", err)
 	}
 }
 func TestRunEnvironmentDoesNotReachHarness(t *testing.T) {
@@ -294,7 +471,7 @@ func TestRunEnvironmentDoesNotReachHarness(t *testing.T) {
 	complete(r)
 	tick(t, e)
 	tick(t, e)
-	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "next", Env: map[string]string{"TOKEN": "second-override", "TASK_ID": "second"}}); err != nil {
+	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}, Env: map[string]string{"TOKEN": "second-override", "TASK_ID": "second"}}); err != nil {
 		t.Fatal(err)
 	}
 	tick(t, e)
@@ -374,7 +551,7 @@ func TestLostAcknowledgements(t *testing.T) {
 			case "steer":
 				tick(t, e)
 				r.lostSteer = true
-				if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Text: "same"}); err != nil {
+				if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "same"}}}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -441,7 +618,7 @@ func TestCancelDeadlineAndForce(t *testing.T) {
 	if slices.Contains(r.killed, 999) || r.launches != 1 {
 		t.Fatal("forced stop touched a child or relaunched the harness")
 	}
-	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "after forced stop"}); err != nil {
+	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "after forced stop"}}}); err != nil {
 		t.Fatal(err)
 	}
 	tick(t, e)
@@ -468,7 +645,7 @@ func TestReservationDuringPause(t *testing.T) {
 	complete(r)
 	tick(t, e)
 	r.pauseHook = func() {
-		if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "next"}); err != nil {
+		if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -544,7 +721,7 @@ func TestSameTextSteersAndProxy(t *testing.T) {
 		}
 	}
 	for range 2 {
-		if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Text: "same"}); err != nil {
+		if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "same"}}}); err != nil {
 			t.Fatal(err)
 		}
 		tick(t, e)
@@ -622,7 +799,7 @@ func TestAccountRepairAcrossPreparationFailure(t *testing.T) {
 	}
 	r.initializeError = nil
 	r.prepareError = harness.ErrRejected
-	b, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "retry"})
+	b, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "retry"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -634,7 +811,7 @@ func TestAccountRepairAcrossPreparationFailure(t *testing.T) {
 		t.Fatal(failed, err)
 	}
 	r.prepareError = nil
-	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "repaired"}); err != nil {
+	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "repaired"}}}); err != nil {
 		t.Fatal(err)
 	}
 	tick(t, e)
@@ -667,7 +844,7 @@ func TestUncertainSteerObservationDoesNotAlternate(t *testing.T) {
 	s, r, a, e := setup(t)
 	tick(t, e)
 	r.lostSteer = true
-	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Text: "steer"}); err != nil {
+	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "steer"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.Tick(t.Context()); !errors.Is(err, harness.ErrUncertain) {

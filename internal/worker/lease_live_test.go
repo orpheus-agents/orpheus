@@ -43,7 +43,7 @@ func TestLiveSandboxLeaseLifecycle(t *testing.T) {
 	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{
 		Agent: session.AgentInput{Profile: "live"}, Sandbox: session.SandboxInput{Template: "codex"},
 		Limits: session.Limits{RunTimeoutSeconds: 3600}, Hooks: &session.HooksInput{TimeoutSeconds: new(120)},
-	}, Message: session.TextMessage{Text: "sandbox lease lifecycle"}}})
+	}, Messages: []session.TextMessage{{Text: "sandbox lease lifecycle"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

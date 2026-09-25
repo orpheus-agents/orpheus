@@ -15,19 +15,26 @@ import (
 )
 
 const reconcileMessages = `-- name: ReconcileMessages :many
-SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key
+SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key, metadata
 FROM messages
-WHERE session_id = $1 AND (native_key = ANY($2::text[]) OR native_key IS NULL)
+WHERE session_id = $1 AND (native_key = ANY($2::text[]) OR id = ANY($3::uuid[]) OR (native_key IS NULL AND run_id = ANY($4::uuid[])))
 ORDER BY delivery_number, registered_sequence
 `
 
 type ReconcileMessagesParams struct {
-	SessionID  uuid.UUID `json:"session_id"`
-	NativeKeys []string  `json:"native_keys"`
+	SessionID           uuid.UUID   `json:"session_id"`
+	NativeKeys          []string    `json:"native_keys"`
+	OperationMessageIds []uuid.UUID `json:"operation_message_ids"`
+	StartRecoveryRunIds []uuid.UUID `json:"start_recovery_run_ids"`
 }
 
 func (q *Queries) ReconcileMessages(ctx context.Context, arg ReconcileMessagesParams) ([]Message, error) {
-	rows, err := q.db.Query(ctx, reconcileMessages, arg.SessionID, arg.NativeKeys)
+	rows, err := q.db.Query(ctx, reconcileMessages,
+		arg.SessionID,
+		arg.NativeKeys,
+		arg.OperationMessageIds,
+		arg.StartRecoveryRunIds,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -50,6 +57,7 @@ func (q *Queries) ReconcileMessages(ctx context.Context, arg ReconcileMessagesPa
 			&i.Position,
 			&i.CreatedAt,
 			&i.ExternalKey,
+			&i.Metadata,
 		); err != nil {
 			return nil, err
 		}

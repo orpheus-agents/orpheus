@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -57,13 +58,21 @@ func (d *faultDriver) Launch(ctx context.Context, env map[string]string, cwd str
 	}
 	return pid, err
 }
-func (d *faultDriver) Start(ctx context.Context, agent session.AgentConfiguration, thread, text string) (string, error) {
-	id, err := d.Driver.Start(ctx, agent, thread, text)
+func (d *faultDriver) Start(ctx context.Context, agent session.AgentConfiguration, thread string, texts []string) (string, error) {
+	id, err := d.Driver.Start(ctx, agent, thread, texts)
 	if err == nil && !d.lost["start"] {
 		d.lost["start"] = true
 		return "", harness.ErrUncertain
 	}
 	return id, err
+}
+func (d *faultDriver) Steer(ctx context.Context, thread, turn, text string) error {
+	err := d.Driver.Steer(ctx, thread, turn, text)
+	if err == nil && !d.lost["steer"] {
+		d.lost["steer"] = true
+		return harness.ErrUncertain
+	}
+	return err
 }
 func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 	for _, name := range []string{"AGENTBOX_API_KEY", "OPENAI_API_KEY"} {
@@ -110,7 +119,7 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Minute)
 	defer cancel()
 	hooks := &session.HooksInput{AfterCreate: new("#!/bin/sh\nprintf 'created\\n'\n"), BeforeRun: new("#!/bin/sh\nprintf 'prepared\\n'\n"), AfterRun: new("#!/bin/sh\nprintf 'agent:%s\\n' \"$ORPHEUS_AGENT_STATUS\"\n")}
-	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "live"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 300}, Hooks: hooks}, Message: session.TextMessage{Text: "Create a file named orpheus-probe.txt in the current directory containing exactly ORPHEUS_OK. Then reply with exactly CREATED. Do not access other directories or networks."}}})
+	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "live"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 300}, Hooks: hooks}, Messages: []session.TextMessage{{Text: "Work only in the current directory."}, {Text: "Do not access other directories or networks."}, {Text: "Create a file named orpheus-probe.txt in the current directory containing exactly ORPHEUS_OK. Then run sleep 20 in the shell to allow a follow-up. Finally include CREATED in your reply."}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,8 +139,14 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 	await := func(id uuid.UUID, marker string) {
 		t.Helper()
 		restarted := false
+		steered := false
+		lastStatus := session.Status("")
+		lastObservation := ""
+		var lastRunError *session.Error
+		var lastTickError error
 		for ctx.Err() == nil {
 			err := e.Tick(ctx)
+			lastTickError = err
 			if err != nil {
 				if f, ok := errors.AsType[*harness.ExecutionError](err); ok {
 					if err := e.failure(ctx, f); err != nil {
@@ -145,8 +160,16 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			observation := ""
+			if run.Observation != nil {
+				observation = *run.Observation
+			}
+			if run.Status != lastStatus || observation != lastObservation {
+				t.Logf("live run status=%s observation=%s faults=%v", run.Status, observation, lost)
+			}
+			lastStatus, lastObservation, lastRunError = run.Status, observation, run.Error
 			if run.Status.Terminal() {
-				if run.Status != session.Completed || run.FinalMessage == nil || !strings.Contains(run.FinalMessage.Text, marker) || len(run.Hooks) == 0 || run.Hooks[len(run.Hooks)-1].Status != "completed" {
+				if run.Status != session.Completed || run.FinalMessage == nil || !strings.Contains(run.FinalMessage.Text, marker) || id == a.RunID && !strings.Contains(run.FinalMessage.Text, "STEER_OK") || len(run.Hooks) == 0 || run.Hooks[len(run.Hooks)-1].Status != "completed" {
 					t.Fatalf("unexpected live run outcome: status=%s error=%v", run.Status, run.Error)
 				}
 				for ctx.Err() == nil {
@@ -164,6 +187,13 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 				}
 				break
 			}
+			if id == a.RunID && run.Status == session.Running && !steered {
+				_, err := s.Accept(ctx, store.Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "This is a follow-up for the current turn."}, {Text: "Keep the file contents exactly ORPHEUS_OK."}, {Text: "After the sleep, include STEER_OK with CREATED in your final reply."}}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				steered = true
+			}
 			if run.Status == session.Running && !restarted {
 				e.Disconnect()
 				e = newExecutor()
@@ -174,15 +204,52 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 			case <-time.After(time.Second):
 			}
 		}
-		t.Fatal("live run timed out")
+		t.Fatalf("live run timed out: status=%s observation=%s error=%v last_tick=%v faults=%v restarted=%t steered=%t", lastStatus, lastObservation, lastRunError, lastTickError, lost, restarted, steered)
 	}
 	await(a.RunID, "CREATED")
-	b, err := s.Accept(ctx, store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "Read orpheus-probe.txt from the current directory and reply with only its contents."})
+	completed, err := s.Run(ctx, a.SessionID, a.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.FinalMessage == nil {
+		t.Fatal("completed run has no final message")
+	}
+	var items []session.HistoryItem
+	for cursor := ""; ; {
+		history, err := s.History(ctx, a.SessionID, &a.RunID, 100, cursor, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		items = append(items, history.Items...)
+		if history.NextCursor == nil {
+			break
+		}
+		cursor = *history.NextCursor
+	}
+	want := []string{"Work only in the current directory.", "Do not access other directories or networks.", "Create a file named orpheus-probe.txt in the current directory containing exactly ORPHEUS_OK. Then run sleep 20 in the shell to allow a follow-up. Finally include CREATED in your reply.", "This is a follow-up for the current turn.", "Keep the file contents exactly ORPHEUS_OK.", "After the sleep, include STEER_OK with CREATED in your final reply."}
+	var got []string
+	lastUserIndex, finalIndex := -1, -1
+	for index, item := range items {
+		if item.Type != "message" || item.Message == nil {
+			continue
+		}
+		if item.Message.Role == "user" {
+			got = append(got, item.Message.Text)
+			lastUserIndex = index
+		}
+		if item.Message.ID == completed.FinalMessage.ID {
+			finalIndex = index
+		}
+	}
+	if !slices.Equal(got, want) || finalIndex <= lastUserIndex || !lost["steer"] {
+		t.Fatalf("live batched input or recovery failed: messages=%q final_index=%d last_user_index=%d steer_ack_lost=%t", got, finalIndex, lastUserIndex, lost["steer"])
+	}
+	b, err := s.Accept(ctx, store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "Read orpheus-probe.txt from the current directory and reply with only its contents."}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	await(b.RunID, "ORPHEUS_OK")
-	if len(faults.ids) != 1 || !lost["launch"] || !lost["start"] {
+	if len(faults.ids) != 1 || !lost["launch"] || !lost["start"] || !lost["steer"] {
 		t.Fatal("fault/recovery contract not exercised")
 	}
 }

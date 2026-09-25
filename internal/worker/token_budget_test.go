@@ -114,7 +114,7 @@ func TestTokenBudgetCancellationAndFinalHook(t *testing.T) {
 			if err != nil || view.Sandbox.State != "paused" || view.Usage != run.Usage {
 				t.Fatal(view, err)
 			}
-			_, err = s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "next"})
+			_, err = s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}})
 			if err == nil || err.Error() != "token_limit_exceeded" {
 				t.Fatal(err)
 			}

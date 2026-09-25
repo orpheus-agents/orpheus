@@ -69,7 +69,7 @@ func TestDeliveryRejectionsResolveMessage(t *testing.T) {
 					r.startError = rejection
 				} else {
 					tick(t, e)
-					message, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Text: "steer"})
+					message, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "steer"}}})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -134,7 +134,7 @@ func TestContextLossStaysUnavailableAfterPause(t *testing.T) {
 	if record.SandboxState != "unavailable" || record.SlotReserved || r.state != "paused" {
 		t.Fatal(record.SandboxState, record.SlotReserved, r.state)
 	}
-	_, err = s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "next"})
+	_, err = s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}})
 	problem, ok := errors.AsType[*session.APIError](err)
 	if !ok || problem.Problem.Code != "session_unavailable" {
 		t.Fatal(err)
@@ -150,7 +150,7 @@ func TestReplacementReconnectCompletesPreparation(t *testing.T) {
 			tick(t, e)
 			tick(t, e)
 			r.processes = nil
-			if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "next"}); err != nil {
+			if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}}); err != nil {
 				t.Fatal(err)
 			}
 			if stage == "initialize" {

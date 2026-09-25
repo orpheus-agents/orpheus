@@ -32,7 +32,7 @@ func fixture(t *testing.T) *Store {
 	return &Store{Pool: testutil.Database(t), Settings: config.DefaultSettings(), Cipher: c, Profiles: config.Profiles{Profiles: map[string]config.Profile{"default": {Harness: "codex", Model: new("fixture"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
 }
 func request() Admission {
-	return Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex", Env: map[string]string{"TOKEN": "private"}}, Limits: session.Limits{RunTimeoutSeconds: 3600}}, Message: session.TextMessage{Text: "Hello"}}}
+	return Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex", Env: map[string]string{"TOKEN": "private"}}, Limits: session.Limits{RunTimeoutSeconds: 3600}}, Messages: []session.TextMessage{{Text: "Hello"}}}}
 }
 func requireCode(t *testing.T, err error, code string) {
 	t.Helper()
@@ -79,7 +79,7 @@ func TestConcurrentAdmission(t *testing.T) {
 	req.Create.Configuration.Sandbox.Env["TOKEN"] = "changed"
 	_, err = s.Accept(t.Context(), req)
 	requireCode(t, err, "idempotency_conflict")
-	_, err = s.Accept(t.Context(), Admission{SessionID: first.SessionID, Key: uuid.New(), Text: "next"})
+	_, err = s.Accept(t.Context(), Admission{SessionID: first.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}})
 	requireCode(t, err, "session_busy")
 	cancelled, err := s.Cancel(t.Context(), first.SessionID, first.RunID)
 	if err != nil || cancelled.Status != session.Cancelled {
@@ -201,11 +201,11 @@ func TestSteerAndFinish(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	b, err := s.Accept(t.Context(), Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Text: "same"})
+	b, err := s.Accept(t.Context(), Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "same"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := s.Accept(t.Context(), Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Text: "same"})
+	c, err := s.Accept(t.Context(), Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "same"}}})
 	if err != nil || b.MessageID == c.MessageID {
 		t.Fatal(c, err)
 	}
@@ -222,7 +222,7 @@ func TestSteerAndFinish(t *testing.T) {
 	if err != nil || *m.DeliveryStatus != "rejected" {
 		t.Fatal(m, err)
 	}
-	if _, err := s.Accept(t.Context(), Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "next"}); err != nil {
+	if _, err := s.Accept(t.Context(), Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}}); err != nil {
 		t.Fatal(err)
 	}
 }

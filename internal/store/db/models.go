@@ -84,6 +84,7 @@ type Message struct {
 	Position           *session.Position `json:"position"`
 	CreatedAt          time.Time         `json:"created_at"`
 	ExternalKey        *string           `json:"external_key"`
+	Metadata           json.RawMessage   `json:"metadata"`
 }
 
 type Operation struct {
