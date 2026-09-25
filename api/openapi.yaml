@@ -50,9 +50,8 @@ components:
         AccountLimits:
             type: object
             additionalProperties: false
-            required: [enabled, as_of, stale_after_seconds, items]
+            required: [as_of, stale_after_seconds, items]
             properties:
-                enabled: {type: boolean}
                 as_of: {type: string, format: date-time}
                 stale_after_seconds: {type: integer, minimum: 1}
                 items:

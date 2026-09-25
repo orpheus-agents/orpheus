@@ -27,7 +27,6 @@ type LimitItem struct {
 }
 
 type LimitReport struct {
-	Enabled           bool
 	AsOf              time.Time
 	StaleAfterSeconds int
 	Items             []LimitItem
@@ -38,9 +37,6 @@ func accountLimitsUnavailable() error {
 }
 
 func (s *Store) SaveAccountLimitObservation(ctx context.Context, id, fingerprint string, at time.Time, snapshot *accountlimits.Snapshot, errorCode *string) error {
-	if !s.Settings.AccountLimitsEnabled {
-		return nil
-	}
 	valid := false
 	for _, account := range s.Profiles.Accounts() {
 		if account.ID == id && account.Fingerprint == fingerprint {
@@ -65,7 +61,7 @@ func (s *Store) SaveAccountLimitObservation(ctx context.Context, id, fingerprint
 }
 
 func (s *Store) AccountLimits(ctx context.Context) (LimitReport, error) {
-	out := LimitReport{Enabled: s.Settings.AccountLimitsEnabled, StaleAfterSeconds: accountLimitsStaleAfter, Items: []LimitItem{}}
+	out := LimitReport{StaleAfterSeconds: accountLimitsStaleAfter, Items: []LimitItem{}}
 	requestCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -77,9 +73,6 @@ func (s *Store) AccountLimits(ctx context.Context) (LimitReport, error) {
 			return err
 		}
 		out.AsOf = out.AsOf.UTC()
-		if !out.Enabled {
-			return nil
-		}
 		accounts := s.Profiles.Accounts()
 		if len(accounts) == 0 {
 			return nil

@@ -168,9 +168,6 @@ type AccountLimitsCollector struct {
 
 func newAccountLimitsCollector(ctx context.Context, s *store.Store) *AccountLimitsCollector {
 	c := &AccountLimitsCollector{ctx: ctx, save: s.SaveAccountLimitObservation, accounts: map[string]*limitAccount{}, sem: make(chan struct{}, 4)}
-	if !s.Settings.AccountLimitsEnabled {
-		return c
-	}
 	for _, account := range s.Profiles.Accounts() {
 		a := &limitAccount{config: account, donors: map[uuid.UUID]*limitDonor{}, wake: make(chan struct{}, 1)}
 		c.accounts[account.ID] = a

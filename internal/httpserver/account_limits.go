@@ -8,7 +8,6 @@ import (
 
 func accountLimitsResponse(report store.LimitReport) api.GetAccountLimits200JSONResponse {
 	out := api.GetAccountLimits200JSONResponse{
-		Enabled:           report.Enabled,
 		AsOf:              report.AsOf,
 		StaleAfterSeconds: report.StaleAfterSeconds,
 		Items:             make([]api.AccountLimitItem, 0, len(report.Items)),

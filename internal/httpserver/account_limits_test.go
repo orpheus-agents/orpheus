@@ -25,7 +25,7 @@ func TestAccountLimitsHTTPAndGeneratedClient(t *testing.T) {
 		t.Fatal(status, string(body))
 	}
 	var empty client.AccountLimits
-	if err := json.Unmarshal(body, &empty); err != nil || !empty.Enabled || len(empty.Items) != 0 {
+	if err := json.Unmarshal(body, &empty); err != nil || len(empty.Items) != 0 {
 		t.Fatal(empty, err)
 	}
 	p, err := config.ReadProfiles(strings.NewReader(`[credential_stores.s]
@@ -85,11 +85,6 @@ key="auth.json"
 	}
 	res, err = c.GetAccountLimitsWithResponse(t.Context())
 	if err != nil || res.JSON200 == nil || res.JSON200.Items[0].State != client.AccountLimitItemState("stale") || len(res.JSON200.Items[0].Buckets) != 1 {
-		t.Fatal(res, err)
-	}
-	storage.Settings.AccountLimitsEnabled = false
-	res, err = c.GetAccountLimitsWithResponse(t.Context())
-	if err != nil || res.JSON200 == nil || res.JSON200.Enabled || len(res.JSON200.Items) != 0 {
 		t.Fatal(res, err)
 	}
 }

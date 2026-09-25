@@ -946,7 +946,6 @@ type AccountLimitWindow struct {
 // AccountLimits defines model for AccountLimits.
 type AccountLimits struct {
 	AsOf              time.Time          `json:"as_of"`
-	Enabled           bool               `json:"enabled"`
 	Items             []AccountLimitItem `json:"items"`
 	StaleAfterSeconds int                `json:"stale_after_seconds"`
 }

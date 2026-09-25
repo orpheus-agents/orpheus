@@ -23,7 +23,7 @@ import (
 
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 var accountID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
-var reserved = strings.Fields(`ALL_PROXY NO_PROXY HTTP_PROXY HTTPS_PROXY all_proxy no_proxy http_proxy https_proxy HOME CODEX_HOME ORPHEUS_LAUNCH_ID ORPHEUS_HOOK_OPERATION_ID ORPHEUS_SESSION_ID ORPHEUS_WORKSPACE_PATH ORPHEUS_RUN_ID ORPHEUS_INPUT_FINGERPRINT ORPHEUS_AGENT_STATUS ORPHEUS_STOP_REASON ORPHEUS_BROWSER_AUTH ORPHEUS_PUBLIC_URL ACCOUNT_LIMITS_ENABLED SAML_SP_ENTITY_ID SAML_IDP_METADATA_FILE SAML_SP_CERT_FILE SAML_SP_KEY_FILE BROWSER_SESSION_TTL_SECONDS PUBLIC_API_KEYS OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL OPENAI_ORG_ID OPENAI_ORGANIZATION OPENAI_PROJECT_ID CHATGPT_BASE_URL ENV_ENCRYPTION_KEY AGENTBOX_API_KEY`)
+var reserved = strings.Fields(`ALL_PROXY NO_PROXY HTTP_PROXY HTTPS_PROXY all_proxy no_proxy http_proxy https_proxy HOME CODEX_HOME ORPHEUS_LAUNCH_ID ORPHEUS_HOOK_OPERATION_ID ORPHEUS_SESSION_ID ORPHEUS_WORKSPACE_PATH ORPHEUS_RUN_ID ORPHEUS_INPUT_FINGERPRINT ORPHEUS_AGENT_STATUS ORPHEUS_STOP_REASON ORPHEUS_BROWSER_AUTH ORPHEUS_PUBLIC_URL SAML_SP_ENTITY_ID SAML_IDP_METADATA_FILE SAML_SP_CERT_FILE SAML_SP_KEY_FILE BROWSER_SESSION_TTL_SECONDS PUBLIC_API_KEYS OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL OPENAI_ORG_ID OPENAI_ORGANIZATION OPENAI_PROJECT_ID CHATGPT_BASE_URL ENV_ENCRYPTION_KEY AGENTBOX_API_KEY`)
 
 type Auth struct {
 	Mode      string `toml:"mode"`
@@ -341,7 +341,6 @@ const DefaultMaxSessionTokens int64 = 100_000_000
 
 type Settings struct {
 	BrowserAuth             BrowserAuth
-	AccountLimitsEnabled    bool
 	DefaultMaxSessionTokens int64
 	DatabaseURL             string
 	ConfigFile              string
@@ -360,7 +359,7 @@ type Settings struct {
 }
 
 func DefaultSettings() Settings {
-	return Settings{BrowserAuth: BrowserAuth{Mode: "api_only", SessionTTL: 12 * time.Hour}, AccountLimitsEnabled: true, DefaultMaxSessionTokens: DefaultMaxSessionTokens, ConfigFile: "orpheus.toml", SandboxProxyURL: "https://sandbox-proxy.agentbox.ru:65181", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, ReadinessTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
+	return Settings{BrowserAuth: BrowserAuth{Mode: "api_only", SessionTTL: 12 * time.Hour}, DefaultMaxSessionTokens: DefaultMaxSessionTokens, ConfigFile: "orpheus.toml", SandboxProxyURL: "https://sandbox-proxy.agentbox.ru:65181", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, ReadinessTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
 }
 
 // AddSandboxProxy applies the sandbox egress proxy to an agent process environment.
@@ -374,13 +373,6 @@ func AddSandboxProxy(env map[string]string, proxy string) {
 }
 func Load() (Settings, error) {
 	s := DefaultSettings()
-	if raw, ok := os.LookupEnv("ACCOUNT_LIMITS_ENABLED"); ok {
-		value, err := strconv.ParseBool(raw)
-		if err != nil {
-			return s, errors.New("invalid ACCOUNT_LIMITS_ENABLED")
-		}
-		s.AccountLimitsEnabled = value
-	}
 	for name, dest := range map[string]*string{"ORPHEUS_BROWSER_AUTH": &s.BrowserAuth.Mode, "ORPHEUS_PUBLIC_URL": &s.BrowserAuth.PublicURL, "SAML_SP_ENTITY_ID": &s.BrowserAuth.EntityID, "SAML_IDP_METADATA_FILE": &s.BrowserAuth.MetadataFile, "SAML_SP_CERT_FILE": &s.BrowserAuth.CertFile, "SAML_SP_KEY_FILE": &s.BrowserAuth.KeyFile, "DATABASE_URL": &s.DatabaseURL, "ORPHEUS_CONFIG_FILE": &s.ConfigFile, "ENV_ENCRYPTION_KEY": &s.EnvEncryptionKey, "SANDBOX_PROXY_URL": &s.SandboxProxyURL} {
 		if v, ok := os.LookupEnv(name); ok {
 			*dest = v

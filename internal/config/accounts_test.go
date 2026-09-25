@@ -89,16 +89,3 @@ func TestAccountCatalogCap(t *testing.T) {
 		t.Fatal("unbounded account catalogue accepted")
 	}
 }
-
-func TestAccountLimitsFlag(t *testing.T) {
-	t.Setenv("DATABASE_URL", "postgres://fixture")
-	t.Setenv("ACCOUNT_LIMITS_ENABLED", "false")
-	s, err := Load()
-	if err != nil || s.AccountLimitsEnabled {
-		t.Fatal(s, err)
-	}
-	t.Setenv("ACCOUNT_LIMITS_ENABLED", "invalid")
-	if _, err := Load(); err == nil {
-		t.Fatal("invalid flag accepted")
-	}
-}

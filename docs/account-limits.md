@@ -23,10 +23,8 @@ report limits. Changing the person or organization behind credentials requires
 a new ID. Changes to account configuration take effect after restarting serve
 and worker with the same configuration revision.
 
-`ACCOUNT_LIMITS_ENABLED=false` stops collection and returns `enabled=false`
-with an empty `items` list; the default is true. API-key-only installations
-return `enabled=true` and an empty list. Account profiles without a successful
-sample appear as `unknown` or `unavailable`, never as 0% used.
+API-key-only installations return an empty `items` list. Account profiles
+without a successful sample appear as `unknown` or `unavailable`, never as 0% used.
 
 The worker polls one running donor per account about once a minute and keeps
 using the last successful donor while it remains healthy. A connection failure

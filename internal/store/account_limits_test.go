@@ -44,7 +44,7 @@ func TestAccountLimitObservationStateAndOrdering(t *testing.T) {
 	read := func() LimitItem {
 		t.Helper()
 		response, err := s.AccountLimits(ctx)
-		if err != nil || len(response.Items) != 1 || !response.Enabled || response.StaleAfterSeconds != 300 {
+		if err != nil || len(response.Items) != 1 || response.StaleAfterSeconds != 300 {
 			t.Fatal(response, err)
 		}
 		return response.Items[0]
@@ -92,7 +92,7 @@ func TestAccountLimitObservationStateAndOrdering(t *testing.T) {
 	}
 }
 
-func TestAccountLimitStaleAgeResetSourceAndDisabled(t *testing.T) {
+func TestAccountLimitStaleAgeResetAndSource(t *testing.T) {
 	s, account := accountLimitFixture(t)
 	ctx := t.Context()
 	aged := accountlimits.Snapshot{Buckets: []accountlimits.Bucket{{LimitID: "codex", Primary: &accountlimits.Window{UsedPercent: 10, RemainingPercent: 90}}}}
@@ -124,10 +124,5 @@ func TestAccountLimitStaleAgeResetSourceAndDisabled(t *testing.T) {
 	}
 	if err := s.SaveAccountLimitObservation(ctx, account.ID, account.Fingerprint, time.Now().UTC(), &sample, nil); err == nil {
 		t.Fatal("old source was allowed to publish")
-	}
-	s.Settings.AccountLimitsEnabled = false
-	response, err = s.AccountLimits(ctx)
-	if err != nil || response.Enabled || len(response.Items) != 0 {
-		t.Fatal(response, err)
 	}
 }
