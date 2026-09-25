@@ -1,6 +1,9 @@
 <p align="center">
   <a href="https://github.com/orpheus-agents/orpheus">
-    <img src="branding/logo/orpheus-logo-email.png" alt="Orpheus" width="240">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".github/orpheus-logo.svg">
+      <img src=".github/orpheus-logo-light.svg" alt="Orpheus" width="240">
+    </picture>
   </a>
 </p>
 
