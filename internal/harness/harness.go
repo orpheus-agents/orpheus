@@ -105,7 +105,7 @@ type Driver interface {
 	Recover(context.Context, *string, *string, *string) (Snapshot, error)
 	HasUpdates() bool
 	Committed()
-	Start(context.Context, session.AgentConfiguration, string, string) (string, error)
+	Start(context.Context, session.AgentConfiguration, string, []string) (string, error)
 	Steer(context.Context, string, string, string) error
 	Interrupt(context.Context, string, string) error
 	Snapshot(context.Context, string, *string, int64) (Snapshot, error)

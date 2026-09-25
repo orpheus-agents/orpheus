@@ -320,6 +320,7 @@ func PublishMessage(ctx context.Context, tx db.DBTX, s *SessionRecord, m *Messag
 	}
 	err = db.New(tx).UpsertMessage(ctx, db.UpsertMessageParams{
 		ExternalKey:        m.ExternalKey,
+		Metadata:           m.Metadata,
 		ID:                 m.ID,
 		SessionID:          m.SessionID,
 		RunID:              m.RunID,
@@ -488,27 +489,39 @@ func selectFinalMessage(ctx context.Context, tx pgx.Tx, r *RunRecord) error {
 	return nil
 }
 
+const maxAdmissionMessages = 256
+
 type Admission struct {
-	InputFingerprint   *string
-	MessageExternalKey *string
-	Create             *session.CreateSession
-	Text               string
-	Key                uuid.UUID
-	SessionID          uuid.UUID
-	RunID              uuid.UUID
-	Env                map[string]string
-	EnvFrom            []string
+	InputFingerprint *string
+	Messages         []session.TextMessage
+	Create           *session.CreateSession
+	Key              uuid.UUID
+	SessionID        uuid.UUID
+	RunID            uuid.UUID
+	Env              map[string]string
+	EnvFrom          []string
 }
 
 func fingerprint(a Admission) (string, error) {
+	messages := slices.Clone(a.Messages)
+	for i := range messages {
+		if len(messages[i].Metadata) == 0 {
+			continue
+		}
+		metadata, err := canonicalJSON(messages[i].Metadata)
+		if err != nil {
+			return "", err
+		}
+		messages[i].Metadata = metadata
+	}
 	runEnvNames := slices.Sorted(maps.Keys(a.Env))
 	runEnvFrom := slices.Sorted(slices.Values(a.EnvFrom))
 	var value any = struct {
-		Message          session.TextMessage `json:"message"`
-		InputFingerprint *string             `json:"input_fingerprint,omitzero"`
-		EnvNames         []string            `json:"env_names,omitzero"`
-		EnvFrom          []string            `json:"env_from,omitzero"`
-	}{session.TextMessage{Text: a.Text, ExternalKey: a.MessageExternalKey}, a.InputFingerprint, runEnvNames, runEnvFrom}
+		Messages         []session.TextMessage `json:"messages"`
+		InputFingerprint *string               `json:"input_fingerprint,omitzero"`
+		EnvNames         []string              `json:"env_names,omitzero"`
+		EnvFrom          []string              `json:"env_from,omitzero"`
+	}{messages, a.InputFingerprint, runEnvNames, runEnvFrom}
 	if a.Create != nil {
 		c := a.Create.Configuration
 		if c.Sandbox.EnvFrom == nil {
@@ -519,13 +532,13 @@ func fingerprint(a Admission) (string, error) {
 			names = []string{}
 		}
 		value = struct {
-			Namespace        *string             `json:"namespace,omitzero"`
-			ExternalKey      *string             `json:"external_key,omitzero"`
-			InputFingerprint *string             `json:"input_fingerprint,omitzero"`
-			Configuration    any                 `json:"configuration"`
-			Message          session.TextMessage `json:"message"`
-			RunEnvNames      []string            `json:"run_env_names,omitzero"`
-			RunEnvFrom       []string            `json:"run_env_from,omitzero"`
+			Namespace        *string               `json:"namespace,omitzero"`
+			ExternalKey      *string               `json:"external_key,omitzero"`
+			InputFingerprint *string               `json:"input_fingerprint,omitzero"`
+			Configuration    any                   `json:"configuration"`
+			Messages         []session.TextMessage `json:"messages"`
+			RunEnvNames      []string              `json:"run_env_names,omitzero"`
+			RunEnvFrom       []string              `json:"run_env_from,omitzero"`
 		}{Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, InputFingerprint: a.Create.InputFingerprint, Configuration: struct {
 			Agent   session.AgentInput  `json:"agent"`
 			Sandbox any                 `json:"sandbox"`
@@ -535,7 +548,7 @@ func fingerprint(a Admission) (string, error) {
 			Template string   `json:"template"`
 			Env      []string `json:"env"`
 			EnvFrom  []string `json:"env_from"`
-		}{c.Sandbox.Template, names, c.Sandbox.EnvFrom}, Limits: c.Limits, Hooks: c.Hooks}, Message: a.Create.Message, RunEnvNames: runEnvNames, RunEnvFrom: runEnvFrom}
+		}{c.Sandbox.Template, names, c.Sandbox.EnvFrom}, Limits: c.Limits, Hooks: c.Hooks}, Messages: messages, RunEnvNames: runEnvNames, RunEnvFrom: runEnvFrom}
 	}
 	raw, err := json.Marshal(value)
 	if err != nil {
@@ -550,17 +563,36 @@ func fingerprint(a Admission) (string, error) {
 func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, error) {
 	var result session.Acceptance
 	if a.Create != nil {
-		a.Text = a.Create.Message.Text
+		a.Messages = a.Create.Messages
 		a.InputFingerprint = a.Create.InputFingerprint
-		a.MessageExternalKey = a.Create.Message.ExternalKey
 		a.Env = a.Create.Env
 		a.EnvFrom = a.Create.EnvFrom
+	}
+	if len(a.Messages) == 0 {
+		problem := session.Problem(422, "validation_error", "At least one message is required.")
+		problem.Problem.Details = []session.Detail{{Path: []any{"body", "messages"}, Code: "required"}}
+		return result, problem
+	}
+	if len(a.Messages) > maxAdmissionMessages {
+		problem := session.Problem(422, "validation_error", "Too many messages.")
+		problem.Problem.Details = []session.Detail{{Path: []any{"body", "messages"}, Code: "invalid_value"}}
+		return result, problem
 	}
 	if err := a.validateExternal(); err != nil {
 		return result, err
 	}
-	if err := config.ValidateText(a.Text); err != nil {
-		return result, err
+	for i, message := range a.Messages {
+		if err := config.ValidateText(message.Text, i); err != nil {
+			return result, err
+		}
+		if len(message.Metadata) > 0 {
+			var object map[string]json.RawMessage
+			if err := json.Unmarshal(message.Metadata, &object); err != nil || object == nil {
+				problem := session.Problem(422, "validation_error", "Message metadata must be a JSON object.")
+				problem.Problem.Details = []session.Detail{{Path: []any{"body", "messages", i, "metadata"}, Code: "invalid_type"}}
+				return result, problem
+			}
+		}
 	}
 	op, resource := "create", "sessions"
 	if a.SessionID != uuid.Nil {
@@ -694,18 +726,21 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			}
 			record.NextRunNumber++
 		}
-		m := MessageRecord{
-			ExternalKey: a.MessageExternalKey, ID: uuid.New(),
-			SessionID:      record.ID,
-			RunID:          run.ID,
-			Role:           "user",
-			Text:           a.Text,
-			DeliveryStatus: new("pending"),
-			DeliveryNumber: new(run.NextDeliveryNumber),
-		}
-		run.NextDeliveryNumber++
-		if err := PublishMessage(ctx, tx, &record, &m); err != nil {
-			return err
+		for _, input := range a.Messages {
+			m := MessageRecord{
+				ExternalKey: input.ExternalKey, Metadata: input.Metadata, ID: uuid.New(),
+				SessionID:      record.ID,
+				RunID:          run.ID,
+				Role:           "user",
+				Text:           input.Text,
+				DeliveryStatus: new("pending"),
+				DeliveryNumber: new(run.NextDeliveryNumber),
+			}
+			run.NextDeliveryNumber++
+			if err := PublishMessage(ctx, tx, &record, &m); err != nil {
+				return err
+			}
+			result.MessageID = m.ID
 		}
 		if a.RunID == uuid.Nil {
 			if err := planHooks(ctx, tx, &record, &run); err != nil {
@@ -721,7 +756,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 		if err := SaveSession(ctx, tx, &record); err != nil {
 			return err
 		}
-		result = session.Acceptance{SessionID: record.ID, RunID: run.ID, MessageID: m.ID}
+		result.SessionID, result.RunID = record.ID, run.ID
 		err = db.New(tx).InsertIdempotency(ctx, db.InsertIdempotencyParams{
 			Operation:   op,
 			Resource:    resource,

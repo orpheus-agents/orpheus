@@ -84,7 +84,7 @@ func requestHTTP(t *testing.T, server *httptest.Server, method, path, body, toke
 	return res.StatusCode, res.Header, raw
 }
 
-const validBody = `{"configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}},"message":{"text":"hello"}}`
+const validBody = `{"configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}},"messages":[{"text":"hello"}]}`
 
 func TestHTTPContract(t *testing.T) {
 	server, _ := testServer(t)
@@ -220,7 +220,7 @@ func TestValidationDetailsAndAdditionalBoundaries(t *testing.T) {
 		code                  int
 		detailPath            string
 	}{
-		{"type", strings.Replace(validBody, `"text":"hello"`, `"text":12`, 1), uuid.NewString(), "/api/v1/sessions", 422, `["body","message","text"]`},
+		{"type", strings.Replace(validBody, `"text":"hello"`, `"text":12`, 1), uuid.NewString(), "/api/v1/sessions", 422, `["body","messages",0,"text"]`},
 		{"missing header", validBody, "", "/api/v1/sessions", 422, `["header","Idempotency-Key"]`},
 		{"empty model", strings.Replace(validBody, `"profile":"default"`, `"profile":"default","model":""`, 1), uuid.NewString(), "/api/v1/sessions", 422, `["body","configuration","agent","model"]`},
 		{"null instructions", strings.Replace(validBody, `"profile":"default"`, `"profile":"default","instructions":null`, 1), uuid.NewString(), "/api/v1/sessions", 422, `["body","configuration","agent","instructions"]`},
@@ -413,7 +413,7 @@ func TestProjectedHistoryAndResultContract(t *testing.T) {
 			t.Fatalf("%s: %d %s", suffix, status, raw)
 		}
 	}
-	status, _, raw := requestHTTP(t, server, "POST", path+"/runs", `{"message":{"text":"next"}}`, "key", uuid.NewString())
+	status, _, raw := requestHTTP(t, server, "POST", path+"/runs", `{"messages":[{"text":"next"}]}`, "key", uuid.NewString())
 	if status != 202 {
 		t.Fatal(status, string(raw))
 	}
@@ -432,7 +432,7 @@ func TestProjectedHistoryAndResultContract(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	status, _, raw = requestHTTP(t, server, "POST", path+"/runs/"+next.RunID.String()+"/messages", `{"message":{"text":"steer"}}`, "key", uuid.NewString())
+	status, _, raw = requestHTTP(t, server, "POST", path+"/runs/"+next.RunID.String()+"/messages", `{"messages":[{"text":"steer"}]}`, "key", uuid.NewString())
 	if status != 202 {
 		t.Fatal(status, string(raw))
 	}

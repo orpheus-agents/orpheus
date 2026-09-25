@@ -77,8 +77,8 @@ INSERT INTO session_events(session_id, sequence, type, data)
 VALUES($1, $2, $3, $4);
 
 -- name: UpsertMessage :exec
-INSERT INTO messages(id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO messages(id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key, metadata)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 ON CONFLICT(id) DO UPDATE SET kind = EXCLUDED.kind,
     text = EXCLUDED.text,
     delivery_status = EXCLUDED.delivery_status,

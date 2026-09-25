@@ -17,7 +17,7 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/store"
 )
 
-const externalBody = `{"namespace":"redmine","external_key":"prod:issue:7","input_fingerprint":"v1:456","configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}},"message":{"text":"hello","external_key":"journal:456"}}`
+const externalBody = `{"namespace":"redmine","external_key":"prod:issue:7","input_fingerprint":"v1:456","configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}},"messages":[{"text":"hello","external_key":"journal:456"}]}`
 
 func decodeHTTP[T any](t *testing.T, raw []byte) T {
 	t.Helper()
@@ -91,7 +91,7 @@ func TestExternalInputsHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	steerPath := base + "/runs/" + a.RunID.String() + "/messages"
-	steerBody := `{"message":{"text":"clarify","external_key":"journal:457"}}`
+	steerBody := `{"messages":[{"text":"clarify","external_key":"journal:457"}]}`
 	steerKey := uuid.NewString()
 	steer := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", steerPath, steerBody, steerKey, 202))
 	if decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", steerPath, steerBody, steerKey, 202)) != steer {
@@ -112,7 +112,7 @@ func TestExternalInputsHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nextBody := `{"message":{"text":"again","external_key":"journal:456"},"input_fingerprint":"v1:456"}`
+	nextBody := `{"messages":[{"text":"again","external_key":"journal:456"}],"input_fingerprint":"v1:456"}`
 	nextKey := uuid.NewString()
 	next := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", base+"/runs", nextBody, nextKey, 202))
 	if next.RunID == a.RunID {
@@ -153,7 +153,7 @@ func TestExternalValidationHTTP(t *testing.T) {
 			for _, value := range []any{nil, 42, "", "\u2003\n", "x\x00", strings.Repeat("é", field.max/2) + "a"} {
 				body := decodeHTTP[map[string]any](t, []byte(validBody))
 				if field.name == "message.external_key" {
-					body["message"].(map[string]any)["external_key"] = value
+					body["messages"].([]any)[0].(map[string]any)["external_key"] = value
 				} else {
 					body[field.name] = value
 				}
@@ -169,7 +169,7 @@ func TestExternalValidationHTTP(t *testing.T) {
 			body := decodeHTTP[map[string]any](t, []byte(validBody))
 			exact := strings.Repeat("é", field.max/2)
 			if field.name == "message.external_key" {
-				body["message"].(map[string]any)["external_key"] = exact
+				body["messages"].([]any)[0].(map[string]any)["external_key"] = exact
 			} else {
 				body[field.name] = exact
 			}

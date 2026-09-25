@@ -168,15 +168,35 @@ func (d *Driver) HasUpdates() bool {
 	return notify || dirty || len(d.usage) > 0 || d.thread == nil || !time.Now().Before(d.readAt)
 }
 func (d *Driver) Committed() { clear(d.outputs); d.usage = nil }
-func (d *Driver) Start(ctx context.Context, agent session.AgentConfiguration, thread, text string) (string, error) {
+func (d *Driver) Start(ctx context.Context, agent session.AgentConfiguration, thread string, texts []string) (string, error) {
+	if len(texts) == 0 {
+		return "", harness.ErrRejected
+	}
+	if len(texts) > 1 {
+		items := make([]map[string]any, 0, len(texts)-1)
+		for _, text := range texts[:len(texts)-1] {
+			items = append(items, map[string]any{
+				"type": "message", "role": "user",
+				"content": []map[string]string{{"type": "input_text", "text": text}},
+			})
+		}
+		if err := d.rpc.Call(ctx, "thread/inject_items", map[string]any{"threadId": thread, "items": items}, nil); err != nil {
+			return "", err
+		}
+	}
 	var out struct {
 		Turn NativeTurn `json:"turn"`
 	}
-	params := map[string]any{"threadId": thread, "input": []map[string]string{{"type": "text", "text": text}}}
+	params := map[string]any{"threadId": thread, "input": []map[string]string{{"type": "text", "text": texts[len(texts)-1]}}}
 	if agent.Codex.Effort != "" {
 		params["effort"] = agent.Codex.Effort
 	}
 	if err := d.rpc.Call(ctx, "turn/start", params, &out); err != nil {
+		if len(texts) > 1 && errors.Is(err, harness.ErrRejected) {
+			// The earlier items were already injected. Retire this context so a
+			// later run cannot see input from a rejected assignment.
+			return "", harness.Failure("context_lost", "Harness rejected the batched assignment after context injection.")
+		}
 		return "", err
 	}
 	if out.Turn.ID == "" {

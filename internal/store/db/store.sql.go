@@ -219,7 +219,7 @@ func (q *Queries) GetIdempotency(ctx context.Context, arg GetIdempotencyParams) 
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key
+SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key, metadata
 FROM messages
 WHERE id = $1
 `
@@ -242,6 +242,7 @@ func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 		&i.Position,
 		&i.CreatedAt,
 		&i.ExternalKey,
+		&i.Metadata,
 	)
 	return i, err
 }
@@ -460,7 +461,7 @@ func (q *Queries) LockSession(ctx context.Context, id uuid.UUID) (Session, error
 }
 
 const messages = `-- name: Messages :many
-SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key
+SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key, metadata
 FROM messages
 WHERE run_id = $1
 ORDER BY delivery_number, registered_sequence
@@ -490,6 +491,7 @@ func (q *Queries) Messages(ctx context.Context, runID uuid.UUID) ([]Message, err
 			&i.Position,
 			&i.CreatedAt,
 			&i.ExternalKey,
+			&i.Metadata,
 		); err != nil {
 			return nil, err
 		}
@@ -502,7 +504,7 @@ func (q *Queries) Messages(ctx context.Context, runID uuid.UUID) ([]Message, err
 }
 
 const messagesByIDs = `-- name: MessagesByIDs :many
-SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key
+SELECT id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key, metadata
 FROM messages
 WHERE id = ANY($1::uuid[])
 `
@@ -531,6 +533,7 @@ func (q *Queries) MessagesByIDs(ctx context.Context, messageIds []uuid.UUID) ([]
 			&i.Position,
 			&i.CreatedAt,
 			&i.ExternalKey,
+			&i.Metadata,
 		); err != nil {
 			return nil, err
 		}
@@ -720,8 +723,8 @@ func (q *Queries) TryWorkerLock(ctx context.Context, lockKey int64) (bool, error
 }
 
 const upsertMessage = `-- name: UpsertMessage :exec
-INSERT INTO messages(id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO messages(id, session_id, run_id, role, kind, text, delivery_status, delivery_number, error, native_key, registered_sequence, position, created_at, external_key, metadata)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 ON CONFLICT(id) DO UPDATE SET kind = EXCLUDED.kind,
     text = EXCLUDED.text,
     delivery_status = EXCLUDED.delivery_status,
@@ -745,6 +748,7 @@ type UpsertMessageParams struct {
 	Position           *session.Position `json:"position"`
 	CreatedAt          time.Time         `json:"created_at"`
 	ExternalKey        *string           `json:"external_key"`
+	Metadata           json.RawMessage   `json:"metadata"`
 }
 
 func (q *Queries) UpsertMessage(ctx context.Context, arg UpsertMessageParams) error {
@@ -763,6 +767,7 @@ func (q *Queries) UpsertMessage(ctx context.Context, arg UpsertMessageParams) er
 		arg.Position,
 		arg.CreatedAt,
 		arg.ExternalKey,
+		arg.Metadata,
 	)
 	return err
 }

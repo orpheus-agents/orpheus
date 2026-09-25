@@ -12,7 +12,7 @@ import (
 
 func TestHooksHTTPContract(t *testing.T) {
 	server, _ := testServer(t)
-	body := `{"configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"},"hooks":{"after_create":"#!/bin/sh\nprintf ready\n","before_run":"#!/bin/sh\nprintf before\n","after_run":"#!/bin/sh\nprintf after\n","before_remove":"#!/bin/sh\nprintf remove\n"}},"message":{"text":"task"}}`
+	body := `{"configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"},"hooks":{"after_create":"#!/bin/sh\nprintf ready\n","before_run":"#!/bin/sh\nprintf before\n","after_run":"#!/bin/sh\nprintf after\n","before_remove":"#!/bin/sh\nprintf remove\n"}},"messages":[{"text":"task"}]}`
 	key := uuid.NewString()
 	a := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", "/api/v1/sessions", body, key, 202))
 	base := "/api/v1/sessions/" + a.SessionID.String()

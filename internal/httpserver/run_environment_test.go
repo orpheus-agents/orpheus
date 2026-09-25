@@ -14,7 +14,7 @@ import (
 func TestRunEnvironmentHTTP(t *testing.T) {
 	server, s := testServer(t)
 	s.Settings.HarnessEnvAllowlist = []string{"FROM_A", "FROM_B"}
-	body := strings.Replace(validBody, `"message":`, `"env":{"TASK_ID":"hidden-run-secret"},"env_from":["FROM_B","FROM_A"],"message":`, 1)
+	body := strings.Replace(validBody, `"messages":`, `"env":{"TASK_ID":"hidden-run-secret"},"env_from":["FROM_B","FROM_A"],"messages":`, 1)
 	key := uuid.NewString()
 	a := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", "/api/v1/sessions", body, key, 202))
 	base := "/api/v1/sessions/" + a.SessionID.String()
@@ -46,7 +46,7 @@ func TestRunEnvironmentHTTP(t *testing.T) {
 	if _, err := s.Cancel(t.Context(), a.SessionID, a.RunID); err != nil {
 		t.Fatal(err)
 	}
-	nextBody := `{"message":{"text":"next"},"env":{"TASK_ID":"next-secret"},"env_from":["FROM_A"]}`
+	nextBody := `{"messages":[{"text":"next"}],"env":{"TASK_ID":"next-secret"},"env_from":["FROM_A"]}`
 	nextKey := uuid.NewString()
 	next := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", base+"/runs", nextBody, nextKey, 202))
 	nextRun := decodeHTTP[session.Run](t, externalRequest(t, server, "GET", base+"/runs/"+next.RunID.String(), "", "", 200))
@@ -55,6 +55,6 @@ func TestRunEnvironmentHTTP(t *testing.T) {
 	}
 	externalRequest(t, server, "POST", base+"/runs", nextBody, nextKey, 202)
 	externalRequest(t, server, "POST", base+"/runs", strings.Replace(nextBody, "next-secret", "changed-secret", 1), nextKey, 409)
-	steerBody := `{"message":{"text":"clarify"},"env":{"TASK_ID":"no"}}`
+	steerBody := `{"messages":[{"text":"clarify"}],"env":{"TASK_ID":"no"}}`
 	externalRequest(t, server, "POST", base+"/runs/"+next.RunID.String()+"/messages", steerBody, uuid.NewString(), 422)
 }

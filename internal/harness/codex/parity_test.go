@@ -290,11 +290,11 @@ func TestContextWithoutInstructionsAndTurnEffort(t *testing.T) {
 	if _, err := d.OpenContext(t.Context(), agent, "/workspace", nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := d.Start(t.Context(), agent, "thread", "first"); err != nil {
+	if _, err := d.Start(t.Context(), agent, "thread", []string{"first"}); err != nil {
 		t.Fatal(err)
 	}
 	agent.Codex.Effort = ""
-	if _, err := d.Start(t.Context(), agent, "thread", "second"); err != nil {
+	if _, err := d.Start(t.Context(), agent, "thread", []string{"second"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(calls) != 3 {

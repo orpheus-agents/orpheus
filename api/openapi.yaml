@@ -146,6 +146,7 @@ components:
         Accepted:
             properties:
                 message_id:
+                    description: ID of the last accepted message in the ordered batch.
                     format: uuid
                     title: Message Id
                     type: string
@@ -267,8 +268,13 @@ components:
                     maxLength: 256
                 configuration:
                     $ref: '#/components/schemas/ConfigurationInput'
-                message:
-                    $ref: '#/components/schemas/TextMessage'
+                messages:
+                    description: Ordered user messages accepted atomically. The last starts the run; earlier messages are injected into the agent context first.
+                    type: array
+                    minItems: 1
+                    maxItems: 256
+                    items:
+                        $ref: '#/components/schemas/TextMessage'
                 env:
                     description: Explicit environment variables for the first run's before_run and after_run hooks only. Override session sources with the same names; never passed to the harness, after_create, or before_remove.
                     type: object
@@ -281,7 +287,7 @@ components:
                         type: string
             required:
                 - configuration
-                - message
+                - messages
             title: CreateSession
             type: object
         Error:
@@ -587,6 +593,13 @@ components:
                     anyOf:
                         - type: string
                         - type: "null"
+                metadata:
+                    description: Opaque integration data for an incoming message; never sent to the agent. Null for messages without metadata and agent messages.
+                    x-go-type: json.RawMessage
+                    anyOf:
+                        - type: object
+                          additionalProperties: true
+                        - type: "null"
                 created_at:
                     format: date-time
                     title: Created At
@@ -644,6 +657,7 @@ components:
                     type: string
             required:
                 - external_key
+                - metadata
                 - id
                 - session_id
                 - run_id
@@ -1025,8 +1039,13 @@ components:
                     type: string
                     minLength: 1
                     maxLength: 256
-                message:
-                    $ref: '#/components/schemas/TextMessage'
+                messages:
+                    description: Ordered user messages accepted atomically. The last starts the run; earlier messages are injected into the agent context first.
+                    type: array
+                    minItems: 1
+                    maxItems: 256
+                    items:
+                        $ref: '#/components/schemas/TextMessage'
                 env:
                     description: Explicit environment variables available only to this run's before_run and after_run hooks. Override session sources with the same names; never passed to the harness, after_create, or before_remove.
                     type: object
@@ -1038,16 +1057,21 @@ components:
                     items:
                         type: string
             required:
-                - message
+                - messages
             title: CreateRun
             type: object
         SendMessage:
             additionalProperties: false
             properties:
-                message:
-                    $ref: '#/components/schemas/TextMessage'
+                messages:
+                    description: Ordered user messages accepted atomically for the active run.
+                    type: array
+                    minItems: 1
+                    maxItems: 256
+                    items:
+                        $ref: '#/components/schemas/TextMessage'
             required:
-                - message
+                - messages
             title: SendMessage
             type: object
         Session:
@@ -1134,6 +1158,11 @@ components:
                     minLength: 1
                     title: Text
                     type: string
+                metadata:
+                    description: Opaque integration data retained with the message, never sent to the agent. If present, must be a JSON object.
+                    type: object
+                    additionalProperties: true
+                    x-go-type: json.RawMessage
             required:
                 - text
             title: TextMessage

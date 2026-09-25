@@ -19,7 +19,12 @@ func (a Admission) validateExternal() error {
 	if err := session.ValidateExternal(a.InputFingerprint, session.InputFingerprintMaxBytes, "body", "input_fingerprint"); err != nil {
 		return err
 	}
-	return session.ValidateExternal(a.MessageExternalKey, session.ExternalKeyMaxBytes, "body", "message", "external_key")
+	for index, message := range a.Messages {
+		if err := session.ValidateExternal(message.ExternalKey, session.ExternalKeyMaxBytes, "body", "messages", index, "external_key"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ListFilter contains exact matches. Nil means no filter, never SQL NULL matching.

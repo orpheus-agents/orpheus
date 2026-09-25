@@ -48,21 +48,21 @@ func TestAcceptedRequests(t *testing.T) {
 		name, path, body string
 		call             func(context.Context, *client.ClientWithResponses) (acceptedResponse, error)
 	}{
-		{"session", base, `{"namespace":"mattermost/test","external_key":"thread:1","configuration":{"agent":{"profile":"default","instructions":""},"sandbox":{"template":"test"}},"message":{"text":"hello","external_key":"post:1"},"env":{"INPUT":"value"},"env_from":["BOT_TOKEN"]}`,
+		{"session", base, `{"namespace":"mattermost/test","external_key":"thread:1","configuration":{"agent":{"profile":"default","instructions":""},"sandbox":{"template":"test"}},"messages":[{"text":"hello","external_key":"post:1"}],"env":{"INPUT":"value"},"env_from":["BOT_TOKEN"]}`,
 			func(ctx context.Context, c *client.ClientWithResponses) (acceptedResponse, error) {
 				return c.CreateSessionWithResponse(ctx, &client.CreateSessionParams{IdempotencyKey: &key}, client.CreateSession{
 					Namespace: new("mattermost/test"), ExternalKey: new("thread:1"),
 					Configuration: client.ConfigurationInput{Agent: client.AgentInput{Profile: "default", Instructions: new("")}, Sandbox: client.SandboxInput{Template: "test"}},
-					Message:       client.TextMessage{Text: "hello", ExternalKey: new("post:1")}, Env: &map[string]string{"INPUT": "value"}, EnvFrom: &[]string{"BOT_TOKEN"},
+					Messages:      []client.TextMessage{{Text: "hello", ExternalKey: new("post:1")}}, Env: &map[string]string{"INPUT": "value"}, EnvFrom: &[]string{"BOT_TOKEN"},
 				})
 			}},
-		{"run", base + "/" + sessionID.String() + "/runs", `{"message":{"text":"next"},"input_fingerprint":"revision:2"}`,
+		{"run", base + "/" + sessionID.String() + "/runs", `{"messages":[{"text":"next"}],"input_fingerprint":"revision:2"}`,
 			func(ctx context.Context, c *client.ClientWithResponses) (acceptedResponse, error) {
-				return c.CreateRunWithResponse(ctx, sessionID, &client.CreateRunParams{IdempotencyKey: &key}, client.CreateRun{Message: client.TextMessage{Text: "next"}, InputFingerprint: new("revision:2")})
+				return c.CreateRunWithResponse(ctx, sessionID, &client.CreateRunParams{IdempotencyKey: &key}, client.CreateRun{Messages: []client.TextMessage{{Text: "next"}}, InputFingerprint: new("revision:2")})
 			}},
-		{"clarification", base + "/" + sessionID.String() + "/runs/" + runID.String() + "/messages", `{"message":{"text":"clarify","external_key":"post:2"}}`,
+		{"clarification", base + "/" + sessionID.String() + "/runs/" + runID.String() + "/messages", `{"messages":[{"text":"clarify","external_key":"post:2"}]}`,
 			func(ctx context.Context, c *client.ClientWithResponses) (acceptedResponse, error) {
-				return c.SendMessageWithResponse(ctx, sessionID, runID, &client.SendMessageParams{IdempotencyKey: &key}, client.SendMessage{Message: client.TextMessage{Text: "clarify", ExternalKey: new("post:2")}})
+				return c.SendMessageWithResponse(ctx, sessionID, runID, &client.SendMessageParams{IdempotencyKey: &key}, client.SendMessage{Messages: []client.TextMessage{{Text: "clarify", ExternalKey: new("post:2")}}})
 			}},
 	}
 	for _, tc := range cases {

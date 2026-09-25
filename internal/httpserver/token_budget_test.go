@@ -88,7 +88,7 @@ func TestTokenBudgetHTTPProjectionAndIdempotency(t *testing.T) {
 	}
 	steerKey := uuid.NewString()
 	steerPath := path + "/runs/" + a.RunID.String() + "/messages"
-	status, _, steer := requestHTTP(t, server, "POST", steerPath, `{"message":{"text":"clarification"}}`, "key", steerKey)
+	status, _, steer := requestHTTP(t, server, "POST", steerPath, `{"messages":[{"text":"clarification"}]}`, "key", steerKey)
 	if status != 202 {
 		t.Fatal(status, string(steer))
 	}
@@ -105,7 +105,7 @@ func TestTokenBudgetHTTPProjectionAndIdempotency(t *testing.T) {
 		}
 	}
 	for _, p := range []string{path + "/runs", steerPath} {
-		status, _, raw = requestHTTP(t, server, "POST", p, `{"message":{"text":"again"}}`, "key", uuid.NewString())
+		status, _, raw = requestHTTP(t, server, "POST", p, `{"messages":[{"text":"again"}]}`, "key", uuid.NewString())
 		if status != 409 || !strings.Contains(string(raw), "token_limit_exceeded") {
 			t.Fatal(status, string(raw))
 		}
@@ -115,7 +115,7 @@ func TestTokenBudgetHTTPProjectionAndIdempotency(t *testing.T) {
 	if status != 202 {
 		t.Fatal(status, string(raw))
 	}
-	status, _, raw = requestHTTP(t, server, "POST", steerPath, `{"message":{"text":"clarification"}}`, "key", steerKey)
+	status, _, raw = requestHTTP(t, server, "POST", steerPath, `{"messages":[{"text":"clarification"}]}`, "key", steerKey)
 	if status != 202 || string(raw) != string(steer) {
 		t.Fatal(status, string(raw))
 	}

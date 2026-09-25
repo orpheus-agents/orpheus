@@ -118,6 +118,68 @@ func TestRPCFragmentationRejectionAndNoRetry(t *testing.T) {
 		t.Fatal("RPC retried")
 	}
 }
+
+func TestStartInjectsEarlierMessagesSeparately(t *testing.T) {
+	var calls []map[string]json.RawMessage
+	rpc, _ := newRPC(t, func(req map[string]json.RawMessage) any {
+		calls = append(calls, req)
+		var method string
+		_ = json.Unmarshal(req["method"], &method)
+		if method == "turn/start" {
+			return map[string]any{"id": req["id"], "result": map[string]any{"turn": map[string]string{"id": "turn-1"}}}
+		}
+		return map[string]any{"id": req["id"], "result": map[string]any{}}
+	})
+	driver := &Driver{rpc: rpc}
+	turn, err := driver.Start(t.Context(), session.AgentConfiguration{}, "thread-1", []string{"first", "second", "third"})
+	if err != nil || turn != "turn-1" || len(calls) != 2 {
+		t.Fatalf("start calls: %s %v %+v", turn, err, calls)
+	}
+	var injected struct {
+		Items []struct {
+			Type    string `json:"type"`
+			Role    string `json:"role"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(calls[0]["params"], &injected); err != nil {
+		t.Fatal(err)
+	}
+	if len(injected.Items) != 2 || injected.Items[0].Role != "user" || injected.Items[0].Content[0].Text != "first" || injected.Items[1].Content[0].Text != "second" {
+		t.Fatalf("injected items: %+v", injected.Items)
+	}
+	var started struct {
+		Input []struct {
+			Text string `json:"text"`
+		} `json:"input"`
+	}
+	if err := json.Unmarshal(calls[1]["params"], &started); err != nil {
+		t.Fatal(err)
+	}
+	if len(started.Input) != 1 || started.Input[0].Text != "third" {
+		t.Fatalf("turn input: %+v", started.Input)
+	}
+}
+
+func TestRejectedBatchedStartRetiresInjectedContext(t *testing.T) {
+	rpc, _ := newRPC(t, func(req map[string]json.RawMessage) any {
+		var method string
+		_ = json.Unmarshal(req["method"], &method)
+		if method == "turn/start" {
+			return map[string]any{"id": req["id"], "error": map[string]any{"code": 1, "message": "rejected"}}
+		}
+		return map[string]any{"id": req["id"], "result": map[string]any{}}
+	})
+	driver := &Driver{rpc: rpc}
+	_, err := driver.Start(t.Context(), session.AgentConfiguration{}, "thread-1", []string{"first", "second"})
+	failure, ok := errors.AsType[*harness.ExecutionError](err)
+	if !ok || failure.Code != "context_lost" {
+		t.Fatalf("rejected injected context remained reusable: %v", err)
+	}
+}
 func TestRPCConcurrentCallsAndApproval(t *testing.T) {
 	rpc, box := newRPC(t, func(req map[string]json.RawMessage) any {
 		return map[string]any{"id": req["id"], "result": map[string]bool{"ok": true}}

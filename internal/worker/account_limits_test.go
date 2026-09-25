@@ -580,7 +580,7 @@ func TestExecutorRunsWithBlockedAccountLimitRead(t *testing.T) {
 	s.Profiles = p
 	accepted, err := s.Accept(t.Context(), store.Admission{Key: uuid.New(), Create: &session.CreateSession{
 		Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "a"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 3600}},
-		Message:       session.TextMessage{Text: "task"},
+		Messages:      []session.TextMessage{{Text: "task"}},
 	}})
 	if err != nil {
 		t.Fatal(err)

@@ -33,6 +33,17 @@ func value[T any](p *T, fallback T) T {
 	return *p
 }
 
+func inputMessages(values []api.TextMessage) []session.TextMessage {
+	result := make([]session.TextMessage, len(values))
+	for i, value := range values {
+		result[i] = session.TextMessage{Text: value.Text, ExternalKey: value.ExternalKey}
+		if value.Metadata != nil {
+			result[i].Metadata = *value.Metadata
+		}
+	}
+	return result
+}
+
 // mapResponse keeps the domain independent of generated transport DTOs. Both
 // representations are checked against the API schema in integration tests.
 func mapResponse[T any](source any) (T, error) {
@@ -78,6 +89,7 @@ func (s *Server) CreateSession(ctx context.Context, r api.CreateSessionRequestOb
 	if err = json.Unmarshal(b, &in); err != nil {
 		return nil, err
 	}
+	in.Messages = inputMessages(r.Body.Messages)
 	a, err := s.Store.Accept(ctx, store.Admission{Create: &in, Key: id})
 	if err != nil {
 		return nil, err
@@ -96,7 +108,7 @@ func (s *Server) CreateRun(ctx context.Context, r api.CreateRunRequestObject) (a
 	if r.Body == nil {
 		return nil, session.Problem(422, "validation_error", "Request body is required.")
 	}
-	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, Text: r.Body.Message.Text, MessageExternalKey: r.Body.Message.ExternalKey, InputFingerprint: r.Body.InputFingerprint, Env: value(r.Body.Env, nil), EnvFrom: value(r.Body.EnvFrom, nil), Key: id})
+	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, Messages: inputMessages(r.Body.Messages), InputFingerprint: r.Body.InputFingerprint, Env: value(r.Body.Env, nil), EnvFrom: value(r.Body.EnvFrom, nil), Key: id})
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +126,7 @@ func (s *Server) SendMessage(ctx context.Context, r api.SendMessageRequestObject
 	if r.Body == nil {
 		return nil, session.Problem(422, "validation_error", "Request body is required.")
 	}
-	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, RunID: r.Rid, Text: r.Body.Message.Text, MessageExternalKey: r.Body.Message.ExternalKey, Key: id})
+	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, RunID: r.Rid, Messages: inputMessages(r.Body.Messages), Key: id})
 	if err != nil {
 		return nil, err
 	}

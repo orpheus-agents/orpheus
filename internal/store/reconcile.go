@@ -66,7 +66,27 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 	if err != nil {
 		return err
 	}
-	messages, err := messageRecords(db.New(tx).ReconcileMessages(ctx, db.ReconcileMessagesParams{SessionID: record.ID, NativeKeys: messageKeys}))
+	runIDs := make([]uuid.UUID, 0, len(runs))
+	for _, r := range runs {
+		runIDs = append(runIDs, r.ID)
+	}
+	operations, err := db.New(tx).ReconcileOperations(ctx, db.ReconcileOperationsParams{SessionID: record.ID, RunIds: runIDs})
+	if err != nil {
+		return err
+	}
+	operationMessageIDs := make([]uuid.UUID, 0, len(operations))
+	startRecoveryRunIDs := []uuid.UUID{}
+	for _, operation := range operations {
+		if operation.MessageID != nil {
+			operationMessageIDs = append(operationMessageIDs, *operation.MessageID)
+		}
+		if operation.Kind == "start" && operation.RunID != nil && slices.Contains([]string{"sending", "uncertain", "confirmed"}, operation.Status) && slices.ContainsFunc(runs, func(r RunRecord) bool {
+			return r.ID == *operation.RunID && r.NativeTurnID == nil && !r.Status.Terminal()
+		}) {
+			startRecoveryRunIDs = append(startRecoveryRunIDs, *operation.RunID)
+		}
+	}
+	messages, err := messageRecords(db.New(tx).ReconcileMessages(ctx, db.ReconcileMessagesParams{SessionID: record.ID, NativeKeys: messageKeys, OperationMessageIds: operationMessageIDs, StartRecoveryRunIds: startRecoveryRunIDs}))
 	if err != nil {
 		return err
 	}
@@ -87,14 +107,6 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 	tools := map[string]*toolMeta{}
 	for i := range metadata {
 		tools[*metadata[i].NativeKey] = &metadata[i]
-	}
-	runIDs := make([]uuid.UUID, 0, len(runs))
-	for _, r := range runs {
-		runIDs = append(runIDs, r.ID)
-	}
-	operations, err := db.New(tx).ReconcileOperations(ctx, db.ReconcileOperationsParams{SessionID: record.ID, RunIds: runIDs})
-	if err != nil {
-		return err
 	}
 	byMessage := map[uuid.UUID]*Operation{}
 	starts := map[uuid.UUID]*Operation{}
@@ -141,6 +153,19 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 			o.Status = "confirmed"
 			o.Result, _ = json.Marshal(map[string]string{"turn_id": candidates[0]})
 			byTurn[candidates[0]] = r
+			for i := range messages {
+				m := &messages[i]
+				if m.RunID != r.ID || m.Role != "user" || m.DeliveryNumber == nil || initial.DeliveryNumber == nil || *m.DeliveryNumber > *initial.DeliveryNumber {
+					continue
+				}
+				if m.DeliveryStatus != nil && slices.Contains([]string{"sending", "uncertain"}, *m.DeliveryStatus) {
+					m.DeliveryStatus = new("delivered")
+					m.Error = nil
+					if err := PublishMessage(ctx, tx, record, m); err != nil {
+						return err
+					}
+				}
+			}
 			if err := SaveRun(ctx, tx, r); err != nil {
 				return err
 			}
@@ -192,7 +217,10 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 							continue
 						}
 						o := byMessage[candidate.ID]
-						if o != nil && candidate.Text == item.Text {
+						if o == nil {
+							continue
+						}
+						if candidate.Text == item.Text {
 							var params deliveryParameters
 							if err := json.Unmarshal(o.Parameters, &params); err != nil {
 								return err

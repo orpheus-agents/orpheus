@@ -70,7 +70,7 @@ func TestUsageAcrossRunsAndReplay(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	nextReq := Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "next"}
+	nextReq := Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}}
 	b, err := s.Accept(t.Context(), nextReq)
 	if err != nil {
 		t.Fatal(err)
@@ -91,9 +91,9 @@ func TestUsageAcrossRunsAndReplay(t *testing.T) {
 	if err != nil || record.TotalTokens != 100 {
 		t.Fatal(record, err)
 	}
-	_, err = s.Accept(t.Context(), Admission{SessionID: a.SessionID, RunID: b.RunID, Key: uuid.New(), Text: "steer"})
+	_, err = s.Accept(t.Context(), Admission{SessionID: a.SessionID, RunID: b.RunID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "steer"}}})
 	requireCode(t, err, "token_limit_exceeded")
-	_, err = s.Accept(t.Context(), Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "next"})
+	_, err = s.Accept(t.Context(), Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}})
 	requireCode(t, err, "token_limit_exceeded")
 	if got, err := s.Accept(t.Context(), req); err != nil || got != a {
 		t.Fatal(got, err)

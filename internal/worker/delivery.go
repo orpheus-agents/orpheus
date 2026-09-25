@@ -25,8 +25,16 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 	}
 	message := messages[index]
 	kind := "steer"
-	if message.DeliveryNumber != nil && *message.DeliveryNumber == 1 {
+	batch := []store.MessageRecord{message}
+	if run.NativeTurnID == nil {
 		kind = "start"
+		batch = nil
+		for _, candidate := range messages {
+			if candidate.Role == "user" && candidate.DeliveryNumber != nil {
+				batch = append(batch, candidate)
+			}
+		}
+		message = batch[len(batch)-1]
 	}
 	params := struct {
 		ThreadID      *string  `json:"thread_id"`
@@ -66,13 +74,15 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 		if store.BudgetExhausted(*r) {
 			return store.EnforceTokenBudget(ctx, tx, r, &current)
 		}
-		m, err := store.GetMessage(ctx, tx, message.ID)
-		if err != nil {
-			return err
-		}
-		m.DeliveryStatus = new("sending")
-		if err := store.PublishMessage(ctx, tx, r, &m); err != nil {
-			return err
+		for _, input := range batch {
+			m, err := store.GetMessage(ctx, tx, input.ID)
+			if err != nil {
+				return err
+			}
+			m.DeliveryStatus = new("sending")
+			if err := store.PublishMessage(ctx, tx, r, &m); err != nil {
+				return err
+			}
 		}
 		if kind == "start" && current.ExecutionStartedAt == nil {
 			now := time.Now().UTC()
@@ -91,11 +101,12 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 	}
 	result, deliveryErr := e.invoke(ctx, o, func() (operationResult, error) {
 		if kind == "start" {
-			id, err := e.driver.Start(ctx, record.Configuration.Public.Agent, *record.ThreadID, message.Text)
+			texts := make([]string, len(batch))
+			for i, input := range batch {
+				texts[i] = input.Text
+			}
+			id, err := e.driver.Start(ctx, record.Configuration.Public.Agent, *record.ThreadID, texts)
 			return operationResult{TurnID: id}, err
-		}
-		if run.NativeTurnID == nil {
-			return operationResult{}, harness.ErrUncertain
 		}
 		return operationResult{}, e.driver.Steer(ctx, *record.ThreadID, *run.NativeTurnID, message.Text)
 	})
@@ -118,13 +129,18 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 			}
 		}
 		if err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
-			m, err := store.GetMessage(ctx, tx, message.ID)
-			if err != nil {
-				return err
+			for _, input := range batch {
+				m, err := store.GetMessage(ctx, tx, input.ID)
+				if err != nil {
+					return err
+				}
+				m.DeliveryStatus = &status
+				m.Error = problem
+				if err := store.PublishMessage(ctx, tx, r, &m); err != nil {
+					return err
+				}
 			}
-			m.DeliveryStatus = &status
-			m.Error = problem
-			return store.PublishMessage(ctx, tx, r, &m)
+			return nil
 		}); err != nil {
 			return err
 		}
@@ -141,13 +157,15 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 		if err != nil {
 			return err
 		}
-		m, err := store.GetMessage(ctx, tx, message.ID)
-		if err != nil {
-			return err
-		}
-		m.DeliveryStatus = new("delivered")
-		if err := store.PublishMessage(ctx, tx, r, &m); err != nil {
-			return err
+		for _, input := range batch {
+			m, err := store.GetMessage(ctx, tx, input.ID)
+			if err != nil {
+				return err
+			}
+			m.DeliveryStatus = new("delivered")
+			if err := store.PublishMessage(ctx, tx, r, &m); err != nil {
+				return err
+			}
 		}
 		if kind == "start" {
 			current.NativeTurnID = &result.TurnID
@@ -232,6 +250,21 @@ func (e *Executor) forceStop(ctx context.Context, record store.SessionRecord, ru
 		}
 		_ = e.driver.Close()
 		e.driver = nil
+	}
+	if run.ExecutionStartedAt != nil && run.NativeTurnID == nil {
+		messages, err := store.Messages(ctx, e.Store.Pool, run.ID)
+		if err != nil {
+			return err
+		}
+		initialInputs := 0
+		for _, message := range messages {
+			if message.Role == "user" && message.DeliveryNumber != nil {
+				initialInputs++
+			}
+		}
+		if initialInputs > 1 {
+			return harness.Failure("context_lost", "The batched start outcome could not be confirmed before cancellation.")
+		}
 	}
 	return nil
 }

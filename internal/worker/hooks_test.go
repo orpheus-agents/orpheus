@@ -138,7 +138,7 @@ func setupHooks(t *testing.T, autoResult, failAfter bool, initialRunEnv ...map[s
 		runEnv = initialRunEnv[0]
 		sandbox.Env = map[string]string{"TOKEN": "session-value"}
 	}
-	a, err := s.Accept(t.Context(), store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "p"}, Sandbox: sandbox, Limits: session.Limits{RunTimeoutSeconds: 3600}, Hooks: hooks}, Message: session.TextMessage{Text: "task"}, Env: runEnv}})
+	a, err := s.Accept(t.Context(), store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "p"}, Sandbox: sandbox, Limits: session.Limits{RunTimeoutSeconds: 3600}, Hooks: hooks}, Messages: []session.TextMessage{{Text: "task"}}, Env: runEnv}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestHooksFullCycleAndFinalMessage(t *testing.T) {
 	if _, err := s.Cancel(t.Context(), a.SessionID, a.RunID); err == nil || err.Error() != "run_not_cancellable" {
 		t.Fatalf("finalizing run accepted cancellation: %v", err)
 	}
-	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "too early"}); err == nil {
+	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "too early"}}}); err == nil {
 		t.Fatal("accepted another run before after_run completed")
 	}
 	tickUntil(t, e, func() bool {
@@ -216,7 +216,7 @@ func TestHooksFullCycleAndFinalMessage(t *testing.T) {
 			t.Fatal(page, err)
 		}
 	}
-	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "again"}); err != nil {
+	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "again"}}}); err != nil {
 		t.Fatal(err)
 	}
 	tickUntil(t, e, func() bool { return box.starts == 2 })
@@ -289,7 +289,7 @@ func TestFailedAfterCreateRunsAgainForNextAssignment(t *testing.T) {
 		t.Fatal(first, err)
 	}
 	box.failCreate = false
-	next, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "retry"})
+	next, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "retry"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,7 +18,7 @@ ORDER BY created_at;
 -- name: ReconcileMessages :many
 SELECT *
 FROM messages
-WHERE session_id = $1 AND (native_key = ANY(sqlc.arg(native_keys)::text[]) OR native_key IS NULL)
+WHERE session_id = $1 AND (native_key = ANY(sqlc.arg(native_keys)::text[]) OR id = ANY(sqlc.arg(operation_message_ids)::uuid[]) OR (native_key IS NULL AND run_id = ANY(sqlc.arg(start_recovery_run_ids)::uuid[])))
 ORDER BY delivery_number, registered_sequence;
 
 -- name: ToolsByID :many

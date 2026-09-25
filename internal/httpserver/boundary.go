@@ -176,6 +176,9 @@ func validationProblem(err error) *session.APIError {
 			detail.Code = "unknown_field"
 		}
 	}
+	if len(detail.Path) == 4 && detail.Path[0] == "body" && detail.Path[1] == "messages" && detail.Path[3] == "metadata" && detail.Code == "invalid_value" {
+		detail.Code = "invalid_type"
+	}
 	p.Problem.Details = []session.Detail{detail}
 	return p
 }

@@ -100,7 +100,7 @@ CREATE TRIGGER reject_unavailable BEFORE UPDATE ON sessions FOR EACH ROW EXECUTE
 			if err != nil || run != nil || record.SandboxState != "unavailable" || (code == "sandbox_lost" && record.SlotReserved) {
 				t.Fatal(record, run, err)
 			}
-			if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Text: "next"}); err == nil {
+			if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}}); err == nil {
 				t.Fatal("accepted run in unavailable session")
 			}
 		})
