@@ -1,0 +1,24 @@
+{
+  "fixture_codex_version": "0.156.1",
+  "fixture_note": "Sanitized response shape from the codex AgentBox template schema; numeric values are synthetic.",
+  "rateLimits": {
+    "limitId": "codex",
+    "primary": {"usedPercent": 25, "windowDurationMins": 300, "resetsAt": 1790251200}
+  },
+  "rateLimitsByLimitId": {
+    "codex": {
+      "limitId": "codex",
+      "limitName": "Codex",
+      "planType": "pro",
+      "rateLimitReachedType": null,
+      "primary": {"usedPercent": 25, "windowDurationMins": 300, "resetsAt": 1790251200},
+      "secondary": null,
+      "credits": {"balance": null, "hasCredits": false, "unlimited": false}
+    },
+    "other": {
+      "limitId": "other",
+      "primary": null,
+      "secondary": {"usedPercent": 125, "windowDurationMins": 10080, "resetsAt": null}
+    }
+  }
+}

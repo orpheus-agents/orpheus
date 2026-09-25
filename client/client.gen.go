@@ -19,6 +19,57 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AccountLimitItemErrorCode.
+const (
+	AccountLimitItemErrorCodeAuthenticationUnavailable AccountLimitItemErrorCode = "authentication_unavailable"
+	AccountLimitItemErrorCodeInvalidResponse           AccountLimitItemErrorCode = "invalid_response"
+	AccountLimitItemErrorCodeNoData                    AccountLimitItemErrorCode = "no_data"
+	AccountLimitItemErrorCodeTemporarilyUnavailable    AccountLimitItemErrorCode = "temporarily_unavailable"
+	AccountLimitItemErrorCodeUnsupported               AccountLimitItemErrorCode = "unsupported"
+)
+
+// Valid indicates whether the value is a known member of the AccountLimitItemErrorCode enum.
+func (e AccountLimitItemErrorCode) Valid() bool {
+	switch e {
+	case AccountLimitItemErrorCodeAuthenticationUnavailable:
+		return true
+	case AccountLimitItemErrorCodeInvalidResponse:
+		return true
+	case AccountLimitItemErrorCodeNoData:
+		return true
+	case AccountLimitItemErrorCodeTemporarilyUnavailable:
+		return true
+	case AccountLimitItemErrorCodeUnsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AccountLimitItemState.
+const (
+	AccountLimitItemStateFresh       AccountLimitItemState = "fresh"
+	AccountLimitItemStateStale       AccountLimitItemState = "stale"
+	AccountLimitItemStateUnavailable AccountLimitItemState = "unavailable"
+	AccountLimitItemStateUnknown     AccountLimitItemState = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the AccountLimitItemState enum.
+func (e AccountLimitItemState) Valid() bool {
+	switch e {
+	case AccountLimitItemStateFresh:
+		return true
+	case AccountLimitItemStateStale:
+		return true
+	case AccountLimitItemStateUnavailable:
+		return true
+	case AccountLimitItemStateUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AnalyticsOverviewBucket.
 const (
 	AnalyticsOverviewBucketDay  AnalyticsOverviewBucket = "day"
@@ -855,6 +906,48 @@ type Accepted struct {
 	MessageID openapi_types.UUID `json:"message_id"`
 	RunID     openapi_types.UUID `json:"run_id"`
 	SessionID openapi_types.UUID `json:"session_id"`
+}
+
+// AccountLimitBucket defines model for AccountLimitBucket.
+type AccountLimitBucket struct {
+	LimitID              string              `json:"limit_id"`
+	LimitName            *string             `json:"limit_name"`
+	PlanType             *string             `json:"plan_type"`
+	Primary              *AccountLimitWindow `json:"primary"`
+	RateLimitReachedType *string             `json:"rate_limit_reached_type"`
+	Secondary            *AccountLimitWindow `json:"secondary"`
+}
+
+// AccountLimitItem defines model for AccountLimitItem.
+type AccountLimitItem struct {
+	AccountID     string                     `json:"account_id"`
+	Buckets       []AccountLimitBucket       `json:"buckets"`
+	ErrorCode     *AccountLimitItemErrorCode `json:"error_code"`
+	LastAttemptAt *time.Time                 `json:"last_attempt_at"`
+	ObservedAt    *time.Time                 `json:"observed_at"`
+	Profiles      []string                   `json:"profiles"`
+	State         AccountLimitItemState      `json:"state"`
+}
+
+// AccountLimitItemErrorCode defines model for AccountLimitItem.ErrorCode.
+type AccountLimitItemErrorCode string
+
+// AccountLimitItemState defines model for AccountLimitItem.State.
+type AccountLimitItemState string
+
+// AccountLimitWindow defines model for AccountLimitWindow.
+type AccountLimitWindow struct {
+	RemainingPercent float64    `json:"remaining_percent"`
+	ResetsAt         *time.Time `json:"resets_at"`
+	UsedPercent      float64    `json:"used_percent"`
+	WindowMinutes    *int       `json:"window_minutes"`
+}
+
+// AccountLimits defines model for AccountLimits.
+type AccountLimits struct {
+	AsOf              time.Time          `json:"as_of"`
+	Items             []AccountLimitItem `json:"items"`
+	StaleAfterSeconds int                `json:"stale_after_seconds"`
 }
 
 // AgentConfiguration defines model for AgentConfiguration.
@@ -2200,6 +2293,13 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
+	// GetAccountLimits Current provider limits by configured account
+	//
+	// Read-only snapshot from worker observations. Does not contact the provider or refresh credentials. Responses use Cache-Control no-store.
+	//
+	// Corresponds with GET /api/v1/accounts/limits (the `GetAccountLimits` operationId).
+	GetAccountLimits(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAnalyticsOverview Dashboard analytics snapshot
 	//
 	// Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
@@ -2336,6 +2436,23 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /saml/metadata (the `SamlMetadata` operationId).
 	SamlMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+// GetAccountLimits Current provider limits by configured account
+//
+// Read-only snapshot from worker observations. Does not contact the provider or refresh credentials. Responses use Cache-Control no-store.
+//
+// Corresponds with GET /api/v1/accounts/limits (the `GetAccountLimits` operationId).
+func (c *Client) GetAccountLimits(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAccountLimitsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 // GetAnalyticsOverview Dashboard analytics snapshot
@@ -2703,6 +2820,33 @@ func (c *Client) SamlMetadata(ctx context.Context, reqEditors ...RequestEditorFn
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewGetAccountLimitsRequest constructs an http.Request for the GetAccountLimits method
+func NewGetAccountLimitsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/accounts/limits")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewGetAnalyticsOverviewRequest constructs an http.Request for the GetAnalyticsOverview method
@@ -4024,6 +4168,15 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
+	// GetAccountLimitsWithResponse Current provider limits by configured account
+	//
+	// Read-only snapshot from worker observations. Does not contact the provider or refresh credentials. Responses use Cache-Control no-store.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/accounts/limits (the `GetAccountLimits` operationId).
+	GetAccountLimitsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAccountLimitsHTTPResponse, error)
+
 	// GetAnalyticsOverviewWithResponse Dashboard analytics snapshot
 	//
 	// Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
@@ -4194,6 +4347,61 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /saml/metadata (the `SamlMetadata` operationId).
 	SamlMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*SamlMetadataHTTPResponse, error)
+}
+
+type GetAccountLimitsHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AccountLimits
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *ErrorResponse
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAccountLimitsHTTPResponse) GetJSON200() *AccountLimits {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAccountLimitsHTTPResponse) GetJSON401() *ErrorResponse {
+	return r.JSON401
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetAccountLimitsHTTPResponse) GetJSON503() *ErrorResponse {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAccountLimitsHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAccountLimitsHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAccountLimitsHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAccountLimitsHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
 }
 
 type GetAnalyticsOverviewHTTPResponse struct {
@@ -5786,6 +5994,21 @@ func (r SamlMetadataHTTPResponse) ContentType() string {
 	return ""
 }
 
+// GetAccountLimitsWithResponse Current provider limits by configured account
+//
+// Read-only snapshot from worker observations. Does not contact the provider or refresh credentials. Responses use Cache-Control no-store.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/accounts/limits (the `GetAccountLimits` operationId).
+func (c *ClientWithResponses) GetAccountLimitsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAccountLimitsHTTPResponse, error) {
+	rsp, err := c.GetAccountLimits(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAccountLimitsHTTPResponse(rsp)
+}
+
 // GetAnalyticsOverviewWithResponse Dashboard analytics snapshot
 //
 // Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
@@ -6093,6 +6316,46 @@ func (c *ClientWithResponses) SamlMetadataWithResponse(ctx context.Context, reqE
 		return nil, err
 	}
 	return ParseSamlMetadataHTTPResponse(rsp)
+}
+
+// ParseGetAccountLimitsHTTPResponse parses an HTTP response from a GetAccountLimitsWithResponse call
+func ParseGetAccountLimitsHTTPResponse(rsp *http.Response) (*GetAccountLimitsHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAccountLimitsHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AccountLimits
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseGetAnalyticsOverviewHTTPResponse parses an HTTP response from a GetAnalyticsOverviewWithResponse call

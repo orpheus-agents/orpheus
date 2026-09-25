@@ -1,5 +1,62 @@
 components:
     schemas:
+        AccountLimitWindow:
+            type: object
+            additionalProperties: false
+            required: [used_percent, remaining_percent, window_minutes, resets_at]
+            properties:
+                used_percent: {type: number, format: double, minimum: 0}
+                remaining_percent: {type: number, format: double, minimum: 0}
+                window_minutes: {type: [integer, 'null'], minimum: 1}
+                resets_at: {type: [string, 'null'], format: date-time}
+        AccountLimitBucket:
+            type: object
+            additionalProperties: false
+            required: [limit_id, limit_name, plan_type, rate_limit_reached_type, primary, secondary]
+            properties:
+                limit_id: {type: string}
+                limit_name: {type: [string, 'null']}
+                plan_type: {type: [string, 'null']}
+                rate_limit_reached_type: {type: [string, 'null']}
+                primary:
+                    anyOf:
+                        - {$ref: '#/components/schemas/AccountLimitWindow'}
+                        - {type: 'null'}
+                secondary:
+                    anyOf:
+                        - {$ref: '#/components/schemas/AccountLimitWindow'}
+                        - {type: 'null'}
+        AccountLimitItem:
+            type: object
+            additionalProperties: false
+            required: [account_id, profiles, state, observed_at, last_attempt_at, error_code, buckets]
+            properties:
+                account_id: {type: string}
+                profiles:
+                    type: array
+                    items: {type: string}
+                state: {type: string, enum: [unknown, unavailable, stale, fresh]}
+                observed_at: {type: [string, 'null'], format: date-time}
+                last_attempt_at: {type: [string, 'null'], format: date-time}
+                error_code:
+                    anyOf:
+                        - type: string
+                          enum: [unsupported, temporarily_unavailable, invalid_response, no_data, authentication_unavailable]
+                          x-enum-varnames: [AccountLimitItemErrorCodeUnsupported, AccountLimitItemErrorCodeTemporarilyUnavailable, AccountLimitItemErrorCodeInvalidResponse, AccountLimitItemErrorCodeNoData, AccountLimitItemErrorCodeAuthenticationUnavailable]
+                        - type: 'null'
+                buckets:
+                    type: array
+                    items: {$ref: '#/components/schemas/AccountLimitBucket'}
+        AccountLimits:
+            type: object
+            additionalProperties: false
+            required: [as_of, stale_after_seconds, items]
+            properties:
+                as_of: {type: string, format: date-time}
+                stale_after_seconds: {type: integer, minimum: 1}
+                items:
+                    type: array
+                    items: {$ref: '#/components/schemas/AccountLimitItem'}
         StatusCounts:
             type: object
             additionalProperties: false
@@ -1300,6 +1357,30 @@ info:
     version: 0.1.0
 openapi: 3.1.0
 paths:
+    /api/v1/accounts/limits:
+        get:
+            operationId: get_account_limits
+            summary: Current provider limits by configured account
+            description: Read-only snapshot from worker observations. Does not contact the provider or refresh credentials. Responses use Cache-Control no-store.
+            responses:
+                '200':
+                    description: Account limits snapshot
+                    content:
+                        application/json:
+                            schema: {$ref: '#/components/schemas/AccountLimits'}
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema: {$ref: '#/components/schemas/ErrorResponse'}
+                '503':
+                    description: Account limits unavailable
+                    content:
+                        application/json:
+                            schema: {$ref: '#/components/schemas/ErrorResponse'}
+            security:
+                - HTTPBearer: []
+                - BrowserSession: []
     /api/v1/analytics/overview:
         get:
             operationId: get_analytics_overview

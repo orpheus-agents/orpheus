@@ -12,6 +12,15 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
+type AccountLimitObservation struct {
+	AccountID         string          `json:"account_id"`
+	SourceFingerprint string          `json:"source_fingerprint"`
+	LastAttemptAt     time.Time       `json:"last_attempt_at"`
+	LastSuccessAt     *time.Time      `json:"last_success_at"`
+	LastErrorCode     *string         `json:"last_error_code"`
+	Snapshot          json.RawMessage `json:"snapshot"`
+}
+
 type BrowserLoginRequest struct {
 	ID                  string    `json:"id"`
 	RequestID           string    `json:"request_id"`

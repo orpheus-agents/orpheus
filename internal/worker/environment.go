@@ -155,6 +155,10 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 		return nil
 	}
 	if e.driver != nil {
+		if e.unregisterLimits != nil {
+			e.unregisterLimits()
+			e.unregisterLimits = nil
+		}
 		_ = e.driver.Close()
 		e.driver = nil
 	}
@@ -210,8 +214,12 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 	}
 	driver := e.NewDriver(e.sandbox)
 	adopted := false
+	var unregisterLimits func()
 	defer func() {
 		if !adopted {
+			if unregisterLimits != nil {
+				unregisterLimits()
+			}
 			_ = driver.Close()
 		}
 	}()
@@ -269,10 +277,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 					return err
 				}
 			}
-			if proxy := e.Store.Settings.SandboxProxyURL; proxy != "" {
-				env["ALL_PROXY"] = proxy
-				env["NO_PROXY"] = "localhost,127.0.0.1"
-			}
+			config.AddSandboxProxy(env, e.Store.Settings.SandboxProxyURL)
 			env["ORPHEUS_LAUNCH_ID"] = o.ID.String()
 			result, err := e.invoke(ctx, o, func() (operationResult, error) {
 				pid, err := driver.Launch(ctx, env, *record.Workspace, cfg.Credentials)
@@ -311,6 +316,9 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 	}
 	if err := driver.Initialize(ctx, cfg.Credentials, !initialized); err != nil {
 		return err
+	}
+	if e.Limits != nil {
+		unregisterLimits = e.Limits.Register(e.ID, cfg, driver)
 	}
 	if record.ThreadID != nil {
 		if !initialized {
@@ -363,6 +371,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 		}
 	}
 	e.driver = driver
+	e.unregisterLimits = unregisterLimits
 	adopted = true
 	return nil
 }
@@ -478,6 +487,10 @@ func (e *Executor) pauseNow(ctx context.Context, record store.SessionRecord) err
 			}
 			if err := e.opStatus(ctx, o.ID, "sending", nil); err != nil {
 				return err
+			}
+			if e.unregisterLimits != nil {
+				e.unregisterLimits()
+				e.unregisterLimits = nil
 			}
 			if err := e.sandbox.Pause(ctx); err != nil {
 				return err

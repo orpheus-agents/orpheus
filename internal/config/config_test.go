@@ -114,6 +114,32 @@ api_key_env="OPENAI_API_KEY"
 		t.Fatal("top-level effort accepted")
 	}
 }
+func TestSandboxProxyURL(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://fixture")
+	for _, tc := range []struct {
+		name  string
+		value string
+		valid bool
+	}{
+		{"AgentBox HTTPS", "https://sandbox-proxy.agentbox.ru:65181", true},
+		{"custom HTTP", "http://proxy.example:3128", true},
+		{"disabled", "", true},
+		{"old SOCKS", "socks5h://sandbox-proxy.agentbox.ru:65180", false},
+		{"missing host", "https://", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("SANDBOX_PROXY_URL", tc.value)
+			settings, err := Load()
+			if (err == nil) != tc.valid {
+				t.Fatalf("proxy=%q settings=%+v err=%v", tc.value, settings, err)
+			}
+			if err == nil && settings.SandboxProxyURL != tc.value {
+				t.Fatalf("proxy=%q, want %q", settings.SandboxProxyURL, tc.value)
+			}
+		})
+	}
+}
+
 func TestSandboxValidation(t *testing.T) {
 	for _, name := range append(append([]string{}, reserved...), "1BAD", "*", "") {
 		if err := ValidateSandbox(session.SandboxInput{Template: "codex", Env: map[string]string{name: "x"}}); err == nil {
@@ -139,6 +165,7 @@ harness="codex"
 model="m"
 [profiles.account.auth]
 mode="account"
+account_id="team-main"
 store="s"
 key="auth.json"
 `

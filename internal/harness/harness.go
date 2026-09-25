@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/orpheus-agents/orpheus/internal/accountlimits"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
@@ -109,6 +110,13 @@ type Driver interface {
 	Interrupt(context.Context, string, string) error
 	Snapshot(context.Context, string, *string, int64) (Snapshot, error)
 	Close() error
+}
+
+// AccountLimitsReader is optional; other harnesses need not implement it.
+type AccountLimitsReader interface {
+	ReadAccountLimits(context.Context) (accountlimits.Snapshot, error)
+	AccountLimitsEvents() <-chan struct{}
+	AccountLimitsDirty() bool
 }
 
 func Quote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }

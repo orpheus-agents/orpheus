@@ -121,6 +121,7 @@ type CredentialStore struct {
 }
 type Credentials struct {
 	Mode      string           `json:"mode" toml:"mode"`
+	AccountID string           `json:"account_id,omitzero" toml:"account_id"`
 	APIKeyEnv string           `json:"api_key_env" toml:"api_key_env"`
 	Store     *CredentialStore `json:"store" toml:"-"`
 	Key       string           `json:"key" toml:"key"`

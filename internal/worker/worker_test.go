@@ -483,6 +483,23 @@ func TestReservationDuringPause(t *testing.T) {
 		t.Fatal("new run lost")
 	}
 }
+func TestAccountLimitDonorUnregisteredBeforePause(t *testing.T) {
+	_, r, _, e := setup(t)
+	tick(t, e)
+	complete(r)
+	tick(t, e)
+	unregistered := false
+	e.unregisterLimits = func() { unregistered = true }
+	r.pauseHook = func() {
+		if !unregistered {
+			t.Fatal("donor remained registered during sandbox pause")
+		}
+	}
+	tick(t, e)
+	if !unregistered || e.unregisterLimits != nil {
+		t.Fatal("donor remained registered after sandbox pause")
+	}
+}
 func TestPauseFailureAndSandboxLoss(t *testing.T) {
 	s, r, a, e := setup(t)
 	tick(t, e)
@@ -506,12 +523,25 @@ func TestPauseFailureAndSandboxLoss(t *testing.T) {
 		t.Fatal(record, err)
 	}
 }
+func TestSandboxHTTPSProxyInjected(t *testing.T) {
+	s, r, _, e := setup(t)
+	tick(t, e)
+	if r.env["HTTPS_PROXY"] != s.Settings.SandboxProxyURL || r.env["HTTP_PROXY"] != s.Settings.SandboxProxyURL || r.env["NO_PROXY"] != "localhost,127.0.0.1" {
+		t.Fatal("sandbox did not receive HTTPS proxy environment")
+	}
+	if _, ok := r.env["ALL_PROXY"]; ok {
+		t.Fatal("obsolete SOCKS proxy environment injected")
+	}
+}
+
 func TestSameTextSteersAndProxy(t *testing.T) {
 	s, r, a, e := setup(t)
 	s.Settings.SandboxProxyURL = ""
 	tick(t, e)
-	if _, ok := r.env["ALL_PROXY"]; ok {
-		t.Fatal("proxy injected despite empty setting")
+	for _, name := range []string{"HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "ALL_PROXY"} {
+		if _, ok := r.env[name]; ok {
+			t.Fatal("proxy injected despite empty setting", name)
+		}
 	}
 	for range 2 {
 		if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, RunID: a.RunID, Key: uuid.New(), Text: "same"}); err != nil {

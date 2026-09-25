@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net/url"
 	"os"
 	"regexp"
 	"slices"
@@ -21,10 +22,12 @@ import (
 )
 
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var accountID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 var reserved = strings.Fields(`ALL_PROXY NO_PROXY HTTP_PROXY HTTPS_PROXY all_proxy no_proxy http_proxy https_proxy HOME CODEX_HOME ORPHEUS_LAUNCH_ID ORPHEUS_HOOK_OPERATION_ID ORPHEUS_SESSION_ID ORPHEUS_WORKSPACE_PATH ORPHEUS_RUN_ID ORPHEUS_INPUT_FINGERPRINT ORPHEUS_AGENT_STATUS ORPHEUS_STOP_REASON ORPHEUS_BROWSER_AUTH ORPHEUS_PUBLIC_URL SAML_SP_ENTITY_ID SAML_IDP_METADATA_FILE SAML_SP_CERT_FILE SAML_SP_KEY_FILE BROWSER_SESSION_TTL_SECONDS PUBLIC_API_KEYS OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL OPENAI_ORG_ID OPENAI_ORGANIZATION OPENAI_PROJECT_ID CHATGPT_BASE_URL ENV_ENCRYPTION_KEY AGENTBOX_API_KEY`)
 
 type Auth struct {
 	Mode      string `toml:"mode"`
+	AccountID string `toml:"account_id"`
 	APIKeyEnv string `toml:"api_key_env"`
 	Store     string `toml:"store"`
 	Key       string `toml:"key"`
@@ -57,6 +60,7 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 			Instructions string `toml:"instructions"`
 			Auth         struct {
 				Mode      string  `toml:"mode"`
+				AccountID *string `toml:"account_id"`
 				APIKeyEnv *string `toml:"api_key_env"`
 				Store     *string `toml:"store"`
 				Key       *string `toml:"key"`
@@ -99,15 +103,15 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 		}
 		switch v.Auth.Mode {
 		case "api_key":
-			if raw.Auth.APIKeyEnv == nil || !envName.MatchString(*raw.Auth.APIKeyEnv) || raw.Auth.Store != nil || raw.Auth.Key != nil {
+			if raw.Auth.APIKeyEnv == nil || !envName.MatchString(*raw.Auth.APIKeyEnv) || raw.Auth.Store != nil || raw.Auth.Key != nil || raw.Auth.AccountID != nil {
 				return p, errors.New("invalid API key profile")
 			}
 			v.Auth.APIKeyEnv = *raw.Auth.APIKeyEnv
 		case "account":
-			if raw.Auth.Store == nil || *raw.Auth.Store == "" || raw.Auth.Key == nil || *raw.Auth.Key == "" || raw.Auth.APIKeyEnv != nil {
+			if raw.Auth.Store == nil || *raw.Auth.Store == "" || raw.Auth.Key == nil || *raw.Auth.Key == "" || raw.Auth.APIKeyEnv != nil || raw.Auth.AccountID == nil || len(*raw.Auth.AccountID) > 128 || !accountID.MatchString(*raw.Auth.AccountID) {
 				return p, errors.New("invalid account profile")
 			}
-			v.Auth.Store, v.Auth.Key = *raw.Auth.Store, *raw.Auth.Key
+			v.Auth.Store, v.Auth.Key, v.Auth.AccountID = *raw.Auth.Store, *raw.Auth.Key, *raw.Auth.AccountID
 			if _, ok := p.CredentialStores[v.Auth.Store]; !ok {
 				return p, errors.New("invalid account profile")
 			}
@@ -115,6 +119,27 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 			return p, errors.New("invalid authentication mode")
 		}
 		p.Profiles[name] = v
+	}
+	byID, bySource := map[string]string{}, map[string]string{}
+	for _, v := range p.Profiles {
+		if v.Auth.Mode != "account" {
+			continue
+		}
+		credentials := session.Credentials{Mode: "account", AccountID: v.Auth.AccountID, Store: new(p.CredentialStores[v.Auth.Store]), Key: v.Auth.Key}
+		fingerprint, err := SourceFingerprint(v.Harness, credentials)
+		if err != nil {
+			return p, err
+		}
+		if old, ok := byID[v.Auth.AccountID]; ok && old != fingerprint {
+			return p, errors.New("account_id refers to multiple credential sources")
+		}
+		if old, ok := bySource[fingerprint]; ok && old != v.Auth.AccountID {
+			return p, errors.New("credential source refers to multiple account_id values")
+		}
+		byID[v.Auth.AccountID], bySource[fingerprint] = fingerprint, v.Auth.AccountID
+	}
+	if len(byID) > 1000 {
+		return p, errors.New("too many account_id values")
 	}
 	return p, nil
 }
@@ -256,7 +281,7 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if in.Limits.MaxSessionTokens <= 0 {
 		return out, invalid("Invalid session token budget.", "configuration", "limits", "max_session_tokens")
 	}
-	creds := session.Credentials{Mode: profile.Auth.Mode, APIKeyEnv: profile.Auth.APIKeyEnv, Key: profile.Auth.Key}
+	creds := session.Credentials{Mode: profile.Auth.Mode, AccountID: profile.Auth.AccountID, APIKeyEnv: profile.Auth.APIKeyEnv, Key: profile.Auth.Key}
 	if profile.Auth.Mode == "account" {
 		creds.Store = new(p.CredentialStores[profile.Auth.Store])
 	}
@@ -334,13 +359,29 @@ type Settings struct {
 }
 
 func DefaultSettings() Settings {
-	return Settings{BrowserAuth: BrowserAuth{Mode: "api_only", SessionTTL: 12 * time.Hour}, DefaultMaxSessionTokens: DefaultMaxSessionTokens, ConfigFile: "orpheus.toml", SandboxProxyURL: "socks5h://sandbox-proxy.agentbox.ru:65180", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, ReadinessTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
+	return Settings{BrowserAuth: BrowserAuth{Mode: "api_only", SessionTTL: 12 * time.Hour}, DefaultMaxSessionTokens: DefaultMaxSessionTokens, ConfigFile: "orpheus.toml", SandboxProxyURL: "https://sandbox-proxy.agentbox.ru:65181", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, ReadinessTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
+}
+
+// AddSandboxProxy applies the sandbox egress proxy to an agent process environment.
+func AddSandboxProxy(env map[string]string, proxy string) {
+	if proxy == "" {
+		return
+	}
+	env["HTTPS_PROXY"] = proxy
+	env["HTTP_PROXY"] = proxy
+	env["NO_PROXY"] = "localhost,127.0.0.1"
 }
 func Load() (Settings, error) {
 	s := DefaultSettings()
 	for name, dest := range map[string]*string{"ORPHEUS_BROWSER_AUTH": &s.BrowserAuth.Mode, "ORPHEUS_PUBLIC_URL": &s.BrowserAuth.PublicURL, "SAML_SP_ENTITY_ID": &s.BrowserAuth.EntityID, "SAML_IDP_METADATA_FILE": &s.BrowserAuth.MetadataFile, "SAML_SP_CERT_FILE": &s.BrowserAuth.CertFile, "SAML_SP_KEY_FILE": &s.BrowserAuth.KeyFile, "DATABASE_URL": &s.DatabaseURL, "ORPHEUS_CONFIG_FILE": &s.ConfigFile, "ENV_ENCRYPTION_KEY": &s.EnvEncryptionKey, "SANDBOX_PROXY_URL": &s.SandboxProxyURL} {
 		if v, ok := os.LookupEnv(name); ok {
 			*dest = v
+		}
+	}
+	if s.SandboxProxyURL != "" {
+		proxy, err := url.Parse(s.SandboxProxyURL)
+		if err != nil || (proxy.Scheme != "http" && proxy.Scheme != "https") || proxy.Host == "" {
+			return s, errors.New("SANDBOX_PROXY_URL must be an HTTP or HTTPS proxy URL")
 		}
 	}
 	s.BrowserAuth.ttlSeconds = os.Getenv("BROWSER_SESSION_TTL_SECONDS")
