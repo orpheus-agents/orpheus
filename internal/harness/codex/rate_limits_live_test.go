@@ -14,6 +14,7 @@ import (
 
 	sdk "github.com/abox-dev/sdk/packages/go-sdk"
 	"github.com/orpheus-agents/orpheus/internal/agentbox"
+	"github.com/orpheus-agents/orpheus/internal/config"
 	"github.com/orpheus-agents/orpheus/internal/credentials"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
@@ -86,8 +87,15 @@ func TestLiveAccountLimits(t *testing.T) {
 	if _, err := box.Run(ctx, `codex -c 'cli_auth_credentials_store="file"' -c 'forced_login_method="chatgpt"' login status >/dev/null 2>&1`); err != nil {
 		t.Fatal("sandbox does not recognize seeded ChatGPT login")
 	}
+	proxy := config.DefaultSettings().SandboxProxyURL
+	if value, ok := os.LookupEnv("SANDBOX_PROXY_URL"); ok {
+		proxy = value
+	}
+	env := map[string]string{}
+	config.AddSandboxProxy(env, proxy)
+	t.Log("sandbox proxy enabled", proxy != "")
 	source := session.Credentials{Mode: "account"}
-	if _, err := driver.Launch(ctx, nil, home, source); err != nil {
+	if _, err := driver.Launch(ctx, env, home, source); err != nil {
 		t.Fatal(err)
 	}
 	if err := driver.Initialize(ctx, source, true); err != nil {

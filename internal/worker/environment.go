@@ -277,10 +277,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 					return err
 				}
 			}
-			if proxy := e.Store.Settings.SandboxProxyURL; proxy != "" {
-				env["ALL_PROXY"] = proxy
-				env["NO_PROXY"] = "localhost,127.0.0.1"
-			}
+			config.AddSandboxProxy(env, e.Store.Settings.SandboxProxyURL)
 			env["ORPHEUS_LAUNCH_ID"] = o.ID.String()
 			result, err := e.invoke(ctx, o, func() (operationResult, error) {
 				pid, err := driver.Launch(ctx, env, *record.Workspace, cfg.Credentials)

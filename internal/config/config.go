@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net/url"
 	"os"
 	"regexp"
 	"slices"
@@ -359,7 +360,17 @@ type Settings struct {
 }
 
 func DefaultSettings() Settings {
-	return Settings{BrowserAuth: BrowserAuth{Mode: "api_only", SessionTTL: 12 * time.Hour}, AccountLimitsEnabled: true, DefaultMaxSessionTokens: DefaultMaxSessionTokens, ConfigFile: "orpheus.toml", SandboxProxyURL: "socks5h://sandbox-proxy.agentbox.ru:65180", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, ReadinessTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
+	return Settings{BrowserAuth: BrowserAuth{Mode: "api_only", SessionTTL: 12 * time.Hour}, AccountLimitsEnabled: true, DefaultMaxSessionTokens: DefaultMaxSessionTokens, ConfigFile: "orpheus.toml", SandboxProxyURL: "https://sandbox-proxy.agentbox.ru:65181", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, ReadinessTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
+}
+
+// AddSandboxProxy applies the sandbox egress proxy to an agent process environment.
+func AddSandboxProxy(env map[string]string, proxy string) {
+	if proxy == "" {
+		return
+	}
+	env["HTTPS_PROXY"] = proxy
+	env["HTTP_PROXY"] = proxy
+	env["NO_PROXY"] = "localhost,127.0.0.1"
 }
 func Load() (Settings, error) {
 	s := DefaultSettings()
@@ -373,6 +384,12 @@ func Load() (Settings, error) {
 	for name, dest := range map[string]*string{"ORPHEUS_BROWSER_AUTH": &s.BrowserAuth.Mode, "ORPHEUS_PUBLIC_URL": &s.BrowserAuth.PublicURL, "SAML_SP_ENTITY_ID": &s.BrowserAuth.EntityID, "SAML_IDP_METADATA_FILE": &s.BrowserAuth.MetadataFile, "SAML_SP_CERT_FILE": &s.BrowserAuth.CertFile, "SAML_SP_KEY_FILE": &s.BrowserAuth.KeyFile, "DATABASE_URL": &s.DatabaseURL, "ORPHEUS_CONFIG_FILE": &s.ConfigFile, "ENV_ENCRYPTION_KEY": &s.EnvEncryptionKey, "SANDBOX_PROXY_URL": &s.SandboxProxyURL} {
 		if v, ok := os.LookupEnv(name); ok {
 			*dest = v
+		}
+	}
+	if s.SandboxProxyURL != "" {
+		proxy, err := url.Parse(s.SandboxProxyURL)
+		if err != nil || (proxy.Scheme != "http" && proxy.Scheme != "https") || proxy.Host == "" {
+			return s, errors.New("SANDBOX_PROXY_URL must be an HTTP or HTTPS proxy URL")
 		}
 	}
 	s.BrowserAuth.ttlSeconds = os.Getenv("BROWSER_SESSION_TTL_SECONDS")

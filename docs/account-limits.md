@@ -57,4 +57,9 @@ ORPHEUS_TEST_ACCOUNT_AUTH_FILE=/private/path/auth.json \
 Run this against the target template and a test account before enabling the
 collector in production. This is a manual check, not a CI job. `AGENTBOX_API_KEY`
 must be set, and the sandbox must be able to reach the ChatGPT backend. The
-test creates a short-lived sandbox and removes it afterward.
+test creates a short-lived sandbox and removes it afterward. It starts Codex
+with the same `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY` defaults as the worker; set
+`SANDBOX_PROXY_URL` to override the proxy or to an empty value to disable it.
+The manual run on 2026-09-25 passed with the AgentBox `codex` template
+(Codex 0.157.0) and the default HTTPS proxy. An old SOCKS5 override is rejected
+at startup; update it to an HTTP(S) proxy URL before deploying this version.
