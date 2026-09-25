@@ -50,7 +50,7 @@ func TestRuntimeRequirements(t *testing.T) {
 
 func TestProfilePresenceValidation(t *testing.T) {
 	const api = "[profiles.p]\nharness='codex'\n[profiles.p.auth]\nmode='api_key'\napi_key_env='KEY'\n"
-	const account = "[credential_stores.s]\nbucket='b'\n[profiles.p]\nharness='codex'\n[profiles.p.auth]\nmode='account'\nstore='s'\nkey='auth'\n"
+	const account = "[credential_stores.s]\nbucket='b'\n[profiles.p]\nharness='codex'\n[profiles.p.auth]\nmode='account'\naccount_id='team-main'\nstore='s'\nkey='auth'\n"
 	for name, source := range map[string]string{
 		"api store": api + "store=''", "api key": api + "key=''",
 		"account api env": account + "api_key_env=''",

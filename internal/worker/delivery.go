@@ -226,6 +226,10 @@ func (e *Executor) forceStop(ctx context.Context, record store.SessionRecord, ru
 		}
 	}
 	if e.driver != nil {
+		if e.unregisterLimits != nil {
+			e.unregisterLimits()
+			e.unregisterLimits = nil
+		}
 		_ = e.driver.Close()
 		e.driver = nil
 	}

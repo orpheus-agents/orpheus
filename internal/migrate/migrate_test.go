@@ -32,7 +32,7 @@ func TestUpDownUpAndConstraints(t *testing.T) {
 	if _, err := p.Up(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"sessions", "runs", "messages", "tool_calls", "session_events", "operations", "idempotency_keys"} {
+	for _, name := range []string{"sessions", "runs", "messages", "tool_calls", "session_events", "operations", "idempotency_keys", "account_limit_observations"} {
 		var exists bool
 		if err := pool.QueryRow(t.Context(), "SELECT to_regclass($1) IS NOT NULL", name).Scan(&exists); err != nil || !exists {
 			t.Fatal(name, exists, err)

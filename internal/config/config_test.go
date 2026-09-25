@@ -139,6 +139,7 @@ harness="codex"
 model="m"
 [profiles.account.auth]
 mode="account"
+account_id="team-main"
 store="s"
 key="auth.json"
 `

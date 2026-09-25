@@ -20,5 +20,6 @@ api_key_env = "OPENAI_API_KEY"
 # model = "your-model"
 # [profiles.account.auth]
 # mode = "account"
+# account_id = "team-main"
 # store = "main"
 # key = "codex/team/auth.json"

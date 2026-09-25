@@ -49,21 +49,24 @@ type rpcMessage struct {
 var errResponseTooLarge = errors.New("RPC response exceeds the observation limit")
 
 type RPC struct {
-	sandbox       harness.Sandbox
-	timeout       time.Duration
-	stream        harness.Stream
-	cancel        context.CancelFunc
-	done          chan struct{}
-	writeMu       sync.Mutex
-	mu            sync.Mutex
-	pending       map[string]chan rpcMessage
-	notifications []notification
-	dirty         bool
-	disconnected  bool
+	sandbox         harness.Sandbox
+	timeout         time.Duration
+	stream          harness.Stream
+	cancel          context.CancelFunc
+	done            chan struct{}
+	writeMu         sync.Mutex
+	mu              sync.Mutex
+	pending         map[string]chan rpcMessage
+	notifications   []notification
+	dirty           bool
+	limitsDirty     bool
+	limitsChanged   chan struct{}
+	authInvalidated bool
+	disconnected    bool
 }
 
 func NewRPC(s harness.Sandbox, timeout time.Duration) *RPC {
-	return &RPC{sandbox: s, timeout: timeout, pending: map[string]chan rpcMessage{}}
+	return &RPC{sandbox: s, timeout: timeout, pending: map[string]chan rpcMessage{}, limitsChanged: make(chan struct{}, 1)}
 }
 func (r *RPC) Launch(ctx context.Context, command string, env map[string]string, cwd string) (int, error) {
 	streamCtx, cancel := context.WithCancel(ctx)
@@ -93,7 +96,12 @@ func (r *RPC) begin(ctx context.Context, cancel context.CancelFunc, stream harne
 }
 func (r *RPC) read(ctx context.Context) {
 	defer close(r.done)
-	defer func() { r.mu.Lock(); r.disconnected = true; r.dirty = true; r.mu.Unlock() }()
+	defer func() {
+		r.mu.Lock()
+		r.disconnected = true
+		r.dirty = true
+		r.mu.Unlock()
+	}()
 	stdout, stderr := r.stream.Stdout(), r.stream.Stderr()
 	var buffer []byte
 	discard := false
@@ -167,6 +175,24 @@ func (r *RPC) receive(ctx context.Context, line []byte) {
 			return
 		}
 		switch message.Method {
+		case "account/rateLimits/updated":
+			r.mu.Lock()
+			r.limitsDirty = true
+			r.signalLimits()
+			r.mu.Unlock()
+		case "account/updated":
+			var update map[string]json.RawMessage
+			_ = json.Unmarshal(message.Params, &update)
+			var mode string
+			authMode, present := update["authMode"]
+			invalidated := present && (json.Unmarshal(authMode, &mode) != nil || mode != "chatgpt")
+			r.mu.Lock()
+			if invalidated {
+				r.authInvalidated = true
+			}
+			r.limitsDirty = true
+			r.signalLimits()
+			r.mu.Unlock()
 		case "item/completed", "item/started", "turn/completed", "turn/started", "thread/tokenUsage/updated":
 			r.mu.Lock()
 			switch {
@@ -194,6 +220,32 @@ func (r *RPC) receive(ctx context.Context, line []byte) {
 		default:
 		}
 	}
+	r.mu.Unlock()
+}
+
+// signalLimits is called with mu held and never blocks the stdout reader.
+func (r *RPC) signalLimits() {
+	select {
+	case r.limitsChanged <- struct{}{}:
+	default:
+	}
+}
+func (r *RPC) limitsEvents() <-chan struct{} { return r.limitsChanged }
+func (r *RPC) takeLimitsDirty() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	dirty := r.limitsDirty
+	r.limitsDirty = false
+	return dirty
+}
+func (r *RPC) accountStatus() (disconnected, invalidated bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.disconnected, r.authInvalidated
+}
+func (r *RPC) accountInitialized() {
+	r.mu.Lock()
+	r.authInvalidated = false
 	r.mu.Unlock()
 }
 func (r *RPC) write(ctx context.Context, v any) error {

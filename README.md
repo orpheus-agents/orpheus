@@ -32,6 +32,7 @@ The API is available at `http://localhost:8000`. By default, session requests re
 `Authorization: Bearer <key>` using a key from `PUBLIC_API_KEYS` in `.env`.
 For read-only browser access, see [browser authentication](docs/browser-auth.md).
 For the dashboard snapshot and session filters, see [dashboard analytics](docs/dashboard-analytics.md).
+For provider quota snapshots by account, see [account limits](docs/account-limits.md).
 Run `make stop` to stop the project; database data is preserved.
 
 Run and hook deadlines are independent of the sandbox timeout. The worker creates
@@ -91,7 +92,7 @@ directory. Use `migrate --dir /path/to/migrations up` or
 | `make test` | Unit, reader, PostgreSQL, S3 and migration tests |
 | `make test-go-race` | Unit and integration tests with the race detector |
 | `make test-saml` | Signed SAML round trip through the production HTTP handler and isolated Keycloak; no UI required |
-| `make test-live` | Real AgentBox/Codex, lost-response recovery, reconnect and account-file checks |
+| `make test-live` | Manually run real AgentBox/Codex, lost-response recovery, reconnect and account-file checks; not run by CI |
 | `make vuln` | govulncheck and Trivy vulnerability/configuration scans |
 | `make build` | Compile the application inside the tools container |
 | `make docker-build` / `make smoke` | Build images / verify production serve, worker, migrate and shutdown |

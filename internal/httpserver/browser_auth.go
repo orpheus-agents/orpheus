@@ -19,7 +19,7 @@ type browserIdentityKey struct{}
 
 func browserReadable(operation string) bool {
 	switch operation {
-	case "GetAnalyticsOverview", "ListSessions", "GetSession", "ListAllRuns", "ListRuns", "GetRun", "GetHistory", "GetEvents", "StreamEvents":
+	case "GetAccountLimits", "GetAnalyticsOverview", "ListSessions", "GetSession", "ListAllRuns", "ListRuns", "GetRun", "GetHistory", "GetEvents", "StreamEvents":
 		return true
 	default:
 		return false

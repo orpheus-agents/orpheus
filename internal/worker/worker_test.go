@@ -483,6 +483,23 @@ func TestReservationDuringPause(t *testing.T) {
 		t.Fatal("new run lost")
 	}
 }
+func TestAccountLimitDonorUnregisteredBeforePause(t *testing.T) {
+	_, r, _, e := setup(t)
+	tick(t, e)
+	complete(r)
+	tick(t, e)
+	unregistered := false
+	e.unregisterLimits = func() { unregistered = true }
+	r.pauseHook = func() {
+		if !unregistered {
+			t.Fatal("donor remained registered during sandbox pause")
+		}
+	}
+	tick(t, e)
+	if !unregistered || e.unregisterLimits != nil {
+		t.Fatal("donor remained registered after sandbox pause")
+	}
+}
 func TestPauseFailureAndSandboxLoss(t *testing.T) {
 	s, r, a, e := setup(t)
 	tick(t, e)

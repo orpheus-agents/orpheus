@@ -26,23 +26,25 @@ var errStoreAccess = errors.New("session database access failed")
 
 type AccountFactory func(context.Context, harness.Sandbox, string, session.Credentials) (credentials.Sync, error)
 type Executor struct {
-	ID              uuid.UUID
-	Store           *store.Store
-	Platform        harness.Platform
-	NewDriver       DriverFactory
-	NewAccount      AccountFactory
-	RunnerBinary    func(string) ([]byte, error)
-	sandbox         harness.Sandbox
-	driver          harness.Driver
-	account         credentials.Sync
-	snapshot        harness.Snapshot
-	pauseRetryAt    time.Time
-	pauseRetryDelay time.Duration
-	pauseAuthSynced bool
-	timeoutRenewAt  time.Time
-	timeoutRunID    uuid.UUID
-	runnerReady     bool
-	hookTermSent    uuid.UUID
+	ID               uuid.UUID
+	Store            *store.Store
+	Platform         harness.Platform
+	NewDriver        DriverFactory
+	NewAccount       AccountFactory
+	RunnerBinary     func(string) ([]byte, error)
+	Limits           *AccountLimitsCollector
+	unregisterLimits func()
+	sandbox          harness.Sandbox
+	driver           harness.Driver
+	account          credentials.Sync
+	snapshot         harness.Snapshot
+	pauseRetryAt     time.Time
+	pauseRetryDelay  time.Duration
+	pauseAuthSynced  bool
+	timeoutRenewAt   time.Time
+	timeoutRunID     uuid.UUID
+	runnerReady      bool
+	hookTermSent     uuid.UUID
 }
 
 func NewExecutor(id uuid.UUID, s *store.Store, p harness.Platform) *Executor {
@@ -200,6 +202,10 @@ func (e *Executor) failure(ctx context.Context, f *harness.ExecutionError) error
 	})
 }
 func (e *Executor) Disconnect() {
+	if e.unregisterLimits != nil {
+		e.unregisterLimits()
+		e.unregisterLimits = nil
+	}
 	if e.driver != nil {
 		_ = e.driver.Close()
 		e.driver = nil
@@ -505,8 +511,9 @@ func Run(ctx context.Context, s *store.Store, platform harness.Platform) error {
 		return errors.New("another worker owns the executor lock")
 	}
 	execution, cancel := context.WithCancel(ctx)
+	collector := newAccountLimitsCollector(execution, s)
 	var wg sync.WaitGroup
-	defer func() { cancel(); wg.Wait() }()
+	defer func() { cancel(); wg.Wait(); collector.Wait() }()
 	tasks := map[uuid.UUID]<-chan struct{}{}
 	for ctx.Err() == nil {
 		probe, cancelProbe := context.WithTimeout(ctx, s.Settings.ReadinessTimeout)
@@ -530,7 +537,12 @@ func Run(ctx context.Context, s *store.Store, platform harness.Platform) error {
 			if _, ok := tasks[id]; !ok {
 				done := make(chan struct{})
 				tasks[id] = done
-				wg.Go(func() { defer close(done); NewExecutor(id, s, platform).Run(execution) })
+				wg.Go(func() {
+					defer close(done)
+					executor := NewExecutor(id, s, platform)
+					executor.Limits = collector
+					executor.Run(execution)
+				})
 			}
 		}
 		select {

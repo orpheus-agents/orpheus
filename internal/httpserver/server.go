@@ -165,6 +165,13 @@ func (s *Server) GetAnalyticsOverview(ctx context.Context, r api.GetAnalyticsOve
 	}
 	return mapResponse[api.GetAnalyticsOverview200JSONResponse](v)
 }
+func (s *Server) GetAccountLimits(ctx context.Context, _ api.GetAccountLimitsRequestObject) (api.GetAccountLimitsResponseObject, error) {
+	v, err := s.Store.AccountLimits(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return accountLimitsResponse(v), nil
+}
 func (s *Server) ListRuns(ctx context.Context, r api.ListRunsRequestObject) (api.ListRunsResponseObject, error) {
 	v, err := s.Store.ListRuns(ctx, r.Sid, value(r.Params.Limit, 50), value(r.Params.Cursor, ""), store.ListFilter{InputFingerprint: r.Params.InputFingerprint, Status: stringPointer(r.Params.Status), Order: string(value(r.Params.Order, "asc"))})
 	if err != nil {

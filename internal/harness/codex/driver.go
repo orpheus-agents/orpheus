@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/orpheus-agents/orpheus/internal/accountlimits"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
@@ -37,6 +38,7 @@ func New(s harness.Sandbox, timeout time.Duration, limit int) *Driver {
 }
 
 var _ harness.Driver = (*Driver)(nil)
+var _ harness.AccountLimitsReader = (*Driver)(nil)
 
 func (d *Driver) StateDir(ctx context.Context) (string, error) {
 	raw, err := d.rpc.sandbox.Run(ctx, `set -eu; d="${CODEX_HOME:-$HOME/.codex}"; mkdir -p "$d"; chmod 700 "$d"; printf '%s' "$d"`)
@@ -92,8 +94,38 @@ func (d *Driver) Initialize(ctx context.Context, source session.Credentials, log
 		if out.Account == nil || out.Account.Type != "chatgpt" {
 			return harness.Failure("authentication_failed", "Account credentials are invalid.")
 		}
+		d.rpc.accountInitialized()
 	}
 	return nil
+}
+func (d *Driver) AccountLimitsEvents() <-chan struct{} { return d.rpc.limitsEvents() }
+func (d *Driver) AccountLimitsDirty() bool             { return d.rpc.takeLimitsDirty() }
+func (d *Driver) accountLimitsAvailable() error {
+	disconnected, invalidated := d.rpc.accountStatus()
+	if disconnected {
+		return harness.ErrUncertain
+	}
+	if invalidated {
+		return accountlimits.ErrAuthenticationUnavailable
+	}
+	return nil
+}
+func (d *Driver) ReadAccountLimits(ctx context.Context) (accountlimits.Snapshot, error) {
+	if err := d.accountLimitsAvailable(); err != nil {
+		return accountlimits.Snapshot{}, err
+	}
+	var raw json.RawMessage
+	err := d.rpc.Call(ctx, "account/rateLimits/read", nil, &raw)
+	if rpcError, ok := errors.AsType[*RPCError](err); ok && rpcError.Code == -32601 {
+		return accountlimits.Snapshot{}, accountlimits.ErrUnsupported
+	}
+	if err != nil {
+		return accountlimits.Snapshot{}, err
+	}
+	if err := d.accountLimitsAvailable(); err != nil {
+		return accountlimits.Snapshot{}, err
+	}
+	return accountlimits.Parse(raw)
 }
 func (d *Driver) OpenContext(ctx context.Context, agent session.AgentConfiguration, cwd string, id *string) (harness.Context, error) {
 	params := map[string]any{"model": agent.Model, "cwd": cwd, "approvalPolicy": "never", "sandbox": "danger-full-access"}
