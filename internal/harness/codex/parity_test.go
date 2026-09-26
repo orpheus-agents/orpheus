@@ -317,6 +317,56 @@ func TestContextWithoutInstructionsAndTurnEffort(t *testing.T) {
 	}
 }
 
+func TestCodexOptionsOnStartResumeAndTurn(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		options session.CodexConfiguration
+	}{
+		{"omitted", session.CodexConfiguration{}},
+		{"configured", session.CodexConfiguration{Effort: "high", Summary: "auto", Personality: "friendly", ServiceTier: "default"}},
+		{"disabled", session.CodexConfiguration{Summary: "none", Personality: "none"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls []string
+			rpc, box := newRPC(t, func(req map[string]json.RawMessage) any {
+				var method string
+				_ = json.Unmarshal(req["method"], &method)
+				calls = append(calls, method)
+				var params map[string]any
+				_ = json.Unmarshal(req["params"], &params)
+				want := map[string]string{"personality": tc.options.Personality, "serviceTier": tc.options.ServiceTier, "effort": "", "summary": ""}
+				if method == "turn/start" {
+					want["effort"], want["summary"] = tc.options.Effort, tc.options.Summary
+				}
+				for key, value := range want {
+					got, present := params[key]
+					if value == "" && present || value != "" && got != value {
+						t.Fatalf("%s: %s=%v (present=%v), want %q", method, key, got, present, value)
+					}
+				}
+				if _, present := params["service_tier"]; present {
+					t.Fatal("TOML service_tier spelling sent to RPC")
+				}
+				return map[string]any{"id": req["id"], "result": map[string]any{"thread": map[string]string{"id": "thread"}, "turn": map[string]string{"id": "turn"}}}
+			})
+			d := New(box, time.Second, 1024)
+			d.rpc = rpc
+			agent := session.AgentConfiguration{Model: "model", Codex: tc.options}
+			for _, id := range []*string{nil, new("thread")} {
+				if _, err := d.OpenContext(t.Context(), agent, "/workspace", id); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := d.Start(t.Context(), agent, "thread", []string{"hello"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if !reflect.DeepEqual(calls, []string{"thread/start", "turn/start", "thread/resume", "turn/start"}) {
+				t.Fatal(calls)
+			}
+		})
+	}
+}
+
 func TestRecoveryRequiresOneMatchingHistory(t *testing.T) {
 	for _, count := range []int{0, 1, 2} {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {

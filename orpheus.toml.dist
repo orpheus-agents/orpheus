@@ -2,9 +2,12 @@
 harness = "codex"
 # Set the model here or provide agent.model when creating a session.
 
-# Optional Codex reasoning effort for this profile:
+# Optional Codex options for this profile (omitted values use Codex defaults):
 # [profiles.default.codex]
 # effort = "medium"
+# summary = "auto"
+# personality = "friendly"
+# service_tier = "default"
 
 [profiles.default.auth]
 mode = "api_key"

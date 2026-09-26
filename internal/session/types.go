@@ -94,7 +94,10 @@ type ConfigurationInput struct {
 	Hooks   *HooksInput  `json:"hooks,omitzero"`
 }
 type CodexConfiguration struct {
-	Effort string `json:"effort,omitzero"`
+	Effort      string `json:"effort,omitzero"`
+	Summary     string `json:"summary,omitzero"`
+	Personality string `json:"personality,omitzero"`
+	ServiceTier string `json:"service_tier,omitzero"`
 }
 type AgentConfiguration struct {
 	Profile      string             `json:"profile"`

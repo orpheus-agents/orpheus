@@ -132,6 +132,12 @@ func (d *Driver) OpenContext(ctx context.Context, agent session.AgentConfigurati
 	if agent.Instructions != "" {
 		params["developerInstructions"] = agent.Instructions
 	}
+	if agent.Codex.Personality != "" {
+		params["personality"] = agent.Codex.Personality
+	}
+	if agent.Codex.ServiceTier != "" {
+		params["serviceTier"] = agent.Codex.ServiceTier
+	}
 	if id != nil {
 		params["threadId"] = *id
 		if err := d.rpc.Call(ctx, "thread/resume", params, nil); err != nil {
@@ -190,6 +196,15 @@ func (d *Driver) Start(ctx context.Context, agent session.AgentConfiguration, th
 	params := map[string]any{"threadId": thread, "input": []map[string]string{{"type": "text", "text": texts[len(texts)-1]}}}
 	if agent.Codex.Effort != "" {
 		params["effort"] = agent.Codex.Effort
+	}
+	if agent.Codex.Summary != "" {
+		params["summary"] = agent.Codex.Summary
+	}
+	if agent.Codex.Personality != "" {
+		params["personality"] = agent.Codex.Personality
+	}
+	if agent.Codex.ServiceTier != "" {
+		params["serviceTier"] = agent.Codex.ServiceTier
 	}
 	if err := d.rpc.Call(ctx, "turn/start", params, &out); err != nil {
 		if len(texts) > 1 && errors.Is(err, harness.ErrRejected) {

@@ -11,6 +11,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/client"
+	"github.com/orpheus-agents/orpheus/internal/config"
+	"github.com/orpheus-agents/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/store"
 )
 
 // Exercise the public generated client against the real HTTP boundary and store,
@@ -19,6 +22,9 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	server, s := testServer(t)
 	profile := s.Profiles.Profiles["default"]
 	profile.Codex.Effort = "high"
+	profile.Codex.Summary = "auto"
+	profile.Codex.Personality = "friendly"
+	profile.Codex.ServiceTier = "default"
 	s.Profiles.Profiles["default"] = profile
 	c, err := client.NewClientWithResponses(server.URL, client.WithHTTPClient(server.Client()), client.WithRequestEditorFn(func(_ context.Context, r *http.Request) error {
 		r.Header.Set("Authorization", "Bearer key")
@@ -61,6 +67,14 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 		t.Fatalf("create: %d %s", created.StatusCode(), created.Body)
 	}
 	a := *created.JSON202
+	// The worker must retain the accepted options even after deployment profiles change.
+	profile.Codex = config.CodexProfile{}
+	s.Profiles.Profiles["default"] = profile
+	record, err := store.GetSession(t.Context(), s.Pool, a.SessionID, false)
+	wantCodex := session.CodexConfiguration{Effort: "high", Summary: "auto", Personality: "friendly", ServiceTier: "default"}
+	if err != nil || record.Configuration.Public.Agent.Codex != wantCodex {
+		t.Fatal("Codex options did not survive persistence", record.Configuration, err)
+	}
 	replay, err := c.CreateSessionWithResponse(t.Context(), params, body)
 	if err != nil || replay.JSON202 == nil || *replay.JSON202 != a {
 		t.Fatalf("idempotent replay: %#v %v", replay, err)
@@ -78,8 +92,10 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	if got.JSON200.LastRunCreatedAt.IsZero() {
 		t.Fatal("session lacks latest run creation time")
 	}
-	if bytes.Contains(got.Body, []byte(`"codex":`)) || bytes.Contains(got.Body, []byte(`"effort":`)) {
-		t.Fatalf("internal Codex effort leaked into API: %s", got.Body)
+	for _, key := range []string{"codex", "effort", "summary", "personality", "service_tier"} {
+		if bytes.Contains(got.Body, []byte(`"`+key+`":`)) {
+			t.Fatalf("internal Codex option leaked into API: %s", got.Body)
+		}
 	}
 	listed, err := c.ListSessionsWithResponse(t.Context(), &client.ListSessionsParams{Namespace: body.Namespace, ExternalKey: body.ExternalKey})
 	if err != nil || listed.JSON200 == nil || len(listed.JSON200.Items) != 1 || listed.JSON200.Items[0].ID != a.SessionID {

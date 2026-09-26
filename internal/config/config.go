@@ -33,7 +33,10 @@ type Auth struct {
 	Key       string `toml:"key"`
 }
 type CodexProfile struct {
-	Effort string `toml:"effort"`
+	Effort      string `toml:"effort"`
+	Summary     string `toml:"summary"`
+	Personality string `toml:"personality"`
+	ServiceTier string `toml:"service_tier"`
 }
 type Profile struct {
 	Harness      string       `toml:"harness"`
@@ -55,7 +58,10 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 			Harness string  `toml:"harness"`
 			Model   *string `toml:"model"`
 			Codex   struct {
-				Effort *string `toml:"effort"`
+				Effort      *string `toml:"effort"`
+				Summary     *string `toml:"summary"`
+				Personality *string `toml:"personality"`
+				ServiceTier *string `toml:"service_tier"`
 			} `toml:"codex"`
 			Instructions string `toml:"instructions"`
 			Auth         struct {
@@ -95,10 +101,24 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 	}
 	for name, raw := range source.Profiles {
 		v := Profile{Harness: raw.Harness, Model: raw.Model, Instructions: raw.Instructions, Auth: Auth{Mode: raw.Auth.Mode}}
-		if raw.Codex.Effort != nil {
-			v.Codex.Effort = *raw.Codex.Effort
+		for _, option := range []struct {
+			name   string
+			value  *string
+			target *string
+		}{
+			{"effort", raw.Codex.Effort, &v.Codex.Effort},
+			{"summary", raw.Codex.Summary, &v.Codex.Summary},
+			{"personality", raw.Codex.Personality, &v.Codex.Personality},
+			{"service_tier", raw.Codex.ServiceTier, &v.Codex.ServiceTier},
+		} {
+			if option.value != nil {
+				if !validCodexOption(option.name, *option.value) {
+					return p, fmt.Errorf("invalid profile %q: codex.%s", name, option.name)
+				}
+				*option.target = *option.value
+			}
 		}
-		if strings.TrimSpace(name) == "" || v.Harness != "codex" || (v.Model != nil && *v.Model == "") || (raw.Codex.Effort != nil && !validCodexEffort(v.Codex.Effort)) {
+		if strings.TrimSpace(name) == "" || v.Harness != "codex" || (v.Model != nil && *v.Model == "") {
 			return p, errors.New("invalid profile")
 		}
 		switch v.Auth.Mode {
@@ -144,8 +164,20 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 	return p, nil
 }
 
-func validCodexEffort(value string) bool {
-	return slices.Contains([]string{"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}, value)
+func validCodexOption(name, value string) bool {
+	switch name {
+	case "effort":
+		return slices.Contains([]string{"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}, value)
+	case "summary":
+		return slices.Contains([]string{"auto", "concise", "detailed", "none"}, value)
+	case "personality":
+		return slices.Contains([]string{"none", "friendly", "pragmatic"}, value)
+	case "service_tier":
+		// The app-server protocol accepts a string; supported tiers depend on the provider.
+		return value != "" && strings.TrimSpace(value) == value
+	default:
+		return false
+	}
 }
 func LoadProfiles(path string) (Profiles, error) {
 	f, err := os.Open(path)
@@ -265,8 +297,13 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if model == nil || strings.TrimSpace(*model) == "" {
 		return out, invalid("An explicit model is required.", "configuration", "agent", "model")
 	}
-	if profile.Codex.Effort != "" && !validCodexEffort(profile.Codex.Effort) {
-		return out, invalid("Invalid Codex reasoning effort.", "configuration", "agent", "effort")
+	for name, value := range map[string]string{
+		"effort": profile.Codex.Effort, "summary": profile.Codex.Summary,
+		"personality": profile.Codex.Personality, "service_tier": profile.Codex.ServiceTier,
+	} {
+		if value != "" && !validCodexOption(name, value) {
+			return out, invalid("Invalid Codex profile option.", "configuration", "agent", "codex", name)
+		}
 	}
 	instructions := profile.Instructions
 	if in.Agent.Instructions != nil {
@@ -293,7 +330,7 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if refs == nil {
 		refs = []string{}
 	}
-	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Codex: session.CodexConfiguration{Effort: profile.Codex.Effort}, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs}, Limits: in.Limits, Hooks: hooks}, Credentials: creds}
+	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Codex: session.CodexConfiguration{Effort: profile.Codex.Effort, Summary: profile.Codex.Summary, Personality: profile.Codex.Personality, ServiceTier: profile.Codex.ServiceTier}, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs}, Limits: in.Limits, Hooks: hooks}, Credentials: creds}
 	return out, nil
 }
 func Environment(cipher *secret.Cipher, id uuid.UUID, token *string, cfg session.Configuration, allowlist []string) (map[string]string, error) {
