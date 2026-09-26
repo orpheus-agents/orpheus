@@ -23,8 +23,28 @@ cp orpheus.toml.dist orpheus.toml
 
 Set `AGENTBOX_API_KEY` and `OPENAI_API_KEY` in `.env`.
 Add `model = "your-model"` under `[profiles.default]` in `orpheus.toml`.
-Optionally set `effort = "medium"` under `[profiles.default.codex]`. If omitted,
-Codex uses the model default.
+Optional Codex settings belong under `[profiles.default.codex]`:
+
+```toml
+[profiles.default.codex]
+effort = "medium"
+summary = "auto"
+personality = "friendly"
+service_tier = "default"
+```
+
+| Setting | Values |
+| --- | --- |
+| `effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
+| `summary` | `auto`, `concise`, `detailed`, `none` |
+| `personality` | `none`, `friendly`, `pragmatic` |
+| `service_tier` | A nonblank tier name accepted by the Codex provider, such as `default` |
+
+Each setting is optional; omitted settings are not sent to Codex. Explicit empty
+values are rejected. Model and account support still determine which options
+Codex can use. Settings are captured when a session is created and reused after
+resume; changing the profile affects new sessions. They are profile settings,
+not public API overrides. Connectors select them through `agent.profile`.
 
 ```sh
 make start
