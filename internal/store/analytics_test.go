@@ -61,6 +61,77 @@ func TestAnalyticsOverviewBucketsAndUsage(t *testing.T) {
 	}
 }
 
+func TestAnalyticsNamespaces(t *testing.T) {
+	s := fixture(t)
+	ctx := t.Context()
+	to := time.Now().UTC().Add(-time.Hour).Truncate(time.Hour)
+	from := to.Add(-time.Hour)
+	got, err := s.AnalyticsOverview(ctx, analytics.Request{From: &from, To: &to})
+	if err != nil || got.Namespaces == nil || len(got.Namespaces) != 0 {
+		t.Fatalf("empty period: %+v %v", got.Namespaces, err)
+	}
+	for _, row := range []struct {
+		namespace *string
+		status    string
+		finished  *time.Time
+		usage     int64
+	}{
+		{new("beta"), "completed", new(from.Add(10 * time.Minute)), 9000000000000000000},
+		{new("beta"), "failed", new(from.Add(20 * time.Minute)), 9000000000000000000},
+		{new("beta"), "running", nil, 5},
+		{new("alpha"), "completed", new(from.Add(5 * time.Minute)), 100},
+		{new("alpha"), "completed", new(from.Add(5 * time.Minute)), 100},
+		{new("alpha"), "cancelled", new(from.Add(5 * time.Minute)), 100},
+		{nil, "accepted", nil, 7},
+		{new("alpha"), "completed", new(to), 1}, // Created at to: outside the period.
+	} {
+		sid, rid := uuid.New(), uuid.New()
+		if _, err := s.Pool.Exec(ctx, `INSERT INTO sessions(id,configuration,namespace) VALUES($1,'{}',$2)`, sid, row.namespace); err != nil {
+			t.Fatal(err)
+		}
+		created := from
+		if row.finished != nil && row.finished.Equal(to) {
+			created = to
+		}
+		if _, err := s.Pool.Exec(ctx, `INSERT INTO runs(id,session_id,number,status,created_at,finished_at,input_tokens,cached_input_tokens,output_tokens,reasoning_output_tokens,total_tokens) VALUES($1,$2,1,$3,$4,$5,$6,1,2,1,$6)`, rid, sid, row.status, created, row.finished, row.usage); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err = s.AnalyticsOverview(ctx, analytics.Request{From: &from, To: &to})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Namespaces) != 3 || *got.Namespaces[0].Namespace != "alpha" || *got.Namespaces[1].Namespace != "beta" || got.Namespaces[2].Namespace != nil {
+		t.Fatalf("order: %+v", got.Namespaces)
+	}
+	alpha, beta, none := got.Namespaces[0], got.Namespaces[1], got.Namespaces[2]
+	if alpha.RunsCount != 3 || alpha.ByStatus != (analytics.StatusCounts{Completed: 2, Cancelled: 1}) || alpha.Usage != (analytics.Usage{InputTokens: "300", CachedInputTokens: "3", OutputTokens: "6", ReasoningOutputTokens: "3", TotalTokens: "300"}) || alpha.RuntimeSeconds != 900 {
+		t.Fatalf("alpha: %+v", alpha)
+	}
+	if beta.RunsCount != 3 || beta.ByStatus != (analytics.StatusCounts{Completed: 1, Failed: 1, Running: 1}) || beta.Usage.TotalTokens != "18000000000000000005" {
+		t.Fatalf("beta: %+v", beta)
+	}
+	if none.RunsCount != 1 || none.ByStatus != (analytics.StatusCounts{Accepted: 1}) || none.Usage.TotalTokens != "7" {
+		t.Fatalf("null namespace: %+v", none)
+	}
+	// Groups add up to the period, including runs still open at the snapshot.
+	var runs int64
+	var runtime float64
+	var status analytics.StatusCounts
+	for _, group := range got.Namespaces {
+		runs += group.RunsCount
+		runtime += group.RuntimeSeconds
+		status.Add(group.ByStatus)
+	}
+	if runs != got.Period.RunsCount || status != got.Period.ByStatus || runtime < got.Period.RuntimeSeconds-0.001 || runtime > got.Period.RuntimeSeconds+0.001 {
+		t.Fatalf("groups %d %+v %v, period %+v", runs, status, runtime, got.Period)
+	}
+	got, err = s.AnalyticsOverview(ctx, analytics.Request{From: &from, To: &to, Namespace: new("beta")})
+	if err != nil || len(got.Namespaces) != 1 || *got.Namespaces[0].Namespace != "beta" || got.Namespaces[0].RunsCount != got.Period.RunsCount {
+		t.Fatalf("filtered: %+v %v", got.Namespaces, err)
+	}
+}
+
 func TestAnalyticsUsageBreakdownBeyondSafeInteger(t *testing.T) {
 	s := fixture(t)
 	ctx := t.Context()

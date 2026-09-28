@@ -93,7 +93,7 @@ components:
         AnalyticsOverview:
             type: object
             additionalProperties: false
-            required: [as_of, from, to, bucket, timezone, namespace, current, period, series]
+            required: [as_of, from, to, bucket, timezone, namespace, current, period, series, namespaces]
             properties:
                 as_of: {type: string, format: date-time}
                 from: {type: string, format: date-time}
@@ -120,6 +120,21 @@ components:
                 series:
                     type: array
                     items: {$ref: '#/components/schemas/AnalyticsBucket'}
+                namespaces:
+                    type: array
+                    description: The period's runs grouped by session namespace, most runs first; null is the group of sessions without a namespace. The groups add up to period.
+                    items: {$ref: '#/components/schemas/AnalyticsNamespace'}
+        AnalyticsNamespace:
+            type: object
+            additionalProperties: false
+            required: [namespace, runs_count, by_status, usage, runtime_seconds]
+            description: Runs accepted during [from,to) whose session has this namespace, with the same definitions as period.
+            properties:
+                namespace: {type: [string, 'null']}
+                runs_count: {type: integer, format: int64, minimum: 0, maximum: 9007199254740991}
+                by_status: {$ref: '#/components/schemas/StatusCounts'}
+                usage: {$ref: '#/components/schemas/AggregateUsage'}
+                runtime_seconds: {type: number, format: double, minimum: 0}
         BrowserAuthSession:
             type: object
             additionalProperties: false
@@ -1424,7 +1439,7 @@ paths:
         get:
             operationId: get_analytics_overview
             summary: Dashboard analytics snapshot
-            description: Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
+            description: Counts and usage of runs accepted during [from,to), the same totals per namespace, plus current active sessions. All timestamps are UTC.
             parameters:
                 - in: query
                   name: window

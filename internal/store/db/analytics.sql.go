@@ -34,3 +34,95 @@ func (q *Queries) AnalyticsAsOf(ctx context.Context) (time.Time, error) {
 	err := row.Scan(&as_of)
 	return as_of, err
 }
+
+const analyticsNamespaces = `-- name: AnalyticsNamespaces :many
+SELECT s.namespace,
+       COUNT(r.id)::bigint AS runs_count,
+       COUNT(r.id) FILTER (WHERE r.status = 'accepted')::bigint AS accepted,
+       COUNT(r.id) FILTER (WHERE r.status = 'starting')::bigint AS starting,
+       COUNT(r.id) FILTER (WHERE r.status = 'running')::bigint AS running,
+       COUNT(r.id) FILTER (WHERE r.status = 'cancelling')::bigint AS cancelling,
+       COUNT(r.id) FILTER (WHERE r.status = 'finalizing')::bigint AS finalizing,
+       COUNT(r.id) FILTER (WHERE r.status = 'completed')::bigint AS completed,
+       COUNT(r.id) FILTER (WHERE r.status = 'failed')::bigint AS failed,
+       COUNT(r.id) FILTER (WHERE r.status = 'cancelled')::bigint AS cancelled,
+       COALESCE(SUM(r.input_tokens), 0)::text AS input_tokens,
+       COALESCE(SUM(r.cached_input_tokens), 0)::text AS cached_input_tokens,
+       COALESCE(SUM(r.output_tokens), 0)::text AS output_tokens,
+       COALESCE(SUM(r.reasoning_output_tokens), 0)::text AS reasoning_output_tokens,
+       COALESCE(SUM(r.total_tokens), 0)::text AS total_tokens,
+       COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM LEAST(COALESCE(r.finished_at, $1::timestamptz), $1::timestamptz) - r.created_at))), 0)::double precision AS runtime_seconds
+FROM runs r JOIN sessions s ON s.id = r.session_id
+WHERE r.created_at >= $2::timestamptz AND r.created_at < $3::timestamptz
+  AND ($4::text IS NULL OR s.namespace = $4::text)
+GROUP BY s.namespace
+ORDER BY runs_count DESC, s.namespace ASC NULLS LAST
+`
+
+type AnalyticsNamespacesParams struct {
+	AsOf       time.Time `json:"as_of"`
+	PeriodFrom time.Time `json:"period_from"`
+	PeriodTo   time.Time `json:"period_to"`
+	Namespace  *string   `json:"namespace"`
+}
+
+type AnalyticsNamespacesRow struct {
+	Namespace             *string `json:"namespace"`
+	RunsCount             int64   `json:"runs_count"`
+	Accepted              int64   `json:"accepted"`
+	Starting              int64   `json:"starting"`
+	Running               int64   `json:"running"`
+	Cancelling            int64   `json:"cancelling"`
+	Finalizing            int64   `json:"finalizing"`
+	Completed             int64   `json:"completed"`
+	Failed                int64   `json:"failed"`
+	Cancelled             int64   `json:"cancelled"`
+	InputTokens           string  `json:"input_tokens"`
+	CachedInputTokens     string  `json:"cached_input_tokens"`
+	OutputTokens          string  `json:"output_tokens"`
+	ReasoningOutputTokens string  `json:"reasoning_output_tokens"`
+	TotalTokens           string  `json:"total_tokens"`
+	RuntimeSeconds        float64 `json:"runtime_seconds"`
+}
+
+func (q *Queries) AnalyticsNamespaces(ctx context.Context, arg AnalyticsNamespacesParams) ([]AnalyticsNamespacesRow, error) {
+	rows, err := q.db.Query(ctx, analyticsNamespaces,
+		arg.AsOf,
+		arg.PeriodFrom,
+		arg.PeriodTo,
+		arg.Namespace,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AnalyticsNamespacesRow{}
+	for rows.Next() {
+		var i AnalyticsNamespacesRow
+		if err := rows.Scan(
+			&i.Namespace,
+			&i.RunsCount,
+			&i.Accepted,
+			&i.Starting,
+			&i.Running,
+			&i.Cancelling,
+			&i.Finalizing,
+			&i.Completed,
+			&i.Failed,
+			&i.Cancelled,
+			&i.InputTokens,
+			&i.CachedInputTokens,
+			&i.OutputTokens,
+			&i.ReasoningOutputTokens,
+			&i.TotalTokens,
+			&i.RuntimeSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
