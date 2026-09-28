@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -14,7 +15,34 @@ import (
 	"time"
 
 	"github.com/orpheus-agents/orpheus/internal/httpserver"
+	"github.com/orpheus-agents/orpheus/internal/migrate"
 )
+
+func TestMigrationFailureDiagnostic(t *testing.T) {
+	private := errors.New("private SQL and password=secret")
+	for _, tc := range []struct {
+		name string
+		err  error
+		lock bool
+	}{
+		{"acquisition", fmt.Errorf("goose: %w", &migrate.LockError{Err: private}), true},
+		{"cancelled", &migrate.LockError{Err: context.Canceled}, true},
+		{"other", private, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := migrationFailure(tc.err).Error()
+			if strings.Contains(got, "cannot acquire migration lock") != tc.lock {
+				t.Fatal("incorrect migration failure classification", got)
+			}
+			if strings.Contains(got, "private") || strings.Contains(got, "secret") {
+				t.Fatal("migration diagnostic leaked underlying error", got)
+			}
+			if tc.name == "cancelled" && !strings.Contains(got, "cancelled") {
+				t.Fatal("cancellation diagnostic lost", got)
+			}
+		})
+	}
+}
 
 func TestHelpWithoutRuntimeConfiguration(t *testing.T) {
 	for _, args := range [][]string{nil, {"--help"}, {"--version"}, {"serve", "--help"}, {"worker", "--help"}, {"migrate", "--help"}} {
