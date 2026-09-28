@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+# Match the preStop command with the image's default non-root user and PATH.
+[ "$(docker image inspect -f '{{.Config.User}}' orpheus:local)" = '65532:65532' ]
+docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+    --entrypoint sleep orpheus:local 3
 db=$(docker compose ps -q test-db)
 network=$(docker inspect -f '{{range $name, $config := .NetworkSettings.Networks}}{{$name}}{{end}}' "$db")
 api_name="orpheus-smoke-api-$$"
