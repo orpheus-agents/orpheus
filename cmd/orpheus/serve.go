@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -24,6 +25,7 @@ func serve(ctx context.Context, api, system *http.Server, ready *atomic.Bool) er
 	var listen net.ListenConfig
 	for i := range servers {
 		s := &servers[i]
+		s.server.ErrorLog = httpErrorLogger(s.name)
 		listener, err := listen.Listen(ctx, "tcp", s.server.Addr)
 		if err != nil {
 			return fmt.Errorf("listen on %s HTTP address: %w", s.name, err)
@@ -35,6 +37,7 @@ func serve(ctx context.Context, api, system *http.Server, ready *atomic.Bool) er
 		return nil
 	}
 	ready.Store(true)
+	slog.InfoContext(ctx, "HTTP servers started", "api_address", servers[0].listener.Addr().String(), "system_address", servers[1].listener.Addr().String())
 	stopped := make(chan error, len(servers))
 	for _, s := range servers {
 		go func() { stopped <- fmt.Errorf("%s HTTP server stopped: %w", s.name, s.server.Serve(s.listener)) }()
@@ -47,6 +50,7 @@ func serve(ctx context.Context, api, system *http.Server, ready *atomic.Bool) er
 	case <-ctx.Done():
 	}
 	ready.Store(false)
+	slog.InfoContext(ctx, "HTTP servers stopping")
 	// Keep the system listener up while API requests drain, reporting not ready.
 	// SSE has its own cancellation hook; probes need no graceful drain.
 	shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)

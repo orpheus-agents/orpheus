@@ -27,11 +27,10 @@ import (
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	err := run(ctx, os.Args[1:], os.Stdout)
+	code := execute(ctx, os.Args[1:], os.Stdout)
 	stop()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	if code != 0 {
+		os.Exit(code)
 	}
 }
 func run(ctx context.Context, args []string, out io.Writer) error {
@@ -45,10 +44,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	if args[0] == "healthcheck" {
 		flags := flag.NewFlagSet("healthcheck", flag.ContinueOnError)
-		flags.SetOutput(out)
 		host := flags.String("host", envDefault("ORPHEUS_SYSTEM_HOST", "0.0.0.0"), "System HTTP host")
 		port := flags.String("port", envDefault("ORPHEUS_SYSTEM_PORT", "9100"), "System HTTP port")
-		if err := flags.Parse(args[1:]); err != nil {
+		if err := parseFlags(flags, args[1:], out); err != nil {
+			if errors.Is(err, flag.ErrHelp) {
+				return nil
+			}
 			return err
 		}
 		if err := validatePort(*port); err != nil {
@@ -68,7 +69,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		defer cancel()
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+net.JoinHostPort(probeHost, *port)+"/ready", nil)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid readiness probe URL (%s)", diagnostic.Describe(err))
 		}
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -84,7 +85,6 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return errors.New("unknown command")
 	}
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
-	flags.SetOutput(out)
 	host := flags.String("host", envDefault("ORPHEUS_HOST", "0.0.0.0"), "HTTP bind host")
 	port := flags.String("port", envDefault("ORPHEUS_PORT", "8000"), "HTTP port")
 	var systemHost, systemPort string
@@ -96,7 +96,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	if args[0] == "migrate" {
 		flags.StringVar(&migrationsDir, "dir", envDefault("ORPHEUS_MIGRATIONS_DIR", "migrations"), "SQL migrations directory")
 	}
-	if err := flags.Parse(args[1:]); err != nil {
+	if err := parseFlags(flags, args[1:], out); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
@@ -135,7 +135,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	profiles, cipher, err := settings.Runtime(args[0] == "serve")
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid runtime configuration (%s)", diagnostic.Describe(err))
 	}
 	poolConfig, err := config.DatabasePoolConfig(settings.DatabaseURL)
 	if err != nil {
@@ -161,13 +161,16 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	defer stopStreams()
 	handler, err := httpserver.Handler(storage, streams)
 	if err != nil {
-		return err
+		return fmt.Errorf("HTTP initialization failed (%s)", diagnostic.Describe(err))
 	}
 	server := &http.Server{Addr: net.JoinHostPort(*host, *port), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	server.RegisterOnShutdown(stopStreams)
 	var ready atomic.Bool
 	system := &http.Server{Addr: net.JoinHostPort(systemHost, systemPort), Handler: httpserver.SystemHandler(&ready), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 12}
-	return serve(ctx, server, system, &ready)
+	if err := serve(ctx, server, system, &ready); err != nil {
+		return fmt.Errorf("HTTP server failed (%s)", diagnostic.Describe(err))
+	}
+	return nil
 }
 
 func migrationFailure(err error) error {

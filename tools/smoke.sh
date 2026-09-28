@@ -8,10 +8,12 @@ worker_name="orpheus-smoke-worker-$$"
 schema="smoke_$$"
 database_url="postgres://orpheus:orpheus@test-db:5432/orpheus_test?search_path=$schema"
 config=$(mktemp)
+logs=$(mktemp -d)
 cleanup() {
     docker rm -f "$api_name" "$worker_name" >/dev/null 2>&1 || true
     docker exec "$db" psql -U orpheus -d orpheus_test -c "DROP SCHEMA IF EXISTS $schema CASCADE" >/dev/null 2>&1 || true
     rm -f "$config"
+    rm -rf "$logs"
 }
 trap cleanup EXIT INT TERM
 cat > "$config" <<'TOML'
@@ -23,9 +25,29 @@ mode = "api_key"
 api_key_env = "OPENAI_API_KEY"
 TOML
 chmod 644 "$config"
+chmod 755 "$logs"
 docker exec "$db" psql -U orpheus -d orpheus_test -c "CREATE SCHEMA $schema" >/dev/null
 docker run --rm orpheus:local --help
-docker run --rm --network "$network" -e DATABASE_URL="$database_url" orpheus:local migrate up
+docker run --rm --network "$network" -e DATABASE_URL="$database_url" orpheus:local migrate up \
+    >"$logs/migrate.stdout" 2>"$logs/migrate.stderr"
+code=0
+docker run --rm orpheus:local serve --private-token \
+    >"$logs/startup-error.stdout" 2>"$logs/startup-error.stderr" || code=$?
+[ "$code" = 1 ]
+mkdir "$logs/migrations"
+cat > "$logs/migrations/99999_bad.sql" <<'SQL'
+-- +goose Up
+SELECT 'smoke-secret'::integer;
+-- +goose Down
+SELECT 1;
+SQL
+chmod 755 "$logs/migrations"
+chmod 644 "$logs/migrations/99999_bad.sql"
+code=0
+docker run --rm --network "$network" -e DATABASE_URL="$database_url" \
+    -v "$logs/migrations:/bad-migrations:ro" orpheus:local migrate --dir /bad-migrations up \
+    >"$logs/migration-error.stdout" 2>"$logs/migration-error.stderr" || code=$?
+[ "$code" = 1 ]
 for command in serve worker; do
     name=$api_name
     if [ "$command" = worker ]; then name=$worker_name; fi
@@ -78,3 +100,40 @@ PY
 docker stop -t 15 "$api_name" "$worker_name" >/dev/null
 [ "$(docker inspect -f '{{.State.ExitCode}}' "$api_name")" = 0 ]
 [ "$(docker inspect -f '{{.State.ExitCode}}' "$worker_name")" = 0 ]
+docker logs "$api_name" >"$logs/api.stdout" 2>"$logs/api.stderr"
+docker logs "$worker_name" >"$logs/worker.stdout" 2>"$logs/worker.stderr"
+chmod 644 "$logs"/*.stdout "$logs"/*.stderr
+docker compose --profile tools run --rm --no-deps -T \
+    -v "$logs:/tmp/smoke-logs:ro" tools python3 - <<'PY'
+import json
+from pathlib import Path
+
+logs = Path("/tmp/smoke-logs")
+for name, expected in (
+    ("api", "HTTP servers stopping"),
+    ("worker", "Worker stopped"),
+    ("migrate", "Database migration completed"),
+    ("startup-error", "Command failed"),
+    ("migration-error", "Command failed"),
+):
+    assert not (logs / f"{name}.stderr").read_bytes(), name
+    output = (logs / f"{name}.stdout").read_text()
+    assert "private-token" not in output and "smoke-secret" not in output, name
+    records = [json.loads(line) for line in output.splitlines()]
+    assert records, name
+    for record in records:
+        assert isinstance(record["time"], str) and record["time"], record
+        assert record["level"] in ("INFO", "WARN", "ERROR"), record
+        assert isinstance(record["msg"], str), record
+    assert any(record["msg"] == expected for record in records), (name, records)
+    if name.endswith("-error"):
+        assert records[-1]["level"] == "ERROR", (name, records)
+    if name == "migration-error":
+        assert "22P02" in records[-1]["error"], records
+        assert any(record["msg"] == "Migration failed" and record["version"] == 99999 for record in records), records
+        assert not any(record["msg"] == "Database migration completed" for record in records)
+    if name == "migrate":
+        applied = [record["version"] for record in records if record["msg"] == "Migration completed"]
+        assert applied and records[-1]["current_version"] == max(applied), records
+print("API, worker, migrations and startup errors emit JSON to stdout; stderr is empty.")
+PY

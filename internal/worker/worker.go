@@ -516,6 +516,8 @@ func run(ctx context.Context, s *store.Store, platform harness.Platform, cleanup
 	if !owned {
 		return errors.New("another worker owns the executor lock")
 	}
+	slog.InfoContext(ctx, "Worker started")
+	defer slog.InfoContext(ctx, "Worker stopped")
 	execution, cancel := context.WithCancel(ctx)
 	collector := newAccountLimitsCollector(execution, s)
 	var wg sync.WaitGroup
