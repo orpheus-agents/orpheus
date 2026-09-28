@@ -41,12 +41,14 @@ SELECT w.bucket_from, w.bucket_to, COUNT(r.id)::bigint,
        COUNT(r.id) FILTER (WHERE r.status = 'failed')::bigint,
        COUNT(r.id) FILTER (WHERE r.status = 'cancelled')::bigint,
        COALESCE(SUM(r.input_tokens), 0)::text,
+       COALESCE(SUM(r.cached_input_tokens), 0)::text,
        COALESCE(SUM(r.output_tokens), 0)::text,
+       COALESCE(SUM(r.reasoning_output_tokens), 0)::text,
        COALESCE(SUM(r.total_tokens), 0)::text,
        COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM LEAST(COALESCE(r.finished_at, $5::timestamptz), $5::timestamptz) - r.created_at))), 0)::double precision
 FROM windows w
 LEFT JOIN LATERAL (
-  SELECT r.id, r.status, r.input_tokens, r.output_tokens, r.total_tokens, r.created_at, r.finished_at
+  SELECT r.id, r.status, r.input_tokens, r.cached_input_tokens, r.output_tokens, r.reasoning_output_tokens, r.total_tokens, r.created_at, r.finished_at
   FROM runs r JOIN sessions s ON s.id = r.session_id
   WHERE r.created_at >= w.bucket_from AND r.created_at < w.bucket_to
     AND ($6::text IS NULL OR s.namespace = $6::text)
@@ -108,23 +110,23 @@ func (s *Store) AnalyticsOverview(ctx context.Context, request analytics.Request
 		if out.Current.ActiveSessions > analytics.MaxCount {
 			return analyticsOverflow()
 		}
-		out.Period.Usage = analytics.Usage{InputTokens: "0", OutputTokens: "0", TotalTokens: "0"}
+		out.Period.Usage = analytics.Usage{InputTokens: "0", CachedInputTokens: "0", OutputTokens: "0", ReasoningOutputTokens: "0", TotalTokens: "0"}
 		out.Series = []analytics.Bucket{}
 		rows, err := tx.Query(ctx, analyticsBucketsSQL, q.Bucket, q.From, q.To, q.Timezone, q.AsOf, q.Namespace)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
-		input, output, total := new(big.Int), new(big.Int), new(big.Int)
+		input, cached, output, reasoning, total := new(big.Int), new(big.Int), new(big.Int), new(big.Int), new(big.Int)
 		for rows.Next() {
 			var bucket analytics.Bucket
-			var rawInput, rawOutput, rawTotal string
+			var rawInput, rawCached, rawOutput, rawReasoning, rawTotal string
 			var runtimeSeconds float64
 			if err := rows.Scan(&bucket.From, &bucket.To, &bucket.RunsCount,
 				&bucket.ByStatus.Accepted, &bucket.ByStatus.Starting, &bucket.ByStatus.Running,
 				&bucket.ByStatus.Cancelling, &bucket.ByStatus.Finalizing, &bucket.ByStatus.Completed,
 				&bucket.ByStatus.Failed, &bucket.ByStatus.Cancelled,
-				&rawInput, &rawOutput, &rawTotal, &runtimeSeconds); err != nil {
+				&rawInput, &rawCached, &rawOutput, &rawReasoning, &rawTotal, &runtimeSeconds); err != nil {
 				return err
 			}
 			if bucket.RunsCount > analytics.MaxCount-out.Period.RunsCount {
@@ -137,7 +139,13 @@ func (s *Store) AnalyticsOverview(ctx context.Context, request analytics.Request
 			if err := addDecimal(input, rawInput); err != nil {
 				return err
 			}
+			if err := addDecimal(cached, rawCached); err != nil {
+				return err
+			}
 			if err := addDecimal(output, rawOutput); err != nil {
+				return err
+			}
+			if err := addDecimal(reasoning, rawReasoning); err != nil {
 				return err
 			}
 			if err := addDecimal(total, rawTotal); err != nil {
@@ -148,7 +156,7 @@ func (s *Store) AnalyticsOverview(ctx context.Context, request analytics.Request
 		if err := rows.Err(); err != nil {
 			return err
 		}
-		out.Period.Usage = analytics.Usage{InputTokens: input.String(), OutputTokens: output.String(), TotalTokens: total.String()}
+		out.Period.Usage = analytics.Usage{InputTokens: input.String(), CachedInputTokens: cached.String(), OutputTokens: output.String(), ReasoningOutputTokens: reasoning.String(), TotalTokens: total.String()}
 		return nil
 	})
 	if err != nil {

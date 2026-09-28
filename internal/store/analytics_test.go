@@ -23,7 +23,7 @@ func TestAnalyticsOverviewBucketsAndUsage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Series) != 2 || got.Period.RunsCount != 0 || got.Current.ActiveSessions != 0 || got.Period.Usage.TotalTokens != "0" {
+	if len(got.Series) != 2 || got.Period.RunsCount != 0 || got.Current.ActiveSessions != 0 || got.Period.Usage != (analytics.Usage{InputTokens: "0", CachedInputTokens: "0", OutputTokens: "0", ReasoningOutputTokens: "0", TotalTokens: "0"}) {
 		t.Fatalf("empty overview: %+v", got)
 	}
 	for _, row := range []struct {
@@ -58,6 +58,27 @@ func TestAnalyticsOverviewBucketsAndUsage(t *testing.T) {
 	}
 	if !got.Series[0].From.Equal(from) || !got.Series[1].To.Equal(to) {
 		t.Fatalf("boundaries: %+v", got.Series)
+	}
+}
+
+func TestAnalyticsUsageBreakdownBeyondSafeInteger(t *testing.T) {
+	s := fixture(t)
+	ctx := t.Context()
+	to := time.Now().UTC().Add(-time.Hour)
+	from := to.Add(-time.Hour)
+	for range 2 {
+		sid, rid := uuid.New(), uuid.New()
+		if _, err := s.Pool.Exec(ctx, `INSERT INTO sessions(id,configuration,namespace) VALUES($1,'{}','breakdown')`, sid); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Pool.Exec(ctx, `INSERT INTO runs(id,session_id,number,status,created_at,input_tokens,cached_input_tokens,output_tokens,reasoning_output_tokens,total_tokens) VALUES($1,$2,1,'completed',$3,9000000000000000,8000000000000000,7000000000000000,6000000000000000,16000000000000000)`, rid, sid, from.Add(30*time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.AnalyticsOverview(ctx, analytics.Request{From: &from, To: &to, Namespace: new("breakdown")})
+	want := analytics.Usage{InputTokens: "18000000000000000", CachedInputTokens: "16000000000000000", OutputTokens: "14000000000000000", ReasoningOutputTokens: "12000000000000000", TotalTokens: "32000000000000000"}
+	if err != nil || got.Period.RunsCount != 2 || got.Period.Usage != want {
+		t.Fatal(got.Period, err)
 	}
 }
 

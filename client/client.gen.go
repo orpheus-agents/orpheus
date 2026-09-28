@@ -965,11 +965,13 @@ type AgentInput struct {
 	Profile      string  `json:"profile"`
 }
 
-// AggregateUsage Totals for runs accepted in the period. Decimal strings preserve values beyond JavaScript Number precision.
+// AggregateUsage Totals for runs accepted in the period. Cached input and reasoning output are included in input and output respectively. The breakdown is recorded only since collection began; historical usage is not reconstructed. Decimal strings preserve values beyond JavaScript Number precision.
 type AggregateUsage struct {
-	InputTokens  string `json:"input_tokens"`
-	OutputTokens string `json:"output_tokens"`
-	TotalTokens  string `json:"total_tokens"`
+	CachedInputTokens     string `json:"cached_input_tokens"`
+	InputTokens           string `json:"input_tokens"`
+	OutputTokens          string `json:"output_tokens"`
+	ReasoningOutputTokens string `json:"reasoning_output_tokens"`
+	TotalTokens           string `json:"total_tokens"`
 }
 
 // AnalyticsBucket defines model for AnalyticsBucket.
@@ -996,7 +998,7 @@ type AnalyticsOverview struct {
 		RunsCount      int64        `json:"runs_count"`
 		RuntimeSeconds float64      `json:"runtime_seconds"`
 
-		// Usage Totals for runs accepted in the period. Decimal strings preserve values beyond JavaScript Number precision.
+		// Usage Totals for runs accepted in the period. Cached input and reasoning output are included in input and output respectively. The breakdown is recorded only since collection began; historical usage is not reconstructed. Decimal strings preserve values beyond JavaScript Number precision.
 		Usage AggregateUsage `json:"usage"`
 	} `json:"period"`
 	Series   []AnalyticsBucket `json:"series"`
@@ -1326,7 +1328,7 @@ type Run struct {
 	StopMethod *RunStopMethod `json:"stop_method"`
 	StopReason *RunStopReason `json:"stop_reason"`
 
-	// Usage Last reported token consumption; missed reports are not reconstructed from history. Cached input and reasoning output are already included.
+	// Usage Last reported token consumption; missed reports are not reconstructed from history. Cached input and reasoning output are included in input and output respectively. The breakdown is recorded only since collection began; historical usage is not reconstructed.
 	Usage Usage `json:"usage"`
 }
 
@@ -1436,7 +1438,7 @@ type Session struct {
 	Sandbox   SandboxState  `json:"sandbox"`
 	Status    RunStatus     `json:"status"`
 
-	// Usage Last reported token consumption; missed reports are not reconstructed from history. Cached input and reasoning output are already included.
+	// Usage Last reported token consumption; missed reports are not reconstructed from history. Cached input and reasoning output are included in input and output respectively. The breakdown is recorded only since collection began; historical usage is not reconstructed.
 	Usage Usage `json:"usage"`
 }
 
@@ -1557,11 +1559,13 @@ type UnavailableResponse struct {
 // UnavailableResponseStatus defines model for UnavailableResponse.Status.
 type UnavailableResponseStatus string
 
-// Usage Last reported token consumption; missed reports are not reconstructed from history. Cached input and reasoning output are already included.
+// Usage Last reported token consumption; missed reports are not reconstructed from history. Cached input and reasoning output are included in input and output respectively. The breakdown is recorded only since collection began; historical usage is not reconstructed.
 type Usage struct {
-	InputTokens  int64 `json:"input_tokens"`
-	OutputTokens int64 `json:"output_tokens"`
-	TotalTokens  int64 `json:"total_tokens"`
+	CachedInputTokens     int64 `json:"cached_input_tokens"`
+	InputTokens           int64 `json:"input_tokens"`
+	OutputTokens          int64 `json:"output_tokens"`
+	ReasoningOutputTokens int64 `json:"reasoning_output_tokens"`
+	TotalTokens           int64 `json:"total_tokens"`
 }
 
 // GetAnalyticsOverviewParams defines parameters for GetAnalyticsOverview.

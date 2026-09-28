@@ -69,9 +69,11 @@ type Limits struct {
 	MaxSessionTokens  int64 `json:"max_session_tokens,omitzero"`
 }
 type Usage struct {
-	InputTokens  int64 `json:"input_tokens"`
-	OutputTokens int64 `json:"output_tokens"`
-	TotalTokens  int64 `json:"total_tokens"`
+	InputTokens           int64 `json:"input_tokens"`
+	CachedInputTokens     int64 `json:"cached_input_tokens"`
+	OutputTokens          int64 `json:"output_tokens"`
+	ReasoningOutputTokens int64 `json:"reasoning_output_tokens"`
+	TotalTokens           int64 `json:"total_tokens"`
 }
 type HooksInput struct {
 	AfterCreate    *string `json:"after_create,omitzero"`

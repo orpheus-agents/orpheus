@@ -39,6 +39,91 @@ func reportUsage(t *testing.T, s *Store, sid uuid.UUID, reports ...harness.Usage
 func usageReport(turn string, input, output int64) harness.UsageReport {
 	return harness.UsageReport{ContextID: "thread", TurnID: turn, Total: session.Usage{InputTokens: input, OutputTokens: output, TotalTokens: input + output}}
 }
+func breakdownReport(turn string, input, cached, output, reasoning int64) harness.UsageReport {
+	report := usageReport(turn, input, output)
+	report.CachedInputTokens = &cached
+	report.ReasoningOutputTokens = &reasoning
+	return report
+}
+
+func TestUsageBreakdownAcrossRunsAndReplay(t *testing.T) {
+	s := fixture(t)
+	a, err := s.Accept(t.Context(), request())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindUsageRun(t, s, a, "first")
+	first := breakdownReport("first", 90, 60, 10, 4)
+	reportUsage(t, s, a.SessionID, first)
+	record, _, err := s.Read(t.Context(), a.SessionID)
+	if err != nil || record.Usage() != (session.Usage{InputTokens: 90, CachedInputTokens: 60, OutputTokens: 10, ReasoningOutputTokens: 4, TotalTokens: 100}) {
+		t.Fatal(record.Usage(), err)
+	}
+	before := record.NextEventSequence
+	reportUsage(t, s, a.SessionID, first, breakdownReport("first", 80, 50, 9, 3))
+	record, _, err = s.Read(t.Context(), a.SessionID)
+	if err != nil || record.NextEventSequence != before {
+		t.Fatal(record.NextEventSequence, err)
+	}
+	// A corrected breakdown is published even when the main counters stay put.
+	reportUsage(t, s, a.SessionID, breakdownReport("first", 90, 61, 10, 5))
+	record, _, err = s.Read(t.Context(), a.SessionID)
+	if err != nil || record.NextEventSequence != before+1 || record.CachedInputTokens != 61 || record.ReasoningOutputTokens != 5 {
+		t.Fatal(record, err)
+	}
+	if err := s.Mutate(t.Context(), a.SessionID, false, func(tx pgx.Tx, r *SessionRecord) error {
+		run, err := GetRun(t.Context(), tx, a.SessionID, a.RunID)
+		if err != nil {
+			return err
+		}
+		return AgentFinished(t.Context(), tx, r, &run, session.Completed, nil, nil)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	b, err := s.Accept(t.Context(), Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "next"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindUsageRun(t, s, b, "second")
+	reportUsage(t, s, a.SessionID, breakdownReport("second", 120, 75, 20, 8))
+	second, err := s.Run(t.Context(), a.SessionID, b.RunID)
+	want := session.Usage{InputTokens: 30, CachedInputTokens: 14, OutputTokens: 10, ReasoningOutputTokens: 3, TotalTokens: 40}
+	if err != nil || second.Usage != want {
+		t.Fatal(second.Usage, err)
+	}
+	record, _, err = s.Read(t.Context(), a.SessionID)
+	if err != nil || record.Usage() != (session.Usage{InputTokens: 120, CachedInputTokens: 75, OutputTokens: 20, ReasoningOutputTokens: 8, TotalTokens: 140}) {
+		t.Fatal(record.Usage(), err)
+	}
+}
+
+func TestUsageBreakdownStartsAfterLegacyBaseline(t *testing.T) {
+	s := fixture(t)
+	a, err := s.Accept(t.Context(), request())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Pool.Exec(t.Context(), `UPDATE sessions SET cached_input_native_total=NULL, reasoning_output_native_total=NULL WHERE id=$1`, a.SessionID); err != nil {
+		t.Fatal(err)
+	}
+	bindUsageRun(t, s, a, "legacy")
+	reportUsage(t, s, a.SessionID, breakdownReport("legacy", 100, 70, 10, 4))
+	record, _, err := s.Read(t.Context(), a.SessionID)
+	run, runErr := s.Run(t.Context(), a.SessionID, a.RunID)
+	if err != nil || runErr != nil || record.CachedInputNativeTotal == nil || *record.CachedInputNativeTotal != 70 || record.ReasoningOutputNativeTotal == nil || *record.ReasoningOutputNativeTotal != 4 || record.CachedInputTokens != 0 || record.ReasoningOutputTokens != 0 || run.Usage.CachedInputTokens != 0 || run.Usage.ReasoningOutputTokens != 0 {
+		t.Fatal(record, run, err, runErr)
+	}
+	reportUsage(t, s, a.SessionID, breakdownReport("legacy", 120, 80, 15, 6))
+	partial := usageReport("legacy", 130, 20)
+	partial.ReasoningOutputTokens = new(int64(7))
+	reportUsage(t, s, a.SessionID, partial)
+	reportUsage(t, s, a.SessionID, breakdownReport("legacy", 140, 90, 25, 8))
+	record, _, err = s.Read(t.Context(), a.SessionID)
+	run, runErr = s.Run(t.Context(), a.SessionID, a.RunID)
+	if err != nil || runErr != nil || record.CachedInputTokens != 20 || record.ReasoningOutputTokens != 4 || run.Usage.CachedInputTokens != 20 || run.Usage.ReasoningOutputTokens != 4 {
+		t.Fatal(record, run, err, runErr)
+	}
+}
 func TestUsageAcrossRunsAndReplay(t *testing.T) {
 	s := fixture(t)
 	req := request()

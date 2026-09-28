@@ -147,7 +147,7 @@ func (q *Queries) GetSessionOperation(ctx context.Context, arg GetSessionOperati
 }
 
 const lastTerminalRun = `-- name: LastTerminalRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens
 FROM runs r
 WHERE session_id = $1 AND status IN ('completed', 'failed', 'cancelled')
 ORDER BY number DESC
@@ -185,6 +185,8 @@ func (q *Queries) LastTerminalRun(ctx context.Context, sessionID uuid.UUID) (Run
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.TotalTokens,
+		&i.CachedInputTokens,
+		&i.ReasoningOutputTokens,
 	)
 	return i, err
 }
@@ -221,7 +223,7 @@ func (q *Queries) LatestAttempt(ctx context.Context, arg LatestAttemptParams) (O
 }
 
 const previousExecutedRun = `-- name: PreviousExecutedRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens
 FROM runs r
 WHERE session_id = $1 AND number<$2 AND (execution_started_at IS NOT NULL OR error->>'code' = 'authentication_failed')
 ORDER BY number DESC
@@ -264,6 +266,8 @@ func (q *Queries) PreviousExecutedRun(ctx context.Context, arg PreviousExecutedR
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.TotalTokens,
+		&i.CachedInputTokens,
+		&i.ReasoningOutputTokens,
 	)
 	return i, err
 }

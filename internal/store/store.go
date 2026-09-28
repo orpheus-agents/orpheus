@@ -36,7 +36,7 @@ type Store struct {
 type SessionRecord db.Session
 
 func (s SessionRecord) Usage() session.Usage {
-	return session.Usage{InputTokens: s.InputTokens, OutputTokens: s.OutputTokens, TotalTokens: s.TotalTokens}
+	return session.Usage{InputTokens: s.InputTokens, CachedInputTokens: s.CachedInputTokens, OutputTokens: s.OutputTokens, ReasoningOutputTokens: s.ReasoningOutputTokens, TotalTokens: s.TotalTokens}
 }
 
 func (s SessionRecord) Sandbox() session.SandboxState {
@@ -239,22 +239,28 @@ func SaveSession(ctx context.Context, tx pgx.Tx, s *SessionRecord) error {
 }
 func sessionParams(s *SessionRecord) db.SaveSessionParams {
 	return db.SaveSessionParams{
-		ID:                    s.ID,
-		SandboxState:          s.SandboxState,
-		SandboxLastKnownState: s.SandboxLastKnownState,
-		SandboxError:          s.SandboxError,
-		SandboxID:             s.SandboxID,
-		ProcessID:             s.ProcessID,
-		LaunchID:              s.LaunchID,
-		ThreadID:              s.ThreadID,
-		HistoryPath:           s.HistoryPath,
-		HistoryOffset:         s.HistoryOffset,
-		Workspace:             s.Workspace,
-		HarnessHome:           s.HarnessHome,
-		SlotReserved:          s.SlotReserved,
-		NextRunNumber:         s.NextRunNumber,
-		NextEventSequence:     s.NextEventSequence,
-		InputTokens:           s.InputTokens, OutputTokens: s.OutputTokens, TotalTokens: s.TotalTokens,
+		ID:                         s.ID,
+		SandboxState:               s.SandboxState,
+		SandboxLastKnownState:      s.SandboxLastKnownState,
+		SandboxError:               s.SandboxError,
+		SandboxID:                  s.SandboxID,
+		ProcessID:                  s.ProcessID,
+		LaunchID:                   s.LaunchID,
+		ThreadID:                   s.ThreadID,
+		HistoryPath:                s.HistoryPath,
+		HistoryOffset:              s.HistoryOffset,
+		Workspace:                  s.Workspace,
+		HarnessHome:                s.HarnessHome,
+		SlotReserved:               s.SlotReserved,
+		NextRunNumber:              s.NextRunNumber,
+		NextEventSequence:          s.NextEventSequence,
+		InputTokens:                s.InputTokens,
+		CachedInputTokens:          s.CachedInputTokens,
+		OutputTokens:               s.OutputTokens,
+		ReasoningOutputTokens:      s.ReasoningOutputTokens,
+		TotalTokens:                s.TotalTokens,
+		CachedInputNativeTotal:     s.CachedInputNativeTotal,
+		ReasoningOutputNativeTotal: s.ReasoningOutputNativeTotal,
 	}
 }
 func SaveRun(ctx context.Context, tx pgx.Tx, r *RunRecord) error {
@@ -264,24 +270,28 @@ func SaveRun(ctx context.Context, tx pgx.Tx, r *RunRecord) error {
 		}
 	}
 	return db.New(tx).SaveRun(ctx, db.SaveRunParams{
-		ID:                 r.ID,
-		Status:             r.Status,
-		Observation:        r.Observation,
-		ExecutionStartedAt: r.ExecutionStartedAt,
-		DeadlineAt:         r.DeadlineAt,
-		FinishedAt:         r.FinishedAt,
-		CancelRequestedAt:  r.CancelRequestedAt,
-		CancelAttemptedAt:  r.CancelAttemptedAt,
-		StopReason:         r.StopReason,
-		StopMethod:         r.StopMethod,
-		Error:              r.Error,
-		NativeTurnID:       r.NativeTurnID,
-		NextDeliveryNumber: r.NextDeliveryNumber,
-		FinalMessageID:     r.FinalMessageID,
-		Phase:              r.Phase,
-		AgentStatus:        r.AgentStatus,
-		AgentError:         r.AgentError,
-		InputTokens:        r.Usage.InputTokens, OutputTokens: r.Usage.OutputTokens, TotalTokens: r.Usage.TotalTokens,
+		ID:                    r.ID,
+		Status:                r.Status,
+		Observation:           r.Observation,
+		ExecutionStartedAt:    r.ExecutionStartedAt,
+		DeadlineAt:            r.DeadlineAt,
+		FinishedAt:            r.FinishedAt,
+		CancelRequestedAt:     r.CancelRequestedAt,
+		CancelAttemptedAt:     r.CancelAttemptedAt,
+		StopReason:            r.StopReason,
+		StopMethod:            r.StopMethod,
+		Error:                 r.Error,
+		NativeTurnID:          r.NativeTurnID,
+		NextDeliveryNumber:    r.NextDeliveryNumber,
+		FinalMessageID:        r.FinalMessageID,
+		Phase:                 r.Phase,
+		AgentStatus:           r.AgentStatus,
+		AgentError:            r.AgentError,
+		InputTokens:           r.Usage.InputTokens,
+		CachedInputTokens:     r.Usage.CachedInputTokens,
+		OutputTokens:          r.Usage.OutputTokens,
+		ReasoningOutputTokens: r.Usage.ReasoningOutputTokens,
+		TotalTokens:           r.Usage.TotalTokens,
 	})
 }
 

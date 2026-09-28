@@ -186,7 +186,7 @@ func (q *Queries) HistoryByExternalKey(ctx context.Context, arg HistoryByExterna
 }
 
 const listAllRuns = `-- name: ListAllRuns :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens FROM runs r JOIN sessions s ON s.id=r.session_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens FROM runs r JOIN sessions s ON s.id=r.session_id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR r.input_fingerprint = $3::text) AND ($4::text IS NULL OR r.status = $4::text)
 AND (r.created_at, r.id) > (CASE WHEN $5::boolean THEN '-infinity'::timestamptz ELSE $6::timestamptz END, $7::uuid)
@@ -251,6 +251,8 @@ func (q *Queries) ListAllRuns(ctx context.Context, arg ListAllRunsParams) ([]Run
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.TotalTokens,
+			&i.CachedInputTokens,
+			&i.ReasoningOutputTokens,
 		); err != nil {
 			return nil, err
 		}
@@ -263,7 +265,7 @@ func (q *Queries) ListAllRuns(ctx context.Context, arg ListAllRunsParams) ([]Run
 }
 
 const listAllRunsDesc = `-- name: ListAllRunsDesc :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens FROM runs r JOIN sessions s ON s.id=r.session_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens FROM runs r JOIN sessions s ON s.id=r.session_id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR r.input_fingerprint = $3::text) AND ($4::text IS NULL OR r.status = $4::text)
 AND (r.created_at, r.id) < (CASE WHEN $5::boolean THEN 'infinity'::timestamptz ELSE $6::timestamptz END, $7::uuid)
@@ -328,6 +330,8 @@ func (q *Queries) ListAllRunsDesc(ctx context.Context, arg ListAllRunsDescParams
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.TotalTokens,
+			&i.CachedInputTokens,
+			&i.ReasoningOutputTokens,
 		); err != nil {
 			return nil, err
 		}
@@ -384,7 +388,7 @@ func (q *Queries) ListEvents(ctx context.Context, arg ListEventsParams) ([]ListE
 }
 
 const listRuns = `-- name: ListRuns :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens FROM runs r WHERE r.session_id = $1
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens FROM runs r WHERE r.session_id = $1
 AND ($2::text IS NULL OR r.input_fingerprint = $2::text) AND ($3::text IS NULL OR r.status = $3::text)
 AND ($4::boolean OR (r.number) > ($5::int))
 ORDER BY r.number ASC
@@ -444,6 +448,8 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]Run, erro
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.TotalTokens,
+			&i.CachedInputTokens,
+			&i.ReasoningOutputTokens,
 		); err != nil {
 			return nil, err
 		}
@@ -456,7 +462,7 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]Run, erro
 }
 
 const listRunsDesc = `-- name: ListRunsDesc :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens FROM runs r WHERE r.session_id = $1
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens FROM runs r WHERE r.session_id = $1
 AND ($2::text IS NULL OR r.input_fingerprint = $2::text) AND ($3::text IS NULL OR r.status = $3::text)
 AND ($4::boolean OR (r.number) < ($5::int))
 ORDER BY r.number DESC
@@ -516,6 +522,8 @@ func (q *Queries) ListRunsDesc(ctx context.Context, arg ListRunsDescParams) ([]R
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.TotalTokens,
+			&i.CachedInputTokens,
+			&i.ReasoningOutputTokens,
 		); err != nil {
 			return nil, err
 		}
@@ -528,7 +536,7 @@ func (q *Queries) ListRunsDesc(ctx context.Context, arg ListRunsDescParams) ([]R
 }
 
 const listSessions = `-- name: ListSessions :many
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens FROM sessions s
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total FROM sessions s
 JOIN runs latest ON latest.session_id = s.id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR latest.status = $3::text)
@@ -598,6 +606,10 @@ func (q *Queries) ListSessions(ctx context.Context, arg ListSessionsParams) ([]S
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.TotalTokens,
+			&i.CachedInputTokens,
+			&i.ReasoningOutputTokens,
+			&i.CachedInputNativeTotal,
+			&i.ReasoningOutputNativeTotal,
 		); err != nil {
 			return nil, err
 		}
@@ -610,7 +622,7 @@ func (q *Queries) ListSessions(ctx context.Context, arg ListSessionsParams) ([]S
 }
 
 const listSessionsByLatest = `-- name: ListSessionsByLatest :many
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens FROM runs latest JOIN sessions s ON s.id = latest.session_id
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total FROM runs latest JOIN sessions s ON s.id = latest.session_id
 WHERE NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
 AND ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR latest.status = $3::text)
@@ -679,6 +691,10 @@ func (q *Queries) ListSessionsByLatest(ctx context.Context, arg ListSessionsByLa
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.TotalTokens,
+			&i.CachedInputTokens,
+			&i.ReasoningOutputTokens,
+			&i.CachedInputNativeTotal,
+			&i.ReasoningOutputNativeTotal,
 		); err != nil {
 			return nil, err
 		}
@@ -691,7 +707,7 @@ func (q *Queries) ListSessionsByLatest(ctx context.Context, arg ListSessionsByLa
 }
 
 const listSessionsByLatestDesc = `-- name: ListSessionsByLatestDesc :many
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens FROM runs latest JOIN sessions s ON s.id = latest.session_id
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total FROM runs latest JOIN sessions s ON s.id = latest.session_id
 WHERE NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
 AND ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR latest.status = $3::text)
@@ -760,6 +776,10 @@ func (q *Queries) ListSessionsByLatestDesc(ctx context.Context, arg ListSessions
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.TotalTokens,
+			&i.CachedInputTokens,
+			&i.ReasoningOutputTokens,
+			&i.CachedInputNativeTotal,
+			&i.ReasoningOutputNativeTotal,
 		); err != nil {
 			return nil, err
 		}
@@ -772,7 +792,7 @@ func (q *Queries) ListSessionsByLatestDesc(ctx context.Context, arg ListSessions
 }
 
 const listSessionsDesc = `-- name: ListSessionsDesc :many
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens FROM sessions s
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total FROM sessions s
 JOIN runs latest ON latest.session_id = s.id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR latest.status = $3::text)
@@ -842,6 +862,10 @@ func (q *Queries) ListSessionsDesc(ctx context.Context, arg ListSessionsDescPara
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.TotalTokens,
+			&i.CachedInputTokens,
+			&i.ReasoningOutputTokens,
+			&i.CachedInputNativeTotal,
+			&i.ReasoningOutputNativeTotal,
 		); err != nil {
 			return nil, err
 		}

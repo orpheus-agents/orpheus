@@ -52,9 +52,11 @@ type Snapshot struct {
 // UsageReport carries cumulative counters for a native context, attributed to
 // the turn that reported them. It is not a per-turn delta.
 type UsageReport struct {
-	ContextID string
-	TurnID    string
-	Total     session.Usage
+	ContextID             string
+	TurnID                string
+	Total                 session.Usage
+	CachedInputTokens     *int64
+	ReasoningOutputTokens *int64
 }
 type Context struct {
 	NativeID    string
