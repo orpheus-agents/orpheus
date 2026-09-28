@@ -12,6 +12,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/secret"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/store/db"
 	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
@@ -776,8 +778,15 @@ func TestSingleOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _, _ = owner.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", store.WorkerLock) }()
-	if err := Run(t.Context(), s, &remote{}); err == nil || !strings.Contains(err.Error(), "another worker") {
+	called := make(chan struct{}, 1)
+	cleanup := func(context.Context, *db.Queries) { called <- struct{}{} }
+	if err := run(t.Context(), s, &remote{}, cleanup); err == nil || !strings.Contains(err.Error(), "another worker") {
 		t.Fatal(err)
+	}
+	select {
+	case <-called:
+		t.Fatal("cleanup started without worker ownership")
+	default:
 	}
 }
 
@@ -882,7 +891,9 @@ func TestOwnerConnectionLossCancelsExecutors(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- Run(ctx, s, p) }()
+	cleanup := newCleanupProbe(t)
+	go func() { done <- run(ctx, s, p, cleanup.run) }()
+	waitCleanupSignal(t, cleanup.started, "cleanup did not start")
 	select {
 	case <-p.entered:
 	case <-time.After(3 * time.Second):
@@ -893,6 +904,13 @@ func TestOwnerConnectionLossCancelsExecutors(t *testing.T) {
 	if err := s.Pool.QueryRow(t.Context(), `SELECT pg_terminate_backend(pid) FROM pg_locks WHERE locktype='advisory' AND classid=($1::bigint >> 32)::oid AND objid=($1::bigint & 4294967295)::oid AND granted`, store.WorkerLock).Scan(&killed); err != nil || !killed {
 		t.Fatal("owner termination", err)
 	}
+	waitCleanupSignal(t, cleanup.cancelled, "cleanup survived ownership loss")
+	select {
+	case <-done:
+		t.Fatal("worker returned before cleanup finished")
+	default:
+	}
+	cleanup.release()
 	select {
 	case err := <-done:
 		if err == nil {
@@ -900,6 +918,11 @@ func TestOwnerConnectionLossCancelsExecutors(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("worker continued after ownership loss")
+	}
+	select {
+	case <-cleanup.exited:
+	default:
+		t.Fatal("worker did not wait for cleanup")
 	}
 	select {
 	case <-p.cancelled:
@@ -916,4 +939,91 @@ func TestOwnerConnectionLossCancelsExecutors(t *testing.T) {
 		t.Fatal("new owner cannot acquire lock", err)
 	}
 	_, _ = conn.Exec(t.Context(), "SELECT pg_advisory_unlock($1)", store.WorkerLock)
+}
+
+func TestWorkerCancellationStopsBackgroundTasks(t *testing.T) {
+	s, _, _, _ := setup(t)
+	// No SAML configuration: cleanup must also run for api_only installations.
+	s.Settings.WorkerPoll = time.Hour
+	p := &blockingPlatform{entered: make(chan struct{}), cancelled: make(chan struct{})}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	cleanup := newCleanupProbe(t)
+	go func() { done <- run(ctx, s, p, cleanup.run) }()
+	waitCleanupSignal(t, cleanup.started, "cleanup did not start")
+	select {
+	case <-p.entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("worker did not start")
+	}
+	cancel()
+	waitCleanupSignal(t, cleanup.cancelled, "cleanup was not cancelled")
+	select {
+	case <-done:
+		t.Fatal("worker returned before cleanup finished")
+	default:
+	}
+	// Ownership must remain held until cleanup has actually returned.
+	owner, err := pgx.Connect(t.Context(), s.Settings.DatabaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = owner.Close(context.Background()) }()
+	if owned, err := store.TryWorkerLock(t.Context(), owner); err != nil || owned {
+		t.Fatal("worker released ownership before cleanup finished", owned, err)
+	}
+	cleanup.release()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("worker did not stop its background tasks")
+	}
+	select {
+	case <-cleanup.exited:
+	default:
+		t.Fatal("worker did not wait for cleanup")
+	}
+	select {
+	case <-p.cancelled:
+	default:
+		t.Fatal("worker returned before the executor stopped")
+	}
+}
+
+type cleanupProbe struct {
+	started, cancelled, exited chan struct{}
+	finish                     chan struct{}
+	release                    func()
+}
+
+func newCleanupProbe(t *testing.T) *cleanupProbe {
+	t.Helper()
+	p := &cleanupProbe{
+		started: make(chan struct{}), cancelled: make(chan struct{}),
+		exited: make(chan struct{}), finish: make(chan struct{}),
+	}
+	p.release = sync.OnceFunc(func() { close(p.finish) })
+	t.Cleanup(p.release)
+	return p
+}
+
+func (p *cleanupProbe) run(ctx context.Context, _ *db.Queries) {
+	close(p.started)
+	<-ctx.Done()
+	close(p.cancelled)
+	<-p.finish
+	close(p.exited)
+}
+
+func waitCleanupSignal(t *testing.T, signal <-chan struct{}, failure string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(3 * time.Second):
+		t.Fatal(failure)
+	}
 }

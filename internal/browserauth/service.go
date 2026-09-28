@@ -456,28 +456,6 @@ func (s *Service) Metadata(w http.ResponseWriter, _ *http.Request) error {
 	return err
 }
 
-// Cleanup runs independently of request authorization. Every batch has its own
-// short statement and SKIP LOCKED lets replicas share expiry cleanup safely.
-func Cleanup(ctx context.Context, pool *pgxpool.Pool) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(10 * time.Minute):
-			for _, clean := range []func(context.Context) (int64, error){db.New(pool).CleanupBrowserLogins, db.New(pool).CleanupBrowserSessions} {
-				for ctx.Err() == nil {
-					batch, cancel := context.WithTimeout(ctx, 5*time.Second)
-					n, err := clean(batch)
-					cancel()
-					if err != nil || n < 1000 {
-						break
-					}
-				}
-			}
-		}
-	}
-}
-
 // Library errors can contain assertions, identifiers and attacker-supplied XML.
 // Only emit a fixed category, never PrivateErr or InvalidResponseError.Response.
 func samlFailureReason(err error) string {
