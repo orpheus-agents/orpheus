@@ -157,21 +157,6 @@ func (e ErrorDetailCode) Valid() bool {
 	}
 }
 
-// Defines values for HealthResponseStatus.
-const (
-	Ok HealthResponseStatus = "ok"
-)
-
-// Valid indicates whether the value is a known member of the HealthResponseStatus enum.
-func (e HealthResponseStatus) Valid() bool {
-	switch e {
-	case Ok:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for HookResultName.
 const (
 	HookResultNameAfterCreate  HookResultName = "after_create"
@@ -754,21 +739,6 @@ func (e TruncatedResultType) Valid() bool {
 	}
 }
 
-// Defines values for UnavailableResponseStatus.
-const (
-	UnavailableResponseStatusUnavailable UnavailableResponseStatus = "unavailable"
-)
-
-// Valid indicates whether the value is a known member of the UnavailableResponseStatus enum.
-func (e UnavailableResponseStatus) Valid() bool {
-	switch e {
-	case UnavailableResponseStatusUnavailable:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for GetAnalyticsOverviewParamsWindow.
 const (
 	N24H GetAnalyticsOverviewParamsWindow = "24h"
@@ -1144,14 +1114,6 @@ type EventPage struct {
 	Items      []Event `json:"items"`
 	NextCursor string  `json:"next_cursor"`
 }
-
-// HealthResponse defines model for HealthResponse.
-type HealthResponse struct {
-	Status HealthResponseStatus `json:"status"`
-}
-
-// HealthResponseStatus defines model for HealthResponse.Status.
-type HealthResponseStatus string
 
 // HistoryPage defines model for HistoryPage.
 type HistoryPage struct {
@@ -1564,14 +1526,6 @@ type TruncatedResultSourceType string
 
 // TruncatedResultType defines model for TruncatedResult.Type.
 type TruncatedResultType string
-
-// UnavailableResponse defines model for UnavailableResponse.
-type UnavailableResponse struct {
-	Status UnavailableResponseStatus `json:"status"`
-}
-
-// UnavailableResponseStatus defines model for UnavailableResponse.Status.
-type UnavailableResponseStatus string
 
 // Usage Last reported token consumption; missed reports are not reconstructed from history. Cached input and reasoning output are included in input and output respectively. The breakdown is recorded only since collection began; historical usage is not reconstructed.
 type Usage struct {
@@ -2452,16 +2406,6 @@ type ClientInterface interface {
 	// Corresponds with POST /auth/logout (the `BrowserLogout` operationId).
 	BrowserLogout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// Health Health
-	//
-	// Corresponds with GET /health (the `Health` operationId).
-	Health(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// Ready Ready
-	//
-	// Corresponds with GET /ready (the `Ready` operationId).
-	Ready(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// SamlMetadata Read service provider metadata
 	//
 	// Corresponds with GET /saml/metadata (the `SamlMetadata` operationId).
@@ -2797,36 +2741,6 @@ func (c *Client) BrowserLogin(ctx context.Context, params *BrowserLoginParams, r
 // Corresponds with POST /auth/logout (the `BrowserLogout` operationId).
 func (c *Client) BrowserLogout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBrowserLogoutRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// Health Health
-//
-// Corresponds with GET /health (the `Health` operationId).
-func (c *Client) Health(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewHealthRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// Ready Ready
-//
-// Corresponds with GET /ready (the `Ready` operationId).
-func (c *Client) Ready(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReadyRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -4073,60 +3987,6 @@ func NewBrowserLogoutRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewHealthRequest constructs an http.Request for the Health method
-func NewHealthRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/health")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewReadyRequest constructs an http.Request for the Ready method
-func NewReadyRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/ready")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewSamlMetadataRequest constructs an http.Request for the SamlMetadata method
 func NewSamlMetadataRequest(server string) (*http.Request, error) {
 	var err error
@@ -4356,20 +4216,6 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /auth/logout (the `BrowserLogout` operationId).
 	BrowserLogoutWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BrowserLogoutHTTPResponse, error)
-
-	// HealthWithResponse Health
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /health (the `Health` operationId).
-	HealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthHTTPResponse, error)
-
-	// ReadyWithResponse Ready
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /ready (the `Ready` operationId).
-	ReadyWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadyHTTPResponse, error)
 
 	// SamlMetadataWithResponse Read service provider metadata
 	//
@@ -5894,95 +5740,6 @@ func (r BrowserLogoutHTTPResponse) ContentType() string {
 	return ""
 }
 
-type HealthHTTPResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *HealthResponse
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r HealthHTTPResponse) GetJSON200() *HealthResponse {
-	return r.JSON200
-}
-
-// GetBody returns the raw response body bytes
-func (r HealthHTTPResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r HealthHTTPResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r HealthHTTPResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r HealthHTTPResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type ReadyHTTPResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *HealthResponse
-	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *UnavailableResponse
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r ReadyHTTPResponse) GetJSON200() *HealthResponse {
-	return r.JSON200
-}
-
-// GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r ReadyHTTPResponse) GetJSON503() *UnavailableResponse {
-	return r.JSON503
-}
-
-// GetBody returns the raw response body bytes
-func (r ReadyHTTPResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r ReadyHTTPResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ReadyHTTPResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ReadyHTTPResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type SamlMetadataHTTPResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -6307,32 +6064,6 @@ func (c *ClientWithResponses) BrowserLogoutWithResponse(ctx context.Context, req
 		return nil, err
 	}
 	return ParseBrowserLogoutHTTPResponse(rsp)
-}
-
-// HealthWithResponse Health
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /health (the `Health` operationId).
-func (c *ClientWithResponses) HealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthHTTPResponse, error) {
-	rsp, err := c.Health(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseHealthHTTPResponse(rsp)
-}
-
-// ReadyWithResponse Ready
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /ready (the `Ready` operationId).
-func (c *ClientWithResponses) ReadyWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadyHTTPResponse, error) {
-	rsp, err := c.Ready(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseReadyHTTPResponse(rsp)
 }
 
 // SamlMetadataWithResponse Read service provider metadata
@@ -7626,65 +7357,6 @@ func ParseBrowserLogoutHTTPResponse(rsp *http.Response) (*BrowserLogoutHTTPRespo
 			return nil, err
 		}
 		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseHealthHTTPResponse parses an HTTP response from a HealthWithResponse call
-func ParseHealthHTTPResponse(rsp *http.Response) (*HealthHTTPResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &HealthHTTPResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest HealthResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseReadyHTTPResponse parses an HTTP response from a ReadyWithResponse call
-func ParseReadyHTTPResponse(rsp *http.Response) (*ReadyHTTPResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ReadyHTTPResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest HealthResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest UnavailableResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
 
 	}
 

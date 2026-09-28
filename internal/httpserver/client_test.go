@@ -33,26 +33,6 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, call := range []func() (int, error){
-		func() (int, error) {
-			res, err := c.HealthWithResponse(t.Context())
-			if err != nil {
-				return 0, err
-			}
-			return res.StatusCode(), nil
-		},
-		func() (int, error) {
-			res, err := c.ReadyWithResponse(t.Context())
-			if err != nil {
-				return 0, err
-			}
-			return res.StatusCode(), nil
-		},
-	} {
-		if status, err := call(); err != nil || status != 200 {
-			t.Fatalf("health: %d %v", status, err)
-		}
-	}
 	params := &client.CreateSessionParams{IdempotencyKey: new(uuid.NewString())}
 	body := client.CreateSession{
 		Namespace: new("connector/test"), ExternalKey: new("source:thread"), InputFingerprint: new("revision:1"),

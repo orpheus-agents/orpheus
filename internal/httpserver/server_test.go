@@ -88,11 +88,9 @@ const validBody = `{"configuration":{"agent":{"profile":"default"},"sandbox":{"t
 
 func TestHTTPContract(t *testing.T) {
 	server, _ := testServer(t)
-	for _, path := range []string{"/health", "/ready", "/openapi.json"} {
-		status, _, body := requestHTTP(t, server, "GET", path, "", "", "")
-		if status != 200 {
-			t.Fatalf("%s %d %s", path, status, body)
-		}
+	status, _, body := requestHTTP(t, server, "GET", "/openapi.json", "", "", "")
+	if status != 200 {
+		t.Fatalf("/openapi.json %d %s", status, body)
 	}
 	status, h, _ := requestHTTP(t, server, "GET", "/api/v1/sessions", "", "bad", "")
 	if status != 401 || h.Get("WWW-Authenticate") != "Bearer" {
@@ -139,22 +137,22 @@ func TestHTTPContract(t *testing.T) {
 	}
 }
 
-func TestHealthAndReadinessAfterDatabaseLoss(t *testing.T) {
-	server, s := testServer(t)
-	s.Pool.Close()
-	status, _, _ := requestHTTP(t, server, "GET", "/ready", "", "", "")
-	if status != 503 {
-		t.Fatal("readiness ignored lost database", status)
-	}
-	status, _, _ = requestHTTP(t, server, "GET", "/health", "", "", "")
-	if status != 200 {
-		t.Fatal("health depends on database", status)
-	}
-	for _, path := range []string{"/docs", "/redoc"} {
+func TestSystemEndpointsAreNotOnAPI(t *testing.T) {
+	server, _ := testServer(t)
+	for _, path := range []string{"/health", "/ready", "/docs", "/redoc"} {
 		status, _, _ := requestHTTP(t, server, "GET", path, "", "", "")
 		if status != 404 {
-			t.Fatal("documentation endpoint enabled", path, status)
+			t.Fatalf("unexpected API route %s: %d", path, status)
 		}
+	}
+}
+
+func TestAPIReportsDatabaseLoss(t *testing.T) {
+	api, s := testServer(t)
+	s.Pool.Close()
+	status, _, _ := requestHTTP(t, api, "GET", "/api/v1/sessions", "", "key", "")
+	if status != 503 {
+		t.Fatal("API did not report storage failure", status)
 	}
 }
 func TestRequestBoundary(t *testing.T) {

@@ -48,7 +48,7 @@ not public API overrides. Connectors select them through `agent.profile`.
 
 ```sh
 make start
-curl -fsS http://localhost:8000/ready
+curl -fsS http://localhost:9100/ready
 ```
 
 The API is available at `http://localhost:8000`. By default, session requests require

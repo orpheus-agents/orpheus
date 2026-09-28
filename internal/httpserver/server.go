@@ -205,17 +205,6 @@ func (s *Server) GetHistory(ctx context.Context, r api.GetHistoryRequestObject) 
 	}
 	return mapResponse[api.GetHistory200JSONResponse](v)
 }
-func (s *Server) Health(context.Context, api.HealthRequestObject) (api.HealthResponseObject, error) {
-	return api.Health200JSONResponse{Status: "ok"}, nil
-}
-func (s *Server) Ready(ctx context.Context, _ api.ReadyRequestObject) (api.ReadyResponseObject, error) {
-	ctx, cancel := context.WithTimeout(ctx, s.Store.Settings.ReadinessTimeout)
-	defer cancel()
-	if err := s.Store.Pool.Ping(ctx); err != nil {
-		return api.Ready503JSONResponse{Status: api.UnavailableResponseStatusUnavailable}, nil
-	}
-	return api.Ready200JSONResponse{Status: "ok"}, nil
-}
 func (s *Server) StreamEvents(ctx context.Context, r api.StreamEventsRequestObject) (api.StreamEventsResponseObject, error) {
 	after := value(r.Params.LastEventID, value(r.Params.After, "0"))
 	if _, err := s.Store.Events(ctx, r.Sid, after, 1); err != nil {

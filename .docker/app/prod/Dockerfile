@@ -17,7 +17,7 @@ COPY --from=build /orpheus /orpheus
 COPY --from=build /opt/orpheus /opt/orpheus
 COPY --from=build /app/migrations ./migrations
 USER 65532:65532
-EXPOSE 8000
+EXPOSE 8000 9100
 HEALTHCHECK --interval=10s --timeout=5s --start-period=10s CMD ["/orpheus", "healthcheck"]
 ENTRYPOINT ["/orpheus"]
 CMD ["serve"]

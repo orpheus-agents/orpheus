@@ -128,7 +128,7 @@ check: generate-check
 	$(MAKE) -j1 test-integration test-migrations test-go-race
 
 .PHONY: smoke
-smoke: docker-build
+smoke: tools docker-build
 	$(COMPOSE) --profile test up -d --wait test-db
 	sh tools/smoke.sh
 
