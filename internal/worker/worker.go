@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/orpheus-agents/orpheus/internal/config"
 	"github.com/orpheus-agents/orpheus/internal/credentials"
 	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/harness"
@@ -500,7 +501,11 @@ func Run(ctx context.Context, s *store.Store, platform harness.Platform) error {
 func run(ctx context.Context, s *store.Store, platform harness.Platform, cleanup func(context.Context, *db.Queries)) error {
 	// pgx.Connect creates a dedicated physical connection, never a pool checkout
 	// that can be transparently replaced while the lock is assumed to be held.
-	owner, err := pgx.Connect(ctx, s.Settings.DatabaseURL)
+	ownerConfig, err := config.DatabaseConnectionConfig(s.Settings.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	owner, err := pgx.ConnectConfig(ctx, ownerConfig)
 	if err != nil {
 		return err
 	}
