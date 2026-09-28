@@ -8,10 +8,11 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 )
 
-func Provider(db *sql.DB, directory string) (*goose.Provider, error) {
-	return goose.NewProvider(goose.DialectPostgres, db, os.DirFS(directory))
+func Provider(db *sql.DB, directory string, opts ...goose.ProviderOption) (*goose.Provider, error) {
+	return goose.NewProvider(goose.DialectPostgres, db, os.DirFS(directory), opts...)
 }
 func Run(ctx context.Context, url, command, directory string) error {
 	db, err := sql.Open("pgx", url)
@@ -19,7 +20,11 @@ func Run(ctx context.Context, url, command, directory string) error {
 		return err
 	}
 	defer func() { _ = db.Close() }()
-	p, err := Provider(db, directory)
+	locker, err := lock.NewPostgresSessionLocker()
+	if err != nil {
+		return err
+	}
+	p, err := Provider(db, directory, goose.WithSessionLocker(sessionLocker{locker}))
 	if err != nil {
 		return err
 	}

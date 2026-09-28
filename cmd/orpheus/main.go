@@ -126,7 +126,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 			return errors.New("migrate accepts up, down, or reset")
 		}
 		if err := migrate.Run(ctx, settings.DatabaseURL, command, migrationsDir); err != nil {
-			return fmt.Errorf("database migration failed (%s)", diagnostic.Describe(err))
+			return migrationFailure(err)
 		}
 		return nil
 	}
@@ -168,6 +168,13 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	var ready atomic.Bool
 	system := &http.Server{Addr: net.JoinHostPort(systemHost, systemPort), Handler: httpserver.SystemHandler(&ready), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 12}
 	return serve(ctx, server, system, &ready)
+}
+
+func migrationFailure(err error) error {
+	if _, ok := errors.AsType[*migrate.LockError](err); ok {
+		return fmt.Errorf("database migration failed: cannot acquire migration lock (%s)", diagnostic.Describe(err))
+	}
+	return fmt.Errorf("database migration failed (%s)", diagnostic.Describe(err))
 }
 
 func envDefault(name, fallback string) string {
