@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -47,16 +48,27 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	if args[0] == "healthcheck" {
 		flags := flag.NewFlagSet("healthcheck", flag.ContinueOnError)
 		flags.SetOutput(out)
-		port := flags.String("port", envDefault("ORPHEUS_PORT", "8000"), "HTTP port")
+		host := flags.String("host", envDefault("ORPHEUS_SYSTEM_HOST", "0.0.0.0"), "System HTTP host")
+		port := flags.String("port", envDefault("ORPHEUS_SYSTEM_PORT", "9100"), "System HTTP port")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}
 		if err := validatePort(*port); err != nil {
 			return err
 		}
+		if flags.NArg() != 0 {
+			return errors.New("unexpected healthcheck arguments")
+		}
+		probeHost := *host
+		switch probeHost {
+		case "", "0.0.0.0":
+			probeHost = "127.0.0.1"
+		case "::":
+			probeHost = "::1"
+		}
 		ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+net.JoinHostPort("127.0.0.1", *port)+"/ready", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+net.JoinHostPort(probeHost, *port)+"/ready", nil)
 		if err != nil {
 			return err
 		}
@@ -77,6 +89,11 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	flags.SetOutput(out)
 	host := flags.String("host", envDefault("ORPHEUS_HOST", "0.0.0.0"), "HTTP bind host")
 	port := flags.String("port", envDefault("ORPHEUS_PORT", "8000"), "HTTP port")
+	var systemHost, systemPort string
+	if args[0] == "serve" {
+		flags.StringVar(&systemHost, "system-host", envDefault("ORPHEUS_SYSTEM_HOST", "0.0.0.0"), "System HTTP bind host")
+		flags.StringVar(&systemPort, "system-port", envDefault("ORPHEUS_SYSTEM_PORT", "9100"), "System HTTP port")
+	}
 	var migrationsDir string
 	if args[0] == "migrate" {
 		flags.StringVar(&migrationsDir, "dir", envDefault("ORPHEUS_MIGRATIONS_DIR", "migrations"), "SQL migrations directory")
@@ -90,6 +107,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	if args[0] == "serve" {
 		if err := validatePort(*port); err != nil {
 			return err
+		}
+		if err := validatePort(systemPort); err != nil {
+			return fmt.Errorf("system listener: %w", err)
 		}
 	}
 	settings, err := config.Load()
@@ -152,29 +172,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	defer func() { stopCleanup(); cleanup.Wait() }()
 	server := &http.Server{Addr: net.JoinHostPort(*host, *port), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	server.RegisterOnShutdown(stopStreams)
-	return serve(ctx, server)
-}
-
-func serve(ctx context.Context, server *http.Server) error {
-	// SIGTERM stops accepting requests; active requests retain their contexts
-	// until the grace period expires. SSE has a separate shutdown context.
-	stopped := make(chan error, 1)
-	go func() { stopped <- server.ListenAndServe() }()
-	select {
-	case err := <-stopped:
-		if errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
-		return err
-	case <-ctx.Done():
-		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := server.Shutdown(shutdown); err != nil {
-			_ = server.Close()
-			return err
-		}
-		return nil
-	}
+	var ready atomic.Bool
+	system := &http.Server{Addr: net.JoinHostPort(systemHost, systemPort), Handler: httpserver.SystemHandler(&ready), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 12}
+	return serve(ctx, server, system, &ready)
 }
 
 func envDefault(name, fallback string) string {

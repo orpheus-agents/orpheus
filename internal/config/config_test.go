@@ -4,8 +4,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/secret"
@@ -279,11 +281,36 @@ func TestSettingsValidation(t *testing.T) {
 	if err != nil || got.MaxConcurrentSessions != 50 {
 		t.Fatal(got, err)
 	}
-	for _, name := range []string{"MAX_CONCURRENT_SESSIONS", "MAX_TOOL_RESULT_BYTES", "MAX_REQUEST_BYTES", "READINESS_TIMEOUT", "RPC_TIMEOUT_SECONDS"} {
+	for _, name := range []string{"MAX_CONCURRENT_SESSIONS", "MAX_TOOL_RESULT_BYTES", "MAX_REQUEST_BYTES", "DATABASE_PING_TIMEOUT", "RPC_TIMEOUT_SECONDS"} {
 		t.Run(name, func(t *testing.T) {
 			t.Setenv(name, "0")
 			if _, err := Load(); err == nil {
 				t.Fatal("accepted zero")
+			}
+		})
+	}
+}
+
+func TestDatabasePingTimeout(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://fixture")
+	t.Setenv("PUBLIC_API_KEYS", `["x"]`)
+	for _, tc := range []struct {
+		value string
+		want  time.Duration
+	}{{"", 2 * time.Second}, {"7", 7 * time.Second}} {
+		t.Run(tc.want.String(), func(t *testing.T) {
+			t.Setenv("DATABASE_PING_TIMEOUT", tc.value)
+			if tc.value == "" {
+				if err := os.Unsetenv("DATABASE_PING_TIMEOUT"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.DatabasePingTimeout != tc.want {
+				t.Fatalf("want %s, got %s", tc.want, got.DatabasePingTimeout)
 			}
 		})
 	}

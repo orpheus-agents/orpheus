@@ -517,7 +517,7 @@ func Run(ctx context.Context, s *store.Store, platform harness.Platform) error {
 	defer func() { cancel(); wg.Wait(); collector.Wait() }()
 	tasks := map[uuid.UUID]<-chan struct{}{}
 	for ctx.Err() == nil {
-		probe, cancelProbe := context.WithTimeout(ctx, s.Settings.ReadinessTimeout)
+		probe, cancelProbe := context.WithTimeout(ctx, s.Settings.DatabasePingTimeout)
 		err := owner.Ping(probe)
 		cancelProbe()
 		if err != nil {

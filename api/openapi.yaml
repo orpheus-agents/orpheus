@@ -396,17 +396,6 @@ components:
                 - has_more
             title: EventPage
             type: object
-        HealthResponse:
-            properties:
-                status:
-                    const: ok
-                    default: ok
-                    title: Status
-                    type: string
-            required:
-                - status
-            title: HealthResponse
-            type: object
         HooksConfiguration:
             additionalProperties: false
             properties:
@@ -1381,17 +1370,6 @@ components:
                 - original_bytes
                 - type
             title: TruncatedResult
-            type: object
-        UnavailableResponse:
-            properties:
-                status:
-                    const: unavailable
-                    default: unavailable
-                    title: Status
-                    type: string
-            required:
-                - status
-            title: UnavailableResponse
             type: object
     securitySchemes:
         BrowserSession:
@@ -2739,38 +2717,6 @@ paths:
             security:
                 - HTTPBearer: []
             summary: Send Message
-    /health:
-        get:
-            security: []
-            description: Health
-            operationId: health
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/HealthResponse'
-                    description: Successful Response
-            summary: Health
-    /ready:
-        get:
-            security: []
-            description: Ready
-            operationId: ready
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/HealthResponse'
-                    description: Successful Response
-                "503":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/UnavailableResponse'
-                    description: Service Unavailable
-            summary: Ready
 servers:
     - description: Local development
       url: http://localhost:8000

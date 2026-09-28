@@ -389,14 +389,14 @@ type Settings struct {
 	MaxToolResultBytes      int
 	MaxHookOutputBytes      int
 	MaxRequestBytes         int64
-	ReadinessTimeout        time.Duration
+	DatabasePingTimeout     time.Duration
 	CancelGrace             time.Duration
 	WorkerPoll              time.Duration
 	RPCTimeout              time.Duration
 }
 
 func DefaultSettings() Settings {
-	return Settings{BrowserAuth: BrowserAuth{Mode: "api_only", SessionTTL: 12 * time.Hour}, DefaultMaxSessionTokens: DefaultMaxSessionTokens, ConfigFile: "orpheus.toml", SandboxProxyURL: "https://sandbox-proxy.agentbox.ru:65181", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, ReadinessTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
+	return Settings{BrowserAuth: BrowserAuth{Mode: "api_only", SessionTTL: 12 * time.Hour}, DefaultMaxSessionTokens: DefaultMaxSessionTokens, ConfigFile: "orpheus.toml", SandboxProxyURL: "https://sandbox-proxy.agentbox.ru:65181", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, DatabasePingTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second}
 }
 
 // AddSandboxProxy applies the sandbox egress proxy to an agent process environment.
@@ -466,7 +466,7 @@ func Load() (Settings, error) {
 	if s.MaxToolResultBytes < 2 {
 		return s, errors.New("MAX_TOOL_RESULT_BYTES must be at least 2")
 	}
-	for name, dest := range map[string]*time.Duration{"READINESS_TIMEOUT": &s.ReadinessTimeout, "CANCEL_GRACE_SECONDS": &s.CancelGrace, "WORKER_POLL_SECONDS": &s.WorkerPoll, "RPC_TIMEOUT_SECONDS": &s.RPCTimeout} {
+	for name, dest := range map[string]*time.Duration{"DATABASE_PING_TIMEOUT": &s.DatabasePingTimeout, "CANCEL_GRACE_SECONDS": &s.CancelGrace, "WORKER_POLL_SECONDS": &s.WorkerPoll, "RPC_TIMEOUT_SECONDS": &s.RPCTimeout} {
 		if v, ok := os.LookupEnv(name); ok {
 			d, err := time.ParseDuration(v + "s")
 			if err != nil || d <= 0 {
