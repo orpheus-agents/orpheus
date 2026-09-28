@@ -11,14 +11,12 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/orpheus-agents/orpheus/internal/agentbox"
-	"github.com/orpheus-agents/orpheus/internal/browserauth"
 	"github.com/orpheus-agents/orpheus/internal/config"
 	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/httpserver"
@@ -165,11 +163,6 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	cleanupCtx, stopCleanup := context.WithCancel(ctx)
-	var cleanup sync.WaitGroup
-	// Continue purging expired identities even after SAML is disabled.
-	cleanup.Go(func() { browserauth.Cleanup(cleanupCtx, pool) })
-	defer func() { stopCleanup(); cleanup.Wait() }()
 	server := &http.Server{Addr: net.JoinHostPort(*host, *port), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	server.RegisterOnShutdown(stopStreams)
 	var ready atomic.Bool

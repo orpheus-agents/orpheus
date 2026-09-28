@@ -18,6 +18,7 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/harness/codex"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/store/db"
 )
 
 type DriverFactory func(harness.Sandbox) harness.Driver
@@ -493,6 +494,10 @@ func (e *Executor) tick(ctx context.Context) error {
 	return nil
 }
 func Run(ctx context.Context, s *store.Store, platform harness.Platform) error {
+	return run(ctx, s, platform, store.CleanupBrowserAuth)
+}
+
+func run(ctx context.Context, s *store.Store, platform harness.Platform, cleanup func(context.Context, *db.Queries)) error {
 	// pgx.Connect creates a dedicated physical connection, never a pool checkout
 	// that can be transparently replaced while the lock is assumed to be held.
 	owner, err := pgx.Connect(ctx, s.Settings.DatabaseURL)
@@ -515,6 +520,8 @@ func Run(ctx context.Context, s *store.Store, platform harness.Platform) error {
 	collector := newAccountLimitsCollector(execution, s)
 	var wg sync.WaitGroup
 	defer func() { cancel(); wg.Wait(); collector.Wait() }()
+	// Purge expired identities even after SAML is disabled, under worker ownership.
+	wg.Go(func() { cleanup(execution, db.New(s.Pool)) })
 	tasks := map[uuid.UUID]<-chan struct{}{}
 	for ctx.Err() == nil {
 		probe, cancelProbe := context.WithTimeout(ctx, s.Settings.DatabasePingTimeout)

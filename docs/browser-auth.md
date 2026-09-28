@@ -101,7 +101,9 @@ Path=/, with no Domain. Only SHA-256 token hashes are stored in PostgreSQL. The
 session lasts the lesser of its configured TTL (300–86400 seconds, default 12h)
 and the IdP's session expiry, without sliding renewal. SSE closes at expiry;
 revocation and storage loss are checked within 30 seconds. Bearer streams are
-unaffected. Each API replica cleans expired records every ten minutes in batches.
+unaffected. The worker cleans expired records every ten minutes in batches,
+including when SAML is disabled. While the worker is stopped, expired records
+remain in the database but are still rejected during authentication.
 
 Callback signature/claim failures log only fixed reason categories (for example
 `audience`, `issuer`, `signature`, `idp_status` for IdP rejection), never the SAML XML, identifiers or raw library
