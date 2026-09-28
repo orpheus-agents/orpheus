@@ -982,6 +982,17 @@ type AnalyticsBucket struct {
 	To        time.Time    `json:"to"`
 }
 
+// AnalyticsNamespace Runs accepted during [from,to) whose session has this namespace, with the same definitions as period.
+type AnalyticsNamespace struct {
+	ByStatus       StatusCounts `json:"by_status"`
+	Namespace      *string      `json:"namespace"`
+	RunsCount      int64        `json:"runs_count"`
+	RuntimeSeconds float64      `json:"runtime_seconds"`
+
+	// Usage Totals for runs accepted in the period. Cached input and reasoning output are included in input and output respectively. The breakdown is recorded only since collection began; historical usage is not reconstructed. Decimal strings preserve values beyond JavaScript Number precision.
+	Usage AggregateUsage `json:"usage"`
+}
+
 // AnalyticsOverview defines model for AnalyticsOverview.
 type AnalyticsOverview struct {
 	AsOf    time.Time               `json:"as_of"`
@@ -991,6 +1002,9 @@ type AnalyticsOverview struct {
 	} `json:"current"`
 	From      time.Time `json:"from"`
 	Namespace *string   `json:"namespace"`
+
+	// Namespaces The period's runs grouped by session namespace, most runs first; null is the group of sessions without a namespace. The groups add up to period.
+	Namespaces []AnalyticsNamespace `json:"namespaces"`
 
 	// Period Runs accepted during [from,to), including their latest recorded usage and full lifetime through as_of.
 	Period struct {
@@ -2318,7 +2332,7 @@ type ClientInterface interface {
 
 	// GetAnalyticsOverview Dashboard analytics snapshot
 	//
-	// Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
+	// Counts and usage of runs accepted during [from,to), the same totals per namespace, plus current active sessions. All timestamps are UTC.
 	//
 	// Corresponds with GET /api/v1/analytics/overview (the `GetAnalyticsOverview` operationId).
 	GetAnalyticsOverview(ctx context.Context, params *GetAnalyticsOverviewParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2473,7 +2487,7 @@ func (c *Client) GetAccountLimits(ctx context.Context, reqEditors ...RequestEdit
 
 // GetAnalyticsOverview Dashboard analytics snapshot
 //
-// Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
+// Counts and usage of runs accepted during [from,to), the same totals per namespace, plus current active sessions. All timestamps are UTC.
 //
 // Corresponds with GET /api/v1/analytics/overview (the `GetAnalyticsOverview` operationId).
 func (c *Client) GetAnalyticsOverview(ctx context.Context, params *GetAnalyticsOverviewParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -4195,7 +4209,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetAnalyticsOverviewWithResponse Dashboard analytics snapshot
 	//
-	// Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
+	// Counts and usage of runs accepted during [from,to), the same totals per namespace, plus current active sessions. All timestamps are UTC.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -6027,7 +6041,7 @@ func (c *ClientWithResponses) GetAccountLimitsWithResponse(ctx context.Context, 
 
 // GetAnalyticsOverviewWithResponse Dashboard analytics snapshot
 //
-// Counts and usage of runs accepted during [from,to), plus current active sessions. All timestamps are UTC.
+// Counts and usage of runs accepted during [from,to), the same totals per namespace, plus current active sessions. All timestamps are UTC.
 //
 // Returns a wrapper object for the known response body format(s).
 //

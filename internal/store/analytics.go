@@ -157,6 +157,30 @@ func (s *Store) AnalyticsOverview(ctx context.Context, request analytics.Request
 			return err
 		}
 		out.Period.Usage = analytics.Usage{InputTokens: input.String(), CachedInputTokens: cached.String(), OutputTokens: output.String(), ReasoningOutputTokens: reasoning.String(), TotalTokens: total.String()}
+		out.Namespaces = []analytics.Namespace{}
+		groups, err := queries.AnalyticsNamespaces(ctx, db.AnalyticsNamespacesParams{AsOf: q.AsOf, PeriodFrom: q.From, PeriodTo: q.To, Namespace: q.Namespace})
+		if err != nil {
+			return err
+		}
+		for _, group := range groups {
+			if group.RunsCount > analytics.MaxCount {
+				return analyticsOverflow()
+			}
+			usage, err := decimalUsage(group.InputTokens, group.CachedInputTokens, group.OutputTokens, group.ReasoningOutputTokens, group.TotalTokens)
+			if err != nil {
+				return err
+			}
+			out.Namespaces = append(out.Namespaces, analytics.Namespace{
+				Namespace: group.Namespace,
+				RunsCount: group.RunsCount,
+				ByStatus: analytics.StatusCounts{
+					Accepted: group.Accepted, Starting: group.Starting, Running: group.Running, Cancelling: group.Cancelling,
+					Finalizing: group.Finalizing, Completed: group.Completed, Failed: group.Failed, Cancelled: group.Cancelled,
+				},
+				Usage:          usage,
+				RuntimeSeconds: group.RuntimeSeconds,
+			})
+		}
 		return nil
 	})
 	if err != nil {
@@ -171,11 +195,32 @@ func (s *Store) AnalyticsOverview(ctx context.Context, request analytics.Request
 	return out, nil
 }
 
-func addDecimal(sum *big.Int, value string) error {
+func parseDecimal(value string) (*big.Int, error) {
 	v, ok := new(big.Int).SetString(value, 10)
 	if !ok || v.Sign() < 0 {
-		return analyticsUnavailable()
+		return nil, analyticsUnavailable()
+	}
+	return v, nil
+}
+
+func addDecimal(sum *big.Int, value string) error {
+	v, err := parseDecimal(value)
+	if err != nil {
+		return err
 	}
 	sum.Add(sum, v)
 	return nil
+}
+
+// decimalUsage validates the SQL sums of one group and normalizes them to decimal strings.
+func decimalUsage(input, cached, output, reasoning, total string) (analytics.Usage, error) {
+	values := [5]string{input, cached, output, reasoning, total}
+	for i, value := range values {
+		v, err := parseDecimal(value)
+		if err != nil {
+			return analytics.Usage{}, err
+		}
+		values[i] = v.String()
+	}
+	return analytics.Usage{InputTokens: values[0], CachedInputTokens: values[1], OutputTokens: values[2], ReasoningOutputTokens: values[3], TotalTokens: values[4]}, nil
 }

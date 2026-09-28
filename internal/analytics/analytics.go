@@ -117,6 +117,15 @@ type Bucket struct {
 	ByStatus  StatusCounts `json:"by_status"`
 }
 
+// Namespace holds the period totals of runs whose session has this namespace.
+type Namespace struct {
+	Namespace      *string      `json:"namespace"`
+	RunsCount      int64        `json:"runs_count"`
+	ByStatus       StatusCounts `json:"by_status"`
+	Usage          Usage        `json:"usage"`
+	RuntimeSeconds float64      `json:"runtime_seconds"`
+}
+
 type Overview struct {
 	AsOf      time.Time `json:"as_of"`
 	From      time.Time `json:"from"`
@@ -133,5 +142,6 @@ type Overview struct {
 		Usage          Usage        `json:"usage"`
 		RuntimeSeconds float64      `json:"runtime_seconds"`
 	} `json:"period"`
-	Series []Bucket `json:"series"`
+	Series     []Bucket    `json:"series"`
+	Namespaces []Namespace `json:"namespaces"`
 }

@@ -24,6 +24,9 @@ func TestAnalyticsHTTPContract(t *testing.T) {
 	if overview.Period.RunsCount != 0 || overview.Current.ActiveSessions != 0 || len(overview.Series) < 7 || overview.Timezone != "Europe/Moscow" || overview.Period.Usage.CachedInputTokens != "0" || overview.Period.Usage.ReasoningOutputTokens != "0" {
 		t.Fatalf("empty overview: %+v", overview)
 	}
+	if overview.Namespaces == nil || len(overview.Namespaces) != 0 {
+		t.Fatalf("empty namespaces must be []: %s", body)
+	}
 	for i := 1; i < len(overview.Series); i++ {
 		if !overview.Series[i-1].To.Equal(overview.Series[i].From) {
 			t.Fatalf("bucket gap at %d", i)
