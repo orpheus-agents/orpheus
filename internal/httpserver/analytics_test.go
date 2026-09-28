@@ -21,7 +21,7 @@ func TestAnalyticsHTTPContract(t *testing.T) {
 	if err := json.Unmarshal(body, &overview); err != nil {
 		t.Fatal(err)
 	}
-	if overview.Period.RunsCount != 0 || overview.Current.ActiveSessions != 0 || len(overview.Series) < 7 || overview.Timezone != "Europe/Moscow" {
+	if overview.Period.RunsCount != 0 || overview.Current.ActiveSessions != 0 || len(overview.Series) < 7 || overview.Timezone != "Europe/Moscow" || overview.Period.Usage.CachedInputTokens != "0" || overview.Period.Usage.ReasoningOutputTokens != "0" {
 		t.Fatalf("empty overview: %+v", overview)
 	}
 	for i := 1; i < len(overview.Series); i++ {

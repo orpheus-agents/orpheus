@@ -45,8 +45,12 @@ SET sandbox_state = $2,
     next_run_number = $14,
     next_event_sequence = $15,
     input_tokens = $16,
-    output_tokens = $17,
-    total_tokens = $18
+    cached_input_tokens = $17,
+    output_tokens = $18,
+    reasoning_output_tokens = $19,
+    total_tokens = $20,
+    cached_input_native_total = $21,
+    reasoning_output_native_total = $22
 WHERE id = $1;
 
 -- name: SaveRun :exec
@@ -68,8 +72,10 @@ SET status = $2,
     agent_status = $16,
     agent_error = $17,
     input_tokens = $18,
-    output_tokens = $19,
-    total_tokens = $20
+    cached_input_tokens = $19,
+    output_tokens = $20,
+    reasoning_output_tokens = $21,
+    total_tokens = $22
 WHERE id = $1;
 
 -- name: InsertEvent :exec

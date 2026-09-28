@@ -11,8 +11,24 @@ import (
 func TestParseUsage(t *testing.T) {
 	good := `{"threadId":"thread","turnId":"turn","tokenUsage":{"total":{"inputTokens":90,"outputTokens":10,"totalTokens":100,"cachedInputTokens":80,"reasoningOutputTokens":7},"last":{"totalTokens":9999}}}`
 	got, ok := parseUsage(json.RawMessage(good))
-	if !ok || got.Total != (session.Usage{InputTokens: 90, OutputTokens: 10, TotalTokens: 100}) {
+	if !ok || got.Total != (session.Usage{InputTokens: 90, OutputTokens: 10, TotalTokens: 100}) || got.CachedInputTokens == nil || *got.CachedInputTokens != 80 || got.ReasoningOutputTokens == nil || *got.ReasoningOutputTokens != 7 {
 		t.Fatal(got, ok)
+	}
+	zero, ok := parseUsage(json.RawMessage(`{"threadId":"thread","turnId":"turn","tokenUsage":{"total":{"inputTokens":0,"cachedInputTokens":0,"outputTokens":0,"reasoningOutputTokens":0,"totalTokens":0}}}`))
+	if !ok || zero.CachedInputTokens == nil || *zero.CachedInputTokens != 0 || zero.ReasoningOutputTokens == nil || *zero.ReasoningOutputTokens != 0 {
+		t.Fatal(zero, ok)
+	}
+	for _, raw := range []string{
+		`{"inputTokens":90,"outputTokens":10,"totalTokens":100}`,
+		`{"inputTokens":90,"cachedInputTokens":null,"outputTokens":10,"reasoningOutputTokens":7,"totalTokens":100}`,
+		`{"inputTokens":90,"cachedInputTokens":-1,"outputTokens":10,"reasoningOutputTokens":7,"totalTokens":100}`,
+		`{"inputTokens":90,"cachedInputTokens":91,"outputTokens":10,"reasoningOutputTokens":7,"totalTokens":100}`,
+		`{"inputTokens":90,"cachedInputTokens":"bad","outputTokens":10,"reasoningOutputTokens":11,"totalTokens":100}`,
+	} {
+		report, valid := parseUsage(json.RawMessage(`{"threadId":"thread","turnId":"turn","tokenUsage":{"total":` + raw + `}}`))
+		if !valid || report.Total != (session.Usage{InputTokens: 90, OutputTokens: 10, TotalTokens: 100}) || report.CachedInputTokens != nil {
+			t.Fatal(report, valid, raw)
+		}
 	}
 	for _, raw := range []string{`{}`, `null`, `{"threadId":"thread","turnId":"turn","tokenUsage":{"total":{"inputTokens":1,"outputTokens":2}}}`, `{"threadId":"thread","turnId":"turn","tokenUsage":{"total":{"inputTokens":-1,"outputTokens":2,"totalTokens":1}}}`, `{"threadId":"thread","turnId":"turn","tokenUsage":{"total":{"inputTokens":null,"outputTokens":2,"totalTokens":2}}}`, `{"threadId":"thread","turnId":"turn","tokenUsage":{"total":{"inputTokens":1,"outputTokens":2,"totalTokens":9223372036854775808}}}`} {
 		if _, ok := parseUsage(json.RawMessage(raw)); ok {
@@ -36,14 +52,14 @@ func TestUsageNotificationsSurviveUntilCommit(t *testing.T) {
 				t.Fatal("usage was read from the journal")
 			}
 			for _, turn := range []string{"first", "second"} {
-				raw, _ := json.Marshal(map[string]any{"method": "thread/tokenUsage/updated", "params": map[string]any{"threadId": thread.ID, "turnId": turn, "tokenUsage": map[string]any{"total": map[string]int{"inputTokens": 90, "outputTokens": 10, "totalTokens": 100}}}})
+				raw, _ := json.Marshal(map[string]any{"method": "thread/tokenUsage/updated", "params": map[string]any{"threadId": thread.ID, "turnId": turn, "tokenUsage": map[string]any{"total": map[string]int{"inputTokens": 90, "cachedInputTokens": 80, "outputTokens": 10, "reasoningOutputTokens": 7, "totalTokens": 100}}}})
 				d.rpc.receive(t.Context(), raw)
 			}
 			if !d.HasUpdates() {
 				t.Fatal("usage did not wake driver")
 			}
 			next, err := d.Snapshot(t.Context(), thread.ID, &path, first.Offset)
-			if err != nil || len(next.Usage) != 2 || next.Usage[0].TurnID != "first" || next.Usage[1].TurnID != "second" {
+			if err != nil || len(next.Usage) != 2 || next.Usage[0].TurnID != "first" || next.Usage[1].TurnID != "second" || next.Usage[0].CachedInputTokens == nil || *next.Usage[0].CachedInputTokens != 80 {
 				t.Fatal(next.Usage, err)
 			}
 			retry, err := d.Snapshot(t.Context(), thread.ID, &path, first.Offset)

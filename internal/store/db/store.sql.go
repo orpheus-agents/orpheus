@@ -15,7 +15,7 @@ import (
 )
 
 const activeRun = `-- name: ActiveRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens
 FROM runs r
 WHERE session_id = $1 AND status IN ('accepted', 'starting', 'running', 'cancelling', 'finalizing')
 `
@@ -51,6 +51,8 @@ func (q *Queries) ActiveRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.TotalTokens,
+		&i.CachedInputTokens,
+		&i.ReasoningOutputTokens,
 	)
 	return i, err
 }
@@ -80,7 +82,7 @@ func (q *Queries) CountReserved(ctx context.Context) (int64, error) {
 const createRun = `-- name: CreateRun :one
 INSERT INTO runs AS r(id, session_id, number, input_fingerprint, env_ciphertext, env_names, env_from)
 VALUES($1, $2, $3, $4, $5, $6, $7)
-RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens
+RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens
 `
 
 type CreateRunParams struct {
@@ -132,6 +134,8 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.TotalTokens,
+		&i.CachedInputTokens,
+		&i.ReasoningOutputTokens,
 	)
 	return i, err
 }
@@ -139,7 +143,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved, namespace, external_key)
 VALUES($1, $2, $3, false, $4, $5)
-RETURNING s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens
+RETURNING s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total
 `
 
 type CreateSessionParams struct {
@@ -183,6 +187,10 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.TotalTokens,
+		&i.CachedInputTokens,
+		&i.ReasoningOutputTokens,
+		&i.CachedInputNativeTotal,
+		&i.ReasoningOutputNativeTotal,
 	)
 	return i, err
 }
@@ -248,7 +256,7 @@ func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 }
 
 const getRun = `-- name: GetRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens
 FROM runs r
 WHERE session_id = $1 AND id = $2
 `
@@ -289,12 +297,14 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (Run, error) {
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.TotalTokens,
+		&i.CachedInputTokens,
+		&i.ReasoningOutputTokens,
 	)
 	return i, err
 }
 
 const getSession = `-- name: GetSession :one
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total
 FROM sessions s
 WHERE id = $1
 `
@@ -326,6 +336,10 @@ func (q *Queries) GetSession(ctx context.Context, id uuid.UUID) (Session, error)
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.TotalTokens,
+		&i.CachedInputTokens,
+		&i.ReasoningOutputTokens,
+		&i.CachedInputNativeTotal,
+		&i.ReasoningOutputNativeTotal,
 	)
 	return i, err
 }
@@ -381,7 +395,7 @@ func (q *Queries) InsertIdempotency(ctx context.Context, arg InsertIdempotencyPa
 }
 
 const latestRun = `-- name: LatestRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens
 FROM runs r
 WHERE session_id = $1
 ORDER BY number DESC
@@ -419,12 +433,14 @@ func (q *Queries) LatestRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.TotalTokens,
+		&i.CachedInputTokens,
+		&i.ReasoningOutputTokens,
 	)
 	return i, err
 }
 
 const lockSession = `-- name: LockSession :one
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total
 FROM sessions s
 WHERE id = $1 FOR UPDATE
 `
@@ -456,6 +472,10 @@ func (q *Queries) LockSession(ctx context.Context, id uuid.UUID) (Session, error
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.TotalTokens,
+		&i.CachedInputTokens,
+		&i.ReasoningOutputTokens,
+		&i.CachedInputNativeTotal,
+		&i.ReasoningOutputNativeTotal,
 	)
 	return i, err
 }
@@ -590,32 +610,36 @@ SET status = $2,
     agent_status = $16,
     agent_error = $17,
     input_tokens = $18,
-    output_tokens = $19,
-    total_tokens = $20
+    cached_input_tokens = $19,
+    output_tokens = $20,
+    reasoning_output_tokens = $21,
+    total_tokens = $22
 WHERE id = $1
 `
 
 type SaveRunParams struct {
-	ID                 uuid.UUID       `json:"id"`
-	Status             session.Status  `json:"status"`
-	Observation        *string         `json:"observation"`
-	ExecutionStartedAt *time.Time      `json:"execution_started_at"`
-	DeadlineAt         *time.Time      `json:"deadline_at"`
-	FinishedAt         *time.Time      `json:"finished_at"`
-	CancelRequestedAt  *time.Time      `json:"cancel_requested_at"`
-	CancelAttemptedAt  *time.Time      `json:"cancel_attempted_at"`
-	StopReason         *string         `json:"stop_reason"`
-	StopMethod         *string         `json:"stop_method"`
-	Error              *session.Error  `json:"error"`
-	NativeTurnID       *string         `json:"native_turn_id"`
-	NextDeliveryNumber int             `json:"next_delivery_number"`
-	FinalMessageID     *uuid.UUID      `json:"final_message_id"`
-	Phase              *string         `json:"phase"`
-	AgentStatus        *session.Status `json:"agent_status"`
-	AgentError         *session.Error  `json:"agent_error"`
-	InputTokens        int64           `json:"input_tokens"`
-	OutputTokens       int64           `json:"output_tokens"`
-	TotalTokens        int64           `json:"total_tokens"`
+	ID                    uuid.UUID       `json:"id"`
+	Status                session.Status  `json:"status"`
+	Observation           *string         `json:"observation"`
+	ExecutionStartedAt    *time.Time      `json:"execution_started_at"`
+	DeadlineAt            *time.Time      `json:"deadline_at"`
+	FinishedAt            *time.Time      `json:"finished_at"`
+	CancelRequestedAt     *time.Time      `json:"cancel_requested_at"`
+	CancelAttemptedAt     *time.Time      `json:"cancel_attempted_at"`
+	StopReason            *string         `json:"stop_reason"`
+	StopMethod            *string         `json:"stop_method"`
+	Error                 *session.Error  `json:"error"`
+	NativeTurnID          *string         `json:"native_turn_id"`
+	NextDeliveryNumber    int             `json:"next_delivery_number"`
+	FinalMessageID        *uuid.UUID      `json:"final_message_id"`
+	Phase                 *string         `json:"phase"`
+	AgentStatus           *session.Status `json:"agent_status"`
+	AgentError            *session.Error  `json:"agent_error"`
+	InputTokens           int64           `json:"input_tokens"`
+	CachedInputTokens     int64           `json:"cached_input_tokens"`
+	OutputTokens          int64           `json:"output_tokens"`
+	ReasoningOutputTokens int64           `json:"reasoning_output_tokens"`
+	TotalTokens           int64           `json:"total_tokens"`
 }
 
 func (q *Queries) SaveRun(ctx context.Context, arg SaveRunParams) error {
@@ -638,7 +662,9 @@ func (q *Queries) SaveRun(ctx context.Context, arg SaveRunParams) error {
 		arg.AgentStatus,
 		arg.AgentError,
 		arg.InputTokens,
+		arg.CachedInputTokens,
 		arg.OutputTokens,
+		arg.ReasoningOutputTokens,
 		arg.TotalTokens,
 	)
 	return err
@@ -661,30 +687,38 @@ SET sandbox_state = $2,
     next_run_number = $14,
     next_event_sequence = $15,
     input_tokens = $16,
-    output_tokens = $17,
-    total_tokens = $18
+    cached_input_tokens = $17,
+    output_tokens = $18,
+    reasoning_output_tokens = $19,
+    total_tokens = $20,
+    cached_input_native_total = $21,
+    reasoning_output_native_total = $22
 WHERE id = $1
 `
 
 type SaveSessionParams struct {
-	ID                    uuid.UUID      `json:"id"`
-	SandboxState          string         `json:"sandbox_state"`
-	SandboxLastKnownState *string        `json:"sandbox_last_known_state"`
-	SandboxError          *session.Error `json:"sandbox_error"`
-	SandboxID             *string        `json:"sandbox_id"`
-	ProcessID             *int           `json:"process_id"`
-	LaunchID              *uuid.UUID     `json:"launch_id"`
-	ThreadID              *string        `json:"thread_id"`
-	HistoryPath           *string        `json:"history_path"`
-	HistoryOffset         int64          `json:"history_offset"`
-	Workspace             *string        `json:"workspace"`
-	HarnessHome           *string        `json:"harness_home"`
-	SlotReserved          bool           `json:"slot_reserved"`
-	NextRunNumber         int            `json:"next_run_number"`
-	NextEventSequence     int64          `json:"next_event_sequence"`
-	InputTokens           int64          `json:"input_tokens"`
-	OutputTokens          int64          `json:"output_tokens"`
-	TotalTokens           int64          `json:"total_tokens"`
+	ID                         uuid.UUID      `json:"id"`
+	SandboxState               string         `json:"sandbox_state"`
+	SandboxLastKnownState      *string        `json:"sandbox_last_known_state"`
+	SandboxError               *session.Error `json:"sandbox_error"`
+	SandboxID                  *string        `json:"sandbox_id"`
+	ProcessID                  *int           `json:"process_id"`
+	LaunchID                   *uuid.UUID     `json:"launch_id"`
+	ThreadID                   *string        `json:"thread_id"`
+	HistoryPath                *string        `json:"history_path"`
+	HistoryOffset              int64          `json:"history_offset"`
+	Workspace                  *string        `json:"workspace"`
+	HarnessHome                *string        `json:"harness_home"`
+	SlotReserved               bool           `json:"slot_reserved"`
+	NextRunNumber              int            `json:"next_run_number"`
+	NextEventSequence          int64          `json:"next_event_sequence"`
+	InputTokens                int64          `json:"input_tokens"`
+	CachedInputTokens          int64          `json:"cached_input_tokens"`
+	OutputTokens               int64          `json:"output_tokens"`
+	ReasoningOutputTokens      int64          `json:"reasoning_output_tokens"`
+	TotalTokens                int64          `json:"total_tokens"`
+	CachedInputNativeTotal     *int64         `json:"cached_input_native_total"`
+	ReasoningOutputNativeTotal *int64         `json:"reasoning_output_native_total"`
 }
 
 func (q *Queries) SaveSession(ctx context.Context, arg SaveSessionParams) error {
@@ -705,8 +739,12 @@ func (q *Queries) SaveSession(ctx context.Context, arg SaveSessionParams) error 
 		arg.NextRunNumber,
 		arg.NextEventSequence,
 		arg.InputTokens,
+		arg.CachedInputTokens,
 		arg.OutputTokens,
+		arg.ReasoningOutputTokens,
 		arg.TotalTokens,
+		arg.CachedInputNativeTotal,
+		arg.ReasoningOutputNativeTotal,
 	)
 	return err
 }

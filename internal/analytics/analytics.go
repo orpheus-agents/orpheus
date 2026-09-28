@@ -103,9 +103,11 @@ func (s *StatusCounts) Add(v StatusCounts) {
 }
 
 type Usage struct {
-	InputTokens  string `json:"input_tokens"`
-	OutputTokens string `json:"output_tokens"`
-	TotalTokens  string `json:"total_tokens"`
+	InputTokens           string `json:"input_tokens"`
+	CachedInputTokens     string `json:"cached_input_tokens"`
+	OutputTokens          string `json:"output_tokens"`
+	ReasoningOutputTokens string `json:"reasoning_output_tokens"`
+	TotalTokens           string `json:"total_tokens"`
 }
 
 type Bucket struct {

@@ -94,13 +94,13 @@ func TestTokenBudgetHTTPProjectionAndIdempotency(t *testing.T) {
 	}
 	want := session.Usage{InputTokens: 90, OutputTokens: 10, TotalTokens: 100}
 	if err := s.Mutate(t.Context(), a.SessionID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
-		return store.ApplyUsage(t.Context(), tx, r, []harness.UsageReport{{ContextID: "thread", TurnID: "turn", Total: want}})
+		return store.ApplyUsage(t.Context(), tx, r, []harness.UsageReport{{ContextID: "thread", TurnID: "turn", Total: want, CachedInputTokens: new(int64(80)), ReasoningOutputTokens: new(int64(7))}})
 	}); err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range []string{path, path + "/runs/" + a.RunID.String(), path + "/runs", "/api/v1/runs", "/api/v1/sessions", path + "/events"} {
 		status, _, raw = requestHTTP(t, server, "GET", p, "", "key", "")
-		if status != 200 || !strings.Contains(string(raw), `"total_tokens":100`) {
+		if status != 200 || !strings.Contains(string(raw), `"total_tokens":100`) || !strings.Contains(string(raw), `"cached_input_tokens":80`) || !strings.Contains(string(raw), `"reasoning_output_tokens":7`) {
 			t.Fatal(p, status, string(raw))
 		}
 	}

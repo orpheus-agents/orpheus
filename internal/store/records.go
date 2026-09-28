@@ -11,7 +11,7 @@ import (
 func sessionRecord(v db.Session, err error) (SessionRecord, error) { return SessionRecord(v), err }
 func runRecord(v db.Run, err error) (RunRecord, error) {
 	return RunRecord{
-		Usage:              session.Usage{InputTokens: v.InputTokens, OutputTokens: v.OutputTokens, TotalTokens: v.TotalTokens},
+		Usage:              session.Usage{InputTokens: v.InputTokens, CachedInputTokens: v.CachedInputTokens, OutputTokens: v.OutputTokens, ReasoningOutputTokens: v.ReasoningOutputTokens, TotalTokens: v.TotalTokens},
 		InputFingerprint:   v.InputFingerprint,
 		EnvNames:           v.EnvNames,
 		EnvFrom:            v.EnvFrom,

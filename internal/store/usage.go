@@ -68,6 +68,8 @@ func ApplyUsage(ctx context.Context, tx pgx.Tx, record *SessionRecord, reports [
 			*c.saved += delta
 			*c.used += delta
 		}
+		applyUsageBreakdown(report.CachedInputTokens, &record.CachedInputNativeTotal, &record.CachedInputTokens, &run.Usage.CachedInputTokens)
+		applyUsageBreakdown(report.ReasoningOutputTokens, &record.ReasoningOutputNativeTotal, &record.ReasoningOutputTokens, &run.Usage.ReasoningOutputTokens)
 		changed[report.TurnID] = changed[report.TurnID] || run.Usage != before
 	}
 	for i := range runs {
@@ -82,4 +84,21 @@ func ApplyUsage(ctx context.Context, tx pgx.Tx, record *SessionRecord, reports [
 		return err
 	}
 	return EnforceTokenBudget(ctx, tx, record, active)
+}
+
+func applyUsageBreakdown(reported *int64, nativeTotal **int64, sessionUsed, runUsed *int64) {
+	if reported == nil {
+		return
+	}
+	if *nativeTotal == nil {
+		*nativeTotal = new(*reported)
+		return
+	}
+	if *reported <= **nativeTotal {
+		return
+	}
+	delta := *reported - **nativeTotal
+	*nativeTotal = new(*reported)
+	*sessionUsed += delta
+	*runUsed += delta
 }
