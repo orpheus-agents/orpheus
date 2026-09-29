@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://github.com/orpheus-agents/orpheus">
+  <a href="https://orpheus-agents.github.io/">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset=".github/orpheus-logo.svg">
       <img src=".github/orpheus-logo-light.svg" alt="Orpheus" width="240">
