@@ -160,6 +160,7 @@ type Session struct {
 	ReasoningOutputTokens      int64                         `json:"reasoning_output_tokens"`
 	CachedInputNativeTotal     *int64                        `json:"cached_input_native_total"`
 	ReasoningOutputNativeTotal *int64                        `json:"reasoning_output_native_total"`
+	AllowMultipleRuns          bool                          `json:"allow_multiple_runs"`
 }
 
 type SessionEvent struct {

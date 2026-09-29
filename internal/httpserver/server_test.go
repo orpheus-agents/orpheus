@@ -84,7 +84,7 @@ func requestHTTP(t *testing.T, server *httptest.Server, method, path, body, toke
 	return res.StatusCode, res.Header, raw
 }
 
-const validBody = `{"configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}},"messages":[{"text":"hello"}]}`
+const validBody = `{"allow_multiple_runs":true,"configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}},"messages":[{"text":"hello"}]}`
 
 func TestHTTPContract(t *testing.T) {
 	server, _ := testServer(t)

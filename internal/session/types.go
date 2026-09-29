@@ -143,13 +143,14 @@ type TextMessage struct {
 	Metadata    json.RawMessage `json:"metadata,omitzero"`
 }
 type CreateSession struct {
-	Namespace        *string            `json:"namespace,omitzero"`
-	ExternalKey      *string            `json:"external_key,omitzero"`
-	InputFingerprint *string            `json:"input_fingerprint,omitzero"`
-	Configuration    ConfigurationInput `json:"configuration"`
-	Messages         []TextMessage      `json:"messages"`
-	Env              map[string]string  `json:"env,omitzero"`
-	EnvFrom          []string           `json:"env_from,omitzero"`
+	AllowMultipleRuns bool               `json:"allow_multiple_runs,omitzero"`
+	Namespace         *string            `json:"namespace,omitzero"`
+	ExternalKey       *string            `json:"external_key,omitzero"`
+	InputFingerprint  *string            `json:"input_fingerprint,omitzero"`
+	Configuration     ConfigurationInput `json:"configuration"`
+	Messages          []TextMessage      `json:"messages"`
+	Env               map[string]string  `json:"env,omitzero"`
+	EnvFrom           []string           `json:"env_from,omitzero"`
 }
 type Acceptance struct {
 	SessionID uuid.UUID `json:"session_id"`
@@ -235,20 +236,21 @@ type SandboxState struct {
 	Workspace      *string `json:"workspace"`
 }
 type Session struct {
-	Usage            Usage         `json:"usage"`
-	Namespace        *string       `json:"namespace"`
-	ExternalKey      *string       `json:"external_key"`
-	ID               uuid.UUID     `json:"id"`
-	CreatedAt        time.Time     `json:"created_at"`
-	Configuration    Configuration `json:"configuration"`
-	Sandbox          SandboxState  `json:"sandbox"`
-	ActiveRunID      *uuid.UUID    `json:"active_run_id"`
-	LastRunID        uuid.UUID     `json:"last_run_id"`
-	LastRunCreatedAt time.Time     `json:"last_run_created_at"`
-	Status           Status        `json:"status"`
-	Phase            *string       `json:"phase"`
-	FinalMessage     *Message      `json:"final_message"`
-	Error            *Error        `json:"error"`
+	AllowMultipleRuns bool          `json:"allow_multiple_runs"`
+	Usage             Usage         `json:"usage"`
+	Namespace         *string       `json:"namespace"`
+	ExternalKey       *string       `json:"external_key"`
+	ID                uuid.UUID     `json:"id"`
+	CreatedAt         time.Time     `json:"created_at"`
+	Configuration     Configuration `json:"configuration"`
+	Sandbox           SandboxState  `json:"sandbox"`
+	ActiveRunID       *uuid.UUID    `json:"active_run_id"`
+	LastRunID         uuid.UUID     `json:"last_run_id"`
+	LastRunCreatedAt  time.Time     `json:"last_run_created_at"`
+	Status            Status        `json:"status"`
+	Phase             *string       `json:"phase"`
+	FinalMessage      *Message      `json:"final_message"`
+	Error             *Error        `json:"error"`
 }
 type Cancellation struct {
 	RunID  uuid.UUID `json:"run_id"`

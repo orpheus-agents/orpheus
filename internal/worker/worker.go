@@ -40,9 +40,9 @@ type Executor struct {
 	driver           harness.Driver
 	account          credentials.Sync
 	snapshot         harness.Snapshot
-	pauseRetryAt     time.Time
-	pauseRetryDelay  time.Duration
-	pauseAuthSynced  bool
+	settleRetryAt    time.Time
+	settleRetryDelay time.Duration
+	settleAuthSynced bool
 	timeoutRenewAt   time.Time
 	timeoutRunID     uuid.UUID
 	runnerReady      bool
@@ -54,7 +54,7 @@ func NewExecutor(id uuid.UUID, s *store.Store, p harness.Platform) *Executor {
 		return codex.New(box, s.Settings.RPCTimeout, s.Settings.MaxToolResultBytes)
 	}, RunnerBinary: os.ReadFile, NewAccount: func(ctx context.Context, box harness.Sandbox, home string, source session.Credentials) (credentials.Sync, error) {
 		return credentials.New(ctx, box, home, source)
-	}, pauseRetryDelay: 5 * time.Second}
+	}, settleRetryDelay: 5 * time.Second}
 }
 func (e *Executor) read(ctx context.Context) (store.SessionRecord, *store.RunRecord, error) {
 	r, run, err := e.Store.Read(ctx, e.ID)
@@ -65,7 +65,7 @@ func (e *Executor) read(ctx context.Context) (store.SessionRecord, *store.RunRec
 }
 func (e *Executor) state(ctx context.Context, state string, problem *session.Error) error {
 	return e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
-		if r.SandboxState == "unavailable" && state != "unavailable" {
+		if r.SandboxState == "unavailable" && state != "unavailable" && (r.AllowMultipleRuns || state != "deleting") {
 			return nil
 		}
 		return store.UpdateSandbox(ctx, tx, r, func(r *store.SessionRecord) {
@@ -317,7 +317,10 @@ func (e *Executor) tick(ctx context.Context) error {
 		return err
 	}
 	if run == nil {
-		return e.pause(ctx, record)
+		if !record.SlotReserved {
+			return nil
+		}
+		return e.settleEnvironment(ctx, record)
 	}
 	if run.Status == session.Accepted {
 		if err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
@@ -340,7 +343,10 @@ func (e *Executor) tick(ctx context.Context) error {
 		return err
 	}
 	if run == nil {
-		return e.pause(ctx, record)
+		if !record.SlotReserved {
+			return nil
+		}
+		return e.settleEnvironment(ctx, record)
 	}
 	if store.BudgetExhausted(record) && run.CancelRequestedAt == nil && run.AgentStatus == nil && run.Status != session.Finalizing {
 		if err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
@@ -537,16 +543,18 @@ func run(ctx context.Context, s *store.Store, platform harness.Platform, cleanup
 		if err != nil {
 			return err
 		}
-		ids, err := s.Reserved(ctx)
-		if err != nil {
-			return err
-		}
+		// Reap tasks before reading reservations so a stale reservation cannot
+		// restart an executor that released its slot during the query.
 		for id, done := range tasks {
 			select {
 			case <-done:
 				delete(tasks, id)
 			default:
 			}
+		}
+		ids, err := s.Reserved(ctx)
+		if err != nil {
+			return err
 		}
 		for _, id := range ids {
 			if _, ok := tasks[id]; !ok {

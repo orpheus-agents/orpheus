@@ -40,7 +40,7 @@ func TestLiveSandboxLeaseLifecycle(t *testing.T) {
 	s := &store.Store{Pool: testutil.Database(t), Settings: config.DefaultSettings(), Cipher: cipher, Profiles: config.Profiles{Profiles: map[string]config.Profile{"live": {Harness: "codex", Model: new("gpt-6-sol"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
-	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{
+	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{AllowMultipleRuns: true, Configuration: session.ConfigurationInput{
 		Agent: session.AgentInput{Profile: "live"}, Sandbox: session.SandboxInput{Template: "codex"},
 		Limits: session.Limits{RunTimeoutSeconds: 3600}, Hooks: &session.HooksInput{TimeoutSeconds: new(120)},
 	}, Messages: []session.TextMessage{{Text: "sandbox lease lifecycle"}}}})

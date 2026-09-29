@@ -15,7 +15,7 @@ import (
 
 func TestMessageMetadataContract(t *testing.T) {
 	server, s := testServer(t)
-	const initial = `{"messages":[{"text":"agent-visible task","external_key":"post:1","metadata":{"source":"mm","nested":{"a":1,"b":[2,3],"big":9007199254740993}}}],"configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}}}`
+	const initial = `{"allow_multiple_runs":true,"messages":[{"text":"agent-visible task","external_key":"post:1","metadata":{"source":"mm","nested":{"a":1,"b":[2,3],"big":9007199254740993}}}],"configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}}}`
 	key := uuid.NewString()
 	a := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", "/api/v1/sessions", initial, key, 202))
 	base := "/api/v1/sessions/" + a.SessionID.String()
@@ -122,7 +122,7 @@ func TestMessageMetadataValidation(t *testing.T) {
 
 func TestBatchedMessagesPreserveOrderAndReplay(t *testing.T) {
 	server, s := testServer(t)
-	const initial = `{"messages":[{"text":"first","external_key":"post:1"},{"text":"second","external_key":"post:2","metadata":{"batch":1}}],"configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}}}`
+	const initial = `{"allow_multiple_runs":true,"messages":[{"text":"first","external_key":"post:1"},{"text":"second","external_key":"post:2","metadata":{"batch":1}}],"configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}}}`
 	key := uuid.NewString()
 	a := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", "/api/v1/sessions", initial, key, 202))
 	base := "/api/v1/sessions/" + a.SessionID.String()

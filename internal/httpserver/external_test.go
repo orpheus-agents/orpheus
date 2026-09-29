@@ -17,7 +17,7 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/store"
 )
 
-const externalBody = `{"namespace":"redmine","external_key":"prod:issue:7","input_fingerprint":"v1:456","configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}},"messages":[{"text":"hello","external_key":"journal:456"}]}`
+const externalBody = `{"allow_multiple_runs":true,"namespace":"redmine","external_key":"prod:issue:7","input_fingerprint":"v1:456","configuration":{"agent":{"profile":"default"},"sandbox":{"template":"codex"}},"messages":[{"text":"hello","external_key":"journal:456"}]}`
 
 func decodeHTTP[T any](t *testing.T, raw []byte) T {
 	t.Helper()

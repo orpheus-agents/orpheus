@@ -93,6 +93,7 @@ type Sandbox interface {
 	Watch(context.Context, string) (Watch, error)
 }
 type Platform interface {
+	Delete(context.Context, string) error
 	Create(context.Context, string, time.Duration, map[string]string) (Sandbox, error)
 	Find(context.Context, map[string]string) ([]string, error)
 	Info(context.Context, string) (string, error)

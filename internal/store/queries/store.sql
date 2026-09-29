@@ -110,8 +110,8 @@ FROM idempotency_keys
 WHERE operation = $1 AND resource = $2 AND key = $3;
 
 -- name: CreateSession :one
-INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved, namespace, external_key)
-VALUES($1, $2, $3, false, $4, $5)
+INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved, namespace, external_key, allow_multiple_runs)
+VALUES($1, $2, $3, false, $4, $5, $6)
 RETURNING s.*;
 
 -- name: CountReserved :one

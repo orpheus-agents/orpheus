@@ -29,6 +29,8 @@ import (
 )
 
 type remote struct {
+	deleteHook func()
+	lostDelete bool
 	harness.Sandbox
 	state                                                                                  string
 	metadata                                                                               map[string]string
@@ -37,9 +39,9 @@ type remote struct {
 	injected                                                                               []string
 	usage                                                                                  []harness.UsageReport
 	creates, launches, starts, steers, cancels, pauses, resumes, renewals, opens, attaches int
-	seeds, syncs, stateDirCalls                                                            int
+	deletes, seeds, syncs, stateDirCalls                                                   int
 	lostCreate, lostLaunch, lostStart, lostStartWithoutTurn, lostSteer                     bool
-	pauseError, initializeError, prepareError                                              error
+	pauseError, deleteError, initializeError, prepareError                                 error
 	createError, startError, steerError, contextError, snapshotError, leaseError           error
 	logins                                                                                 []bool
 	pauseHook                                                                              func()
@@ -95,6 +97,23 @@ func (r *remote) Pause(context.Context) error {
 		return r.pauseError
 	}
 	r.state = "paused"
+	return nil
+}
+func (r *remote) Delete(context.Context, string) error {
+	r.deletes++
+	if r.deleteHook != nil {
+		r.deleteHook()
+	}
+	if r.deleteError != nil {
+		return r.deleteError
+	}
+	if r.state == "lost" {
+		return harness.ErrNotFound
+	}
+	r.state = "lost"
+	if r.lostDelete {
+		return harness.ErrUncertain
+	}
 	return nil
 }
 func (r *remote) SetTimeout(_ context.Context, timeout time.Duration) error {
@@ -226,6 +245,9 @@ func setup(t *testing.T) (*store.Store, *remote, session.Acceptance, *Executor) 
 	return setupWithEnvironment(t, session.SandboxInput{Template: "codex"}, nil)
 }
 func setupWithEnvironment(t *testing.T, sandbox session.SandboxInput, runEnv map[string]string, metadata ...json.RawMessage) (*store.Store, *remote, session.Acceptance, *Executor) {
+	return setupSession(t, true, sandbox, runEnv, metadata...)
+}
+func setupSession(t *testing.T, multiple bool, sandbox session.SandboxInput, runEnv map[string]string, metadata ...json.RawMessage) (*store.Store, *remote, session.Acceptance, *Executor) {
 	t.Helper()
 	pool := testutil.Database(t)
 	c, _ := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
@@ -237,7 +259,7 @@ func setupWithEnvironment(t *testing.T, sandbox session.SandboxInput, runEnv map
 	if len(metadata) > 0 {
 		message.Metadata = metadata[0]
 	}
-	a, err := s.Accept(t.Context(), store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "p"}, Sandbox: sandbox, Limits: session.Limits{RunTimeoutSeconds: 3600}}, Messages: []session.TextMessage{message}, Env: runEnv}})
+	a, err := s.Accept(t.Context(), store.Admission{Key: uuid.New(), Create: &session.CreateSession{AllowMultipleRuns: multiple, Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "p"}, Sandbox: sandbox, Limits: session.Limits{RunTimeoutSeconds: 3600}}, Messages: []session.TextMessage{message}, Env: runEnv}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -695,7 +717,7 @@ func TestPauseFailureAndSandboxLoss(t *testing.T) {
 		t.Fatal(view)
 	}
 	r.state = "lost"
-	e.pauseRetryAt = time.Time{}
+	e.settleRetryAt = time.Time{}
 	tick(t, e)
 	record, _, err := s.Read(t.Context(), a.SessionID)
 	if err != nil || record.SlotReserved {
@@ -828,25 +850,41 @@ func TestAccountRepairAcrossPreparationFailure(t *testing.T) {
 		t.Fatalf("repair condition lost: starts=%d seeds=%d", r.starts, r.seeds)
 	}
 }
-func TestRestartBeforePauseSyncsAccount(t *testing.T) {
-	s, r, a, e := setup(t)
-	record, _, err := s.Read(t.Context(), a.SessionID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	record.Configuration.Credentials = session.Credentials{Mode: "account", Store: &session.CredentialStore{Type: "s3", Bucket: "fixture"}, Key: "auth.json"}
-	if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET configuration=$2 WHERE id=$1", a.SessionID, record.Configuration); err != nil {
-		t.Fatal(err)
-	}
-	tick(t, e)
-	complete(r)
-	e.Disconnect()
-	restarted := executor(a.SessionID, s, r)
-	defer restarted.Disconnect()
-	tick(t, restarted)
-	tick(t, restarted)
-	if r.syncs < 1 || r.pauses != 1 {
-		t.Fatalf("sync=%d pause=%d", r.syncs, r.pauses)
+func TestRestartBeforeCleanupKeepsAuthSyncPolicy(t *testing.T) {
+	for _, multiple := range []bool{false, true} {
+		for _, account := range []bool{false, true} {
+			t.Run(fmt.Sprintf("multiple=%t/account=%t", multiple, account), func(t *testing.T) {
+				s, r, a, e := setupSession(t, multiple, session.SandboxInput{Template: "codex"}, nil)
+				if account {
+					record, _, err := s.Read(t.Context(), a.SessionID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					record.Configuration.Credentials = session.Credentials{Mode: "account", Store: &session.CredentialStore{Type: "s3", Bucket: "fixture"}, Key: "auth.json"}
+					if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET configuration=$2 WHERE id=$1", a.SessionID, record.Configuration); err != nil {
+						t.Fatal(err)
+					}
+				}
+				tick(t, e)
+				complete(r)
+				tick(t, e)
+				e.Disconnect()
+				before := r.syncs
+				restarted := executor(a.SessionID, s, r)
+				defer restarted.Disconnect()
+				tick(t, restarted)
+				wantSync, wantPauses, wantDeletes := 0, 0, 1
+				if account {
+					wantSync = 1
+				}
+				if multiple {
+					wantPauses, wantDeletes = 1, 0
+				}
+				if r.syncs-before != wantSync || r.pauses != wantPauses || r.deletes != wantDeletes {
+					t.Fatalf("sync=%d pause=%d delete=%d", r.syncs-before, r.pauses, r.deletes)
+				}
+			})
+		}
 	}
 }
 func TestUncertainSteerObservationDoesNotAlternate(t *testing.T) {

@@ -119,7 +119,7 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Minute)
 	defer cancel()
 	hooks := &session.HooksInput{AfterCreate: new("#!/bin/sh\nprintf 'created\\n'\n"), BeforeRun: new("#!/bin/sh\nprintf 'prepared\\n'\n"), AfterRun: new("#!/bin/sh\nprintf 'agent:%s\\n' \"$ORPHEUS_AGENT_STATUS\"\n")}
-	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "live"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 300}, Hooks: hooks}, Messages: []session.TextMessage{{Text: "Work only in the current directory."}, {Text: "Do not access other directories or networks."}, {Text: "Create a file named orpheus-probe.txt in the current directory containing exactly ORPHEUS_OK. Then run sleep 20 in the shell to allow a follow-up. Finally include CREATED in your reply."}}}})
+	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{AllowMultipleRuns: true, Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "live"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 300}, Hooks: hooks}, Messages: []session.TextMessage{{Text: "Work only in the current directory."}, {Text: "Do not access other directories or networks."}, {Text: "Create a file named orpheus-probe.txt in the current directory containing exactly ORPHEUS_OK. Then run sleep 20 in the shell to allow a follow-up. Finally include CREATED in your reply."}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

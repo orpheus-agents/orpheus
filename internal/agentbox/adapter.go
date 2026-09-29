@@ -36,6 +36,10 @@ func (p *Platform) Connect(ctx context.Context, id string, timeout time.Duration
 	}
 	return &sandbox{s}, nil
 }
+func (p *Platform) Delete(ctx context.Context, id string) error {
+	_, err := p.client.Sandboxes.Kill(ctx, id)
+	return classify(err)
+}
 func (p *Platform) Info(ctx context.Context, id string) (string, error) {
 	s, err := p.client.Sandboxes.Info(ctx, id)
 	if err != nil {

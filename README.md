@@ -63,8 +63,9 @@ and reconnects sandboxes with a five-minute lease and renews it once per minute
 while preparing, executing or finalizing a run. A one-hour run does not require
 requesting more than one hour from AgentBox to cover hooks and cleanup. If the
 worker stops renewing, AgentBox auto-pauses the sandbox when the lease expires;
-after a run, Orpheus explicitly pauses it. The AgentBox plan's maximum uninterrupted
-sandbox lifetime still applies: lease renewal does not extend that limit.
+after a run, Orpheus deletes a single-run sandbox or pauses a reusable one.
+The AgentBox plan's maximum uninterrupted sandbox lifetime still applies:
+lease renewal does not extend that limit.
 
 ## Go API client
 

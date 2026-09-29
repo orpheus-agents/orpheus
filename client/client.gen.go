@@ -534,6 +534,8 @@ func (e SandboxEventType) Valid() bool {
 
 // Defines values for SandboxStateState.
 const (
+	SandboxStateStateDeleted      SandboxStateState = "deleted"
+	SandboxStateStateDeleting     SandboxStateState = "deleting"
 	SandboxStateStateNotCreated   SandboxStateState = "not_created"
 	SandboxStateStatePaused       SandboxStateState = "paused"
 	SandboxStateStatePausing      SandboxStateState = "pausing"
@@ -546,6 +548,10 @@ const (
 // Valid indicates whether the value is a known member of the SandboxStateState enum.
 func (e SandboxStateState) Valid() bool {
 	switch e {
+	case SandboxStateStateDeleted:
+		return true
+	case SandboxStateStateDeleting:
+		return true
 	case SandboxStateStateNotCreated:
 		return true
 	case SandboxStateStatePaused:
@@ -1046,7 +1052,9 @@ type CreateRun struct {
 
 // CreateSession defines model for CreateSession.
 type CreateSession struct {
-	Configuration ConfigurationInput `json:"configuration"`
+	// AllowMultipleRuns Immutable session policy. If false, only the run created with the session is allowed and its sandbox is deleted after completion, failure or cancellation. If true, the sandbox is paused for subsequent runs. Recovery and messages within the current run are allowed in either mode.
+	AllowMultipleRuns *bool              `json:"allow_multiple_runs,omitempty"`
+	Configuration     ConfigurationInput `json:"configuration"`
 
 	// Env Explicit environment variables for the first run's before_run and after_run hooks only. Override session sources with the same names; never passed to the harness, after_create, or before_remove.
 	Env *map[string]string `json:"env,omitempty"`
@@ -1174,10 +1182,10 @@ type HooksInput struct {
 	// AfterCreate Executable script text with a shebang; runs once after workspace creation.
 	AfterCreate *string `json:"after_create,omitempty"`
 
-	// AfterRun Executable script text with a shebang; runs after confirmed agent completion, before pause.
+	// AfterRun Executable script text with a shebang; runs after confirmed agent completion, before sandbox pause or deletion.
 	AfterRun *string `json:"after_run,omitempty"`
 
-	// BeforeRemove Accepted for future explicit sandbox removal; never called by this API version.
+	// BeforeRemove Reserved for future use; never called, including before automatic sandbox deletion.
 	BeforeRemove *string `json:"before_remove,omitempty"`
 
 	// BeforeRun Executable script text with a shebang; runs before every assignment.
@@ -1374,7 +1382,7 @@ type SandboxInput struct {
 type SandboxState struct {
 	Error *Error `json:"error"`
 
-	// ID AgentBox sandbox ID, if known. A retained ID does not guarantee that an unavailable sandbox is accessible.
+	// ID AgentBox sandbox ID, if known. Retained for diagnostics after deletion or loss; does not guarantee accessibility.
 	ID             *string           `json:"id"`
 	LastKnownState *string           `json:"last_known_state"`
 	State          SandboxStateState `json:"state"`
@@ -1394,10 +1402,13 @@ type SendMessage struct {
 
 // Session defines model for Session.
 type Session struct {
-	ActiveRunID   *openapi_types.UUID `json:"active_run_id"`
-	Configuration Configuration       `json:"configuration"`
-	CreatedAt     time.Time           `json:"created_at"`
-	Error         *Error              `json:"error"`
+	ActiveRunID *openapi_types.UUID `json:"active_run_id"`
+
+	// AllowMultipleRuns Immutable policy allowing subsequent runs. False means the sandbox is deleted after the first run terminates; session history remains available.
+	AllowMultipleRuns bool          `json:"allow_multiple_runs"`
+	Configuration     Configuration `json:"configuration"`
+	CreatedAt         time.Time     `json:"created_at"`
+	Error             *Error        `json:"error"`
 
 	// ExternalKey Source-qualified external object key; not unique across sessions. Opaque identifier, 1–512 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
 	ExternalKey  *string            `json:"external_key"`
@@ -2349,12 +2360,16 @@ type ClientInterface interface {
 
 	// CreateRunWithBody Create Run
 	//
+	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed, regardless of the first run or sandbox state. Idempotent replay of an accepted request returns the original acceptance.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/v1/sessions/{sid}/runs (the `CreateRun` operationId).
 	CreateRunWithBody(ctx context.Context, sid openapi_types.UUID, params *CreateRunParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateRun Create Run
+	//
+	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed, regardless of the first run or sandbox state. Idempotent replay of an accepted request returns the original acceptance.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -2604,6 +2619,8 @@ func (c *Client) ListRuns(ctx context.Context, sid openapi_types.UUID, params *L
 
 // CreateRunWithBody Create Run
 //
+// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed, regardless of the first run or sandbox state. Idempotent replay of an accepted request returns the original acceptance.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/v1/sessions/{sid}/runs (the `CreateRun` operationId).
@@ -2620,6 +2637,8 @@ func (c *Client) CreateRunWithBody(ctx context.Context, sid openapi_types.UUID, 
 }
 
 // CreateRun Create Run
+//
+// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed, regardless of the first run or sandbox state. Idempotent replay of an accepted request returns the original acceptance.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -4150,12 +4169,16 @@ type ClientWithResponsesInterface interface {
 
 	// CreateRunWithBodyWithResponse Create Run
 	//
+	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed, regardless of the first run or sandbox state. Idempotent replay of an accepted request returns the original acceptance.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/sessions/{sid}/runs (the `CreateRun` operationId).
 	CreateRunWithBodyWithResponse(ctx context.Context, sid openapi_types.UUID, params *CreateRunParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateRunHTTPResponse, error)
 
 	// CreateRunWithResponse Create Run
+	//
+	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed, regardless of the first run or sandbox state. Idempotent replay of an accepted request returns the original acceptance.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -5945,6 +5968,8 @@ func (c *ClientWithResponses) ListRunsWithResponse(ctx context.Context, sid open
 
 // CreateRunWithBodyWithResponse Create Run
 //
+// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed, regardless of the first run or sandbox state. Idempotent replay of an accepted request returns the original acceptance.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/sessions/{sid}/runs (the `CreateRun` operationId).
@@ -5957,6 +5982,8 @@ func (c *ClientWithResponses) CreateRunWithBodyWithResponse(ctx context.Context,
 }
 
 // CreateRunWithResponse Create Run
+//
+// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed, regardless of the first run or sandbox state. Idempotent replay of an accepted request returns the original acceptance.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
