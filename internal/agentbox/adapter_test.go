@@ -15,6 +15,45 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/harness"
 )
 
+func TestPlatformDeleteByID(t *testing.T) {
+	for _, status := range []int{http.StatusNoContent, http.StatusNotFound, http.StatusUnauthorized, http.StatusServiceUnavailable} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodDelete || r.URL.Path != "/sandboxes/sbx" {
+					t.Errorf("deletion must not connect or call process APIs: %s %s", r.Method, r.URL.Path)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				if status != http.StatusNoContent {
+					_, _ = io.WriteString(w, `{"message":"fixture"}`)
+				}
+			}))
+			defer server.Close()
+			client, err := sdk.NewClient(sdk.WithAPIKey("fixture"), sdk.WithAPIURL(server.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			p := &Platform{client: client}
+			err = p.Delete(t.Context(), "sbx")
+			switch status {
+			case http.StatusNoContent, http.StatusNotFound:
+				// The SDK may report an already absent sandbox as false, nil.
+				if err != nil && !errors.Is(err, harness.ErrNotFound) {
+					t.Fatal(err)
+				}
+			case http.StatusUnauthorized:
+				if !errors.Is(err, harness.ErrEnvironmentRejected) {
+					t.Fatal(err)
+				}
+			default:
+				if err == nil || errors.Is(err, harness.ErrNotFound) {
+					t.Fatal("transport failure was accepted as deletion", err)
+				}
+			}
+		})
+	}
+}
+
 func TestSandboxOperationsSelectUser(t *testing.T) {
 	requests := make(chan string, 8)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

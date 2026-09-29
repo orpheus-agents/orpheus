@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/orpheus-agents/orpheus/internal/config"
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
@@ -102,9 +104,9 @@ func (e *Executor) ensureSandbox(ctx context.Context, record *store.SessionRecor
 	}
 	e.timeoutRunID = run.ID
 	e.timeoutRenewAt = time.Now().Add(time.Minute)
-	e.pauseAuthSynced = false
-	e.pauseRetryAt = time.Time{}
-	e.pauseRetryDelay = 5 * time.Second
+	e.settleAuthSynced = false
+	e.settleRetryAt = time.Time{}
+	e.settleRetryDelay = 5 * time.Second
 	return e.state(ctx, "ready", nil)
 }
 func (e *Executor) preparePaths(ctx context.Context, record *store.SessionRecord) error {
@@ -417,96 +419,182 @@ func (e *Executor) refresh(ctx context.Context, record store.SessionRecord) erro
 	e.driver.Committed()
 	return nil
 }
-func (e *Executor) pause(ctx context.Context, record store.SessionRecord) error {
-	if time.Now().Before(e.pauseRetryAt) {
+func (e *Executor) settleEnvironment(ctx context.Context, record store.SessionRecord) error {
+	if time.Now().Before(e.settleRetryAt) {
 		return nil
 	}
-	err := e.pauseNow(ctx, record)
+	err := e.settleEnvironmentNow(ctx, record)
 	if err == nil {
-		e.pauseRetryAt = time.Time{}
-		e.pauseRetryDelay = 5 * time.Second
+		e.settleRetryAt = time.Time{}
+		e.settleRetryDelay = 5 * time.Second
 		return nil
 	}
 	if errors.Is(err, harness.ErrNotFound) {
 		return err
 	}
-	if stateErr := e.state(ctx, "pausing", &session.Error{Code: "environment_unavailable", Message: "Sandbox pause failed; retrying.", Phase: new("recovery"), Details: []session.Detail{}}); stateErr != nil {
+	state, code, message := "pausing", "environment_unavailable", "Sandbox pause failed; retrying."
+	if !record.AllowMultipleRuns {
+		state, code, message = "deleting", "sandbox_delete_failed", "Sandbox deletion failed; retrying."
+	}
+	if stateErr := e.state(ctx, state, &session.Error{Code: code, Message: message, Phase: new("recovery"), Details: []session.Detail{}}); stateErr != nil {
 		return stateErr
 	}
-	e.pauseRetryAt = time.Now().Add(e.pauseRetryDelay)
-	e.pauseRetryDelay = min(60*time.Second, e.pauseRetryDelay*2)
+	e.settleRetryAt = time.Now().Add(e.settleRetryDelay)
+	e.settleRetryDelay = min(60*time.Second, e.settleRetryDelay*2)
 	e.Disconnect()
 	return nil
 }
+func (e *Executor) settleEnvironmentNow(ctx context.Context, record store.SessionRecord) error {
+	if record.AllowMultipleRuns {
+		return e.pauseNow(ctx, record)
+	}
+	return e.deleteNow(ctx, record)
+}
+
 func (e *Executor) pauseNow(ctx context.Context, record store.SessionRecord) error {
-	if record.SandboxID != nil {
-		if record.SandboxState != "pausing" {
-			if err := e.state(ctx, "pausing", nil); err != nil {
+	if record.SandboxID == nil {
+		return e.releaseEnvironment(ctx, record, "paused")
+	}
+	if record.SandboxState != "pausing" {
+		if err := e.state(ctx, "pausing", nil); err != nil {
+			return err
+		}
+	}
+	if e.sandbox == nil {
+		state, err := e.Platform.Info(ctx, *record.SandboxID)
+		if err != nil {
+			return err
+		}
+		if state == "paused" {
+			return e.releaseEnvironment(ctx, record, "paused")
+		}
+		box, err := e.Platform.Connect(ctx, *record.SandboxID, 0)
+		if err != nil {
+			return err
+		}
+		e.sandbox = box
+	}
+	last, err := e.Store.LastTerminalRun(ctx, e.ID)
+	if err != nil {
+		return err
+	}
+	if err := e.finalAuthSync(ctx, record, last); err != nil {
+		return err
+	}
+	o, err := e.operation(ctx, "pause", &last.ID, nil, nil)
+	if err != nil {
+		return err
+	}
+	if err := e.opStatus(ctx, o.ID, "sending", nil); err != nil {
+		return err
+	}
+	if e.unregisterLimits != nil {
+		e.unregisterLimits()
+		e.unregisterLimits = nil
+	}
+	if err := e.sandbox.Pause(ctx); err != nil {
+		return err
+	}
+	if err := e.opStatus(ctx, o.ID, "confirmed", nil); err != nil {
+		return err
+	}
+	e.Disconnect()
+	return e.releaseEnvironment(ctx, record, "paused")
+}
+
+func (e *Executor) deleteNow(ctx context.Context, record store.SessionRecord) error {
+	if record.SandboxID == nil || record.SandboxState == "deleted" {
+		return e.releaseEnvironment(ctx, record, "deleted")
+	}
+	if record.SandboxState != "deleting" {
+		if err := e.state(ctx, "deleting", nil); err != nil {
+			return err
+		}
+	}
+	last, err := e.Store.LastTerminalRun(ctx, e.ID)
+	if err != nil {
+		return err
+	}
+	o, err := e.operation(ctx, "sandbox_delete", &last.ID, nil, record.SandboxID)
+	if err != nil {
+		return err
+	}
+	if o.Status != "confirmed" {
+		// A persisted sending attempt retries deletion directly, even after restart.
+		// Reconnecting only to retry kill would keep extending the sandbox lease.
+		var absent bool
+		if o.Status == "pending" {
+			err := e.finalAuthSync(ctx, record, last)
+			absent = errors.Is(err, harness.ErrNotFound)
+			if err != nil && !absent {
+				slog.WarnContext(ctx, "Final account sync preparation failed; deleting sandbox", "session_id", e.ID, "error_type", diagnostic.Describe(err))
+			}
+		}
+		if !absent {
+			if err := e.opStatus(ctx, o.ID, "sending", nil); err != nil {
+				return err
+			}
+			e.Disconnect()
+			if err := e.Platform.Delete(ctx, *record.SandboxID); err != nil && !errors.Is(err, harness.ErrNotFound) {
 				return err
 			}
 		}
+		if err := e.opStatus(ctx, o.ID, "confirmed", nil); err != nil {
+			return err
+		}
+	}
+	e.Disconnect()
+	return e.releaseEnvironment(ctx, record, "deleted")
+}
+
+// Keep the existing conditional account upload. Deletion treats preparation
+// errors as best effort; pausing retains its original retry behavior.
+func (e *Executor) finalAuthSync(ctx context.Context, record store.SessionRecord, last store.RunRecord) error {
+	if e.settleAuthSynced || record.Configuration.Credentials.Mode != "account" || record.HarnessHome == nil {
+		return nil
+	}
+	failed, err := e.Store.AuthFailedBefore(ctx, e.ID, last.Number, true)
+	if err != nil {
+		return err
+	}
+	if !failed {
 		if e.sandbox == nil {
 			state, err := e.Platform.Info(ctx, *record.SandboxID)
 			if err != nil {
 				return err
 			}
-			if state != "paused" {
-				box, err := e.Platform.Connect(ctx, *record.SandboxID, 0)
-				if err != nil {
-					return err
-				}
-				e.sandbox = box
+			if state == "paused" {
+				return nil
 			}
-		}
-		if e.sandbox != nil {
-			last, err := e.Store.LastTerminalRun(ctx, e.ID)
+			box, err := e.Platform.Connect(ctx, *record.SandboxID, 0)
 			if err != nil {
 				return err
 			}
-			if !e.pauseAuthSynced {
-				failed, err := e.Store.AuthFailedBefore(ctx, e.ID, last.Number, true)
-				if err != nil {
-					return err
-				}
-				if !failed {
-					if e.account == nil && record.HarnessHome != nil && record.Configuration.Credentials.Mode == "account" {
-						e.account, err = e.NewAccount(ctx, e.sandbox, *record.HarnessHome, record.Configuration.Credentials)
-						if err != nil {
-							return err
-						}
-					}
-					if e.account != nil {
-						e.account.Sync(ctx, true)
-					}
-				}
-				e.pauseAuthSynced = true
-			}
-			o, err := e.operation(ctx, "pause", &last.ID, nil, nil)
+			e.sandbox = box
+		}
+		if e.account == nil {
+			e.account, err = e.NewAccount(ctx, e.sandbox, *record.HarnessHome, record.Configuration.Credentials)
 			if err != nil {
 				return err
 			}
-			if err := e.opStatus(ctx, o.ID, "sending", nil); err != nil {
-				return err
-			}
-			if e.unregisterLimits != nil {
-				e.unregisterLimits()
-				e.unregisterLimits = nil
-			}
-			if err := e.sandbox.Pause(ctx); err != nil {
-				return err
-			}
-			if err := e.opStatus(ctx, o.ID, "confirmed", nil); err != nil {
-				return err
-			}
-			e.Disconnect()
 		}
-		if record.SandboxState != "unavailable" {
-			if err := e.state(ctx, "paused", nil); err != nil {
-				return err
-			}
-		}
+		e.account.Sync(ctx, true)
 	}
+	e.settleAuthSynced = true
+	return nil
+}
+
+func (e *Executor) releaseEnvironment(ctx context.Context, record store.SessionRecord, settled string) error {
 	return e.Store.Mutate(ctx, e.ID, true, func(tx pgx.Tx, r *store.SessionRecord) error {
+		if record.SandboxID != nil && (record.SandboxState != "unavailable" || !record.AllowMultipleRuns) {
+			if err := store.UpdateSandbox(ctx, tx, r, func(r *store.SessionRecord) {
+				r.SandboxState = settled
+				r.SandboxLastKnownState = &settled
+				r.SandboxError = nil
+			}); err != nil {
+				return err
+			}
+		}
 		active, err := store.ActiveRun(ctx, tx, e.ID)
 		if err != nil {
 			return err

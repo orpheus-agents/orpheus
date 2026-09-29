@@ -45,7 +45,7 @@ func TestLiveCodexTokenBudget(t *testing.T) {
 	s := &store.Store{Pool: testutil.Database(t), Settings: config.DefaultSettings(), Cipher: cipher, Profiles: config.Profiles{Profiles: map[string]config.Profile{"live": {Harness: "codex", Model: &model, Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 	defer cancel()
-	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{
+	a, err := s.Accept(ctx, store.Admission{Key: uuid.New(), Create: &session.CreateSession{AllowMultipleRuns: true,
 		Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "live"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 240, MaxSessionTokens: 1}},
 		Messages:      []session.TextMessage{{Text: "Use exec_command to run sleep 60 with yield_time_ms=1000. Keep polling the command until it exits. Do not finish the task before the command exits. Then reply DONE."}},
 	}})

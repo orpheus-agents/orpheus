@@ -32,7 +32,7 @@ func fixture(t *testing.T) *Store {
 	return &Store{Pool: testutil.Database(t), Settings: config.DefaultSettings(), Cipher: c, Profiles: config.Profiles{Profiles: map[string]config.Profile{"default": {Harness: "codex", Model: new("fixture"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
 }
 func request() Admission {
-	return Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex", Env: map[string]string{"TOKEN": "private"}}, Limits: session.Limits{RunTimeoutSeconds: 3600}}, Messages: []session.TextMessage{{Text: "Hello"}}}}
+	return Admission{Key: uuid.New(), Create: &session.CreateSession{AllowMultipleRuns: true, Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex", Env: map[string]string{"TOKEN": "private"}}, Limits: session.Limits{RunTimeoutSeconds: 3600}}, Messages: []session.TextMessage{{Text: "Hello"}}}}
 }
 func requireCode(t *testing.T, err error, code string) {
 	t.Helper()

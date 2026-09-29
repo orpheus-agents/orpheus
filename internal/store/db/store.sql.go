@@ -141,17 +141,18 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 }
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved, namespace, external_key)
-VALUES($1, $2, $3, false, $4, $5)
-RETURNING s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total
+INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved, namespace, external_key, allow_multiple_runs)
+VALUES($1, $2, $3, false, $4, $5, $6)
+RETURNING s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs
 `
 
 type CreateSessionParams struct {
-	ID            uuid.UUID                     `json:"id"`
-	Configuration session.ResolvedConfiguration `json:"configuration"`
-	EnvCiphertext *string                       `json:"env_ciphertext"`
-	Namespace     *string                       `json:"namespace"`
-	ExternalKey   *string                       `json:"external_key"`
+	ID                uuid.UUID                     `json:"id"`
+	Configuration     session.ResolvedConfiguration `json:"configuration"`
+	EnvCiphertext     *string                       `json:"env_ciphertext"`
+	Namespace         *string                       `json:"namespace"`
+	ExternalKey       *string                       `json:"external_key"`
+	AllowMultipleRuns bool                          `json:"allow_multiple_runs"`
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
@@ -161,6 +162,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		arg.EnvCiphertext,
 		arg.Namespace,
 		arg.ExternalKey,
+		arg.AllowMultipleRuns,
 	)
 	var i Session
 	err := row.Scan(
@@ -191,6 +193,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.ReasoningOutputTokens,
 		&i.CachedInputNativeTotal,
 		&i.ReasoningOutputNativeTotal,
+		&i.AllowMultipleRuns,
 	)
 	return i, err
 }
@@ -304,7 +307,7 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (Run, error) {
 }
 
 const getSession = `-- name: GetSession :one
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs
 FROM sessions s
 WHERE id = $1
 `
@@ -340,6 +343,7 @@ func (q *Queries) GetSession(ctx context.Context, id uuid.UUID) (Session, error)
 		&i.ReasoningOutputTokens,
 		&i.CachedInputNativeTotal,
 		&i.ReasoningOutputNativeTotal,
+		&i.AllowMultipleRuns,
 	)
 	return i, err
 }
@@ -440,7 +444,7 @@ func (q *Queries) LatestRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 }
 
 const lockSession = `-- name: LockSession :one
-SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total
+SELECT s.id, s.created_at, s.configuration, s.env_ciphertext, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs
 FROM sessions s
 WHERE id = $1 FOR UPDATE
 `
@@ -476,6 +480,7 @@ func (q *Queries) LockSession(ctx context.Context, id uuid.UUID) (Session, error
 		&i.ReasoningOutputTokens,
 		&i.CachedInputNativeTotal,
 		&i.ReasoningOutputNativeTotal,
+		&i.AllowMultipleRuns,
 	)
 	return i, err
 }

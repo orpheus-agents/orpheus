@@ -35,6 +35,7 @@ func create(ctx context.Context, baseURL, token, idempotencyKey string) (*client
     response, err := api.CreateSessionWithResponse(ctx,
         &client.CreateSessionParams{IdempotencyKey: &idempotencyKey},
         client.CreateSession{
+            AllowMultipleRuns: new(true),
             Namespace: new("my-connector"),
             ExternalKey: new("source:thread-id"),
             Configuration: client.ConfigurationInput{

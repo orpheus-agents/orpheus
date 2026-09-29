@@ -188,7 +188,7 @@ func SessionView(ctx context.Context, q db.DBTX, s SessionRecord) (session.Sessi
 	if err != nil {
 		return session.Session{}, err
 	}
-	out := session.Session{Usage: s.Usage(), Namespace: s.Namespace, ExternalKey: s.ExternalKey, ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, LastRunCreatedAt: r.CreatedAt, Status: r.Status, Phase: r.Phase, FinalMessage: v.FinalMessage, Error: r.Error}
+	out := session.Session{AllowMultipleRuns: s.AllowMultipleRuns, Usage: s.Usage(), Namespace: s.Namespace, ExternalKey: s.ExternalKey, ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, LastRunCreatedAt: r.CreatedAt, Status: r.Status, Phase: r.Phase, FinalMessage: v.FinalMessage, Error: r.Error}
 	if !r.Status.Terminal() {
 		out.ActiveRunID = &r.ID
 	}
@@ -542,14 +542,15 @@ func fingerprint(a Admission) (string, error) {
 			names = []string{}
 		}
 		value = struct {
-			Namespace        *string               `json:"namespace,omitzero"`
-			ExternalKey      *string               `json:"external_key,omitzero"`
-			InputFingerprint *string               `json:"input_fingerprint,omitzero"`
-			Configuration    any                   `json:"configuration"`
-			Messages         []session.TextMessage `json:"messages"`
-			RunEnvNames      []string              `json:"run_env_names,omitzero"`
-			RunEnvFrom       []string              `json:"run_env_from,omitzero"`
-		}{Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, InputFingerprint: a.Create.InputFingerprint, Configuration: struct {
+			AllowMultipleRuns bool                  `json:"allow_multiple_runs,omitzero"`
+			Namespace         *string               `json:"namespace,omitzero"`
+			ExternalKey       *string               `json:"external_key,omitzero"`
+			InputFingerprint  *string               `json:"input_fingerprint,omitzero"`
+			Configuration     any                   `json:"configuration"`
+			Messages          []session.TextMessage `json:"messages"`
+			RunEnvNames       []string              `json:"run_env_names,omitzero"`
+			RunEnvFrom        []string              `json:"run_env_from,omitzero"`
+		}{AllowMultipleRuns: a.Create.AllowMultipleRuns, Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, InputFingerprint: a.Create.InputFingerprint, Configuration: struct {
 			Agent   session.AgentInput  `json:"agent"`
 			Sandbox any                 `json:"sandbox"`
 			Limits  session.Limits      `json:"limits"`
@@ -674,7 +675,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			if err != nil {
 				return err
 			}
-			record, err = sessionRecord(db.New(tx).CreateSession(ctx, db.CreateSessionParams{Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, ID: id, Configuration: resolved, EnvCiphertext: token}))
+			record, err = sessionRecord(db.New(tx).CreateSession(ctx, db.CreateSessionParams{AllowMultipleRuns: a.Create.AllowMultipleRuns, Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, ID: id, Configuration: resolved, EnvCiphertext: token}))
 			if err != nil {
 				return err
 			}
@@ -683,6 +684,9 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			if err != nil {
 				return err
 			}
+		}
+		if a.Create == nil && a.RunID == uuid.Nil && !record.AllowMultipleRuns {
+			return session.Problem(409, "multiple_runs_not_allowed", "This session allows only one run. Create a new session for another run, or set allow_multiple_runs=true when creating a session that must support continuation.")
 		}
 		var run RunRecord
 		if BudgetExhausted(record) {
@@ -800,7 +804,7 @@ func (s *Store) Cancel(ctx context.Context, sid, rid uuid.UUID) (session.Cancell
 				if err := Finish(ctx, tx, record, &run, session.Cancelled, nil, nil); err != nil {
 					return err
 				}
-				if record.SandboxState == "not_created" || record.SandboxState == "paused" {
+				if record.SandboxState == "not_created" || (record.AllowMultipleRuns && record.SandboxState == "paused") {
 					record.SlotReserved = false
 				}
 			} else {
