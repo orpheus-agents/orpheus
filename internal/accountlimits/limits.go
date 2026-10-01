@@ -30,7 +30,8 @@ type Bucket struct {
 	Secondary            *Window `json:"secondary"`
 }
 type Snapshot struct {
-	Buckets []Bucket `json:"buckets"`
+	Buckets               []Bucket `json:"buckets"`
+	ResetCreditsAvailable *int64   `json:"reset_credits_available"`
 }
 
 // Parse reads a complete account/rateLimits/read result. Unknown provider fields
@@ -40,6 +41,15 @@ func Parse(raw []byte) (Snapshot, error) {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
 		return out, ErrInvalidResponse
+	}
+	if value, present := fields["rateLimitResetCredits"]; present && !bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+		var credits struct {
+			AvailableCount *int64 `json:"availableCount"`
+		}
+		if err := json.Unmarshal(value, &credits); err != nil || credits.AvailableCount == nil || *credits.AvailableCount < 0 {
+			return Snapshot{}, ErrInvalidResponse
+		}
+		out.ResetCreditsAvailable = credits.AvailableCount
 	}
 	if single, present := fields["rateLimits"]; present && !bytes.Equal(bytes.TrimSpace(single), []byte("null")) {
 		if _, err := parseBucket("", single); err != nil {

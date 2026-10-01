@@ -17,13 +17,14 @@ import (
 const accountLimitsStaleAfter = 300
 
 type LimitItem struct {
-	AccountID     string
-	Profiles      []string
-	State         string
-	ObservedAt    *time.Time
-	LastAttemptAt *time.Time
-	ErrorCode     *string
-	Buckets       []accountlimits.Bucket
+	AccountID             string
+	Profiles              []string
+	State                 string
+	ObservedAt            *time.Time
+	LastAttemptAt         *time.Time
+	ErrorCode             *string
+	Buckets               []accountlimits.Bucket
+	ResetCreditsAvailable *int64
 }
 
 type LimitReport struct {
@@ -103,6 +104,7 @@ func (s *Store) AccountLimits(ctx context.Context) (LimitReport, error) {
 						return err
 					}
 					item.Buckets = snapshot.Buckets
+					item.ResetCreditsAvailable = snapshot.ResetCreditsAvailable
 					if item.Buckets == nil {
 						item.Buckets = []accountlimits.Bucket{}
 					}
@@ -117,7 +119,7 @@ func (s *Store) AccountLimits(ctx context.Context) (LimitReport, error) {
 		return nil
 	})
 	if err != nil {
-		if requestCtx.Err() == nil {
+		if !errors.Is(requestCtx.Err(), context.Canceled) {
 			slog.WarnContext(requestCtx, "Account limits query failed", "error_type", diagnostic.Describe(err))
 		}
 		return LimitReport{}, accountLimitsUnavailable()

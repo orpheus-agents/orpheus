@@ -111,21 +111,29 @@ func (d *Driver) accountLimitsAvailable() error {
 	return nil
 }
 func (d *Driver) ReadAccountLimits(ctx context.Context) (accountlimits.Snapshot, error) {
-	if err := d.accountLimitsAvailable(); err != nil {
-		return accountlimits.Snapshot{}, err
-	}
-	var raw json.RawMessage
-	err := d.rpc.Call(ctx, "account/rateLimits/read", nil, &raw)
-	if rpcError, ok := errors.AsType[*RPCError](err); ok && rpcError.Code == -32601 {
-		return accountlimits.Snapshot{}, accountlimits.ErrUnsupported
-	}
+	raw, err := d.readAccountLimitsResponse(ctx)
 	if err != nil {
 		return accountlimits.Snapshot{}, err
 	}
-	if err := d.accountLimitsAvailable(); err != nil {
-		return accountlimits.Snapshot{}, err
-	}
 	return accountlimits.Parse(raw)
+}
+func (d *Driver) readAccountLimitsResponse(ctx context.Context) (json.RawMessage, error) {
+	if err := d.accountLimitsAvailable(); err != nil {
+		return nil, err
+	}
+	var raw json.RawMessage
+	// Background polls need the count, not the separate reset-credit detail lookup.
+	err := d.rpc.Call(ctx, "account/rateLimits/read", map[string]any{"excludeResetCreditDetails": true}, &raw)
+	if rpcError, ok := errors.AsType[*RPCError](err); ok && rpcError.Code == -32601 {
+		return nil, accountlimits.ErrUnsupported
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := d.accountLimitsAvailable(); err != nil {
+		return nil, err
+	}
+	return raw, nil
 }
 func (d *Driver) OpenContext(ctx context.Context, agent session.AgentConfiguration, cwd string, id *string) (harness.Context, error) {
 	params := map[string]any{"model": agent.Model, "cwd": cwd, "approvalPolicy": "never", "sandbox": "danger-full-access"}

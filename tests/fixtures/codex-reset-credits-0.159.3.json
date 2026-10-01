@@ -1,0 +1,19 @@
+{
+  "fixture_codex_version": "0.159.3",
+  "fixture_note": "Synthetic count-only payload for Codex 0.159.3 with excludeResetCreditDetails: true. All numeric values are synthetic; credits are null because the detail lookup is excluded.",
+  "rateLimits": {
+    "limitId": "codex",
+    "primary": {"usedPercent": 25, "windowDurationMins": 300, "resetsAt": 1790851200}
+  },
+  "rateLimitsByLimitId": {
+    "codex": {
+      "limitId": "codex",
+      "primary": {"usedPercent": 25, "windowDurationMins": 300, "resetsAt": 1790851200},
+      "secondary": null
+    }
+  },
+  "rateLimitResetCredits": {
+    "availableCount": 3,
+    "credits": null
+  }
+}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/orpheus-agents/orpheus/internal/httpserver"
+	"github.com/orpheus-agents/orpheus/internal/store"
 )
 
 func checkProbe(t *testing.T, client *http.Client, url string, status int) {
@@ -36,7 +37,7 @@ func TestServeClosesUnusedSystemConnection(t *testing.T) {
 	api := &http.Server{Addr: "127.0.0.1:0", ReadHeaderTimeout: time.Second}
 	system := &http.Server{
 		Addr: "127.0.0.1:0", ReadHeaderTimeout: 30 * time.Second,
-		Handler: httpserver.SystemHandler(&ready),
+		Handler: httpserver.SystemHandler(&ready, emptyAccountLimits),
 		BaseContext: func(l net.Listener) context.Context {
 			address <- l.Addr().String()
 			return t.Context()
@@ -88,7 +89,7 @@ func TestServeStopsBothServersOnFailure(t *testing.T) {
 			var ready atomic.Bool
 			apiAddress, systemAddress := make(chan string, 1), make(chan string, 1)
 			api := &http.Server{Addr: "127.0.0.1:0", ReadHeaderTimeout: time.Second, Handler: http.NotFoundHandler(), BaseContext: func(l net.Listener) context.Context { apiAddress <- l.Addr().String(); return t.Context() }}
-			system := &http.Server{Addr: "127.0.0.1:0", ReadHeaderTimeout: time.Second, Handler: httpserver.SystemHandler(&ready), BaseContext: func(l net.Listener) context.Context { systemAddress <- l.Addr().String(); return t.Context() }}
+			system := &http.Server{Addr: "127.0.0.1:0", ReadHeaderTimeout: time.Second, Handler: httpserver.SystemHandler(&ready, emptyAccountLimits), BaseContext: func(l net.Listener) context.Context { systemAddress <- l.Addr().String(); return t.Context() }}
 			stopped := make(chan error, 1)
 			go func() { stopped <- serve(ctx, api, system, &ready) }()
 			apiURL, systemURL := "http://"+<-apiAddress, "http://"+<-systemAddress
@@ -190,3 +191,5 @@ func TestHealthcheckFailure(t *testing.T) {
 		}
 	}
 }
+
+func emptyAccountLimits(context.Context) (store.LimitReport, error) { return store.LimitReport{}, nil }

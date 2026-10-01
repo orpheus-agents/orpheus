@@ -90,7 +90,7 @@ func TestShutdownLetsInFlightRequestFinish(t *testing.T) {
 	server.RegisterOnShutdown(func() { close(shutdown) })
 	var ready atomic.Bool
 	systemAddress := make(chan string, 1)
-	system := &http.Server{Addr: "127.0.0.1:0", Handler: httpserver.SystemHandler(&ready), ReadHeaderTimeout: time.Second, BaseContext: func(l net.Listener) context.Context { systemAddress <- l.Addr().String(); return t.Context() }}
+	system := &http.Server{Addr: "127.0.0.1:0", Handler: httpserver.SystemHandler(&ready, emptyAccountLimits), ReadHeaderTimeout: time.Second, BaseContext: func(l net.Listener) context.Context { systemAddress <- l.Addr().String(); return t.Context() }}
 	stopped := make(chan error, 1)
 	go func() { stopped <- serve(ctx, server, system, &ready) }()
 	client := &http.Client{Timeout: 5 * time.Second}

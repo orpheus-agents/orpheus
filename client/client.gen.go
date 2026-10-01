@@ -903,7 +903,10 @@ type AccountLimitItem struct {
 	LastAttemptAt *time.Time                 `json:"last_attempt_at"`
 	ObservedAt    *time.Time                 `json:"observed_at"`
 	Profiles      []string                   `json:"profiles"`
-	State         AccountLimitItemState      `json:"state"`
+
+	// ResetCreditsAvailable Available earned rate-limit resets for the account; null when unknown. Uses the same observation time and freshness state as the quota windows.
+	ResetCreditsAvailable *int64                `json:"reset_credits_available"`
+	State                 AccountLimitItemState `json:"state"`
 }
 
 // AccountLimitItemErrorCode defines model for AccountLimitItem.ErrorCode.

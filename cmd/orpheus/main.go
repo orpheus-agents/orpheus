@@ -166,7 +166,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	server := &http.Server{Addr: net.JoinHostPort(*host, *port), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	server.RegisterOnShutdown(stopStreams)
 	var ready atomic.Bool
-	system := &http.Server{Addr: net.JoinHostPort(systemHost, systemPort), Handler: httpserver.SystemHandler(&ready), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 12}
+	system := &http.Server{Addr: net.JoinHostPort(systemHost, systemPort), Handler: httpserver.SystemHandler(&ready, storage.AccountLimits), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 12}
 	if err := serve(ctx, server, system, &ready); err != nil {
 		return fmt.Errorf("HTTP server failed (%s)", diagnostic.Describe(err))
 	}
