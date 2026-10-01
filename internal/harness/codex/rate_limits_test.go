@@ -17,8 +17,12 @@ func TestRateLimitReadAndNotificationIsolation(t *testing.T) {
 		var method string
 		_ = json.Unmarshal(req["method"], &method)
 		if method == "account/rateLimits/read" {
+			var params map[string]any
+			if err := json.Unmarshal(req["params"], &params); err != nil || len(params) != 1 || params["excludeResetCreditDetails"] != true {
+				t.Error("rate-limit read must exclude reset-credit details", params, err)
+			}
 			reads++
-			return map[string]any{"id": req["id"], "result": map[string]any{"rateLimitsByLimitId": map[string]any{"codex": map[string]any{"limitId": "codex", "primary": map[string]any{"usedPercent": 25, "windowDurationMins": 300, "resetsAt": 1790251200}}}}}
+			return map[string]any{"id": req["id"], "result": map[string]any{"rateLimitResetCredits": map[string]any{"availableCount": 2}, "rateLimitsByLimitId": map[string]any{"codex": map[string]any{"limitId": "codex", "primary": map[string]any{"usedPercent": 25, "windowDurationMins": 300, "resetsAt": 1790251200}}}}}
 		}
 		return map[string]any{"id": req["id"], "result": map[string]any{}}
 	})
@@ -41,7 +45,7 @@ func TestRateLimitReadAndNotificationIsolation(t *testing.T) {
 		t.Fatal("rate-limit drain stole execution notification", notifications, dirty)
 	}
 	snapshot, err := d.ReadAccountLimits(t.Context())
-	if err != nil || reads != 1 || len(snapshot.Buckets) != 1 || snapshot.Buckets[0].Primary.RemainingPercent != 75 {
+	if err != nil || reads != 1 || len(snapshot.Buckets) != 1 || snapshot.Buckets[0].Primary.RemainingPercent != 75 || snapshot.ResetCreditsAvailable == nil || *snapshot.ResetCreditsAvailable != 2 {
 		t.Fatal(snapshot, err)
 	}
 	rpc.receive(t.Context(), []byte(`{"method":"account/updated","params":{"authMode":"chatgpt","planType":"pro"}}`))

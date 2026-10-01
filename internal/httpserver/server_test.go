@@ -139,7 +139,7 @@ func TestHTTPContract(t *testing.T) {
 
 func TestSystemEndpointsAreNotOnAPI(t *testing.T) {
 	server, _ := testServer(t)
-	for _, path := range []string{"/health", "/ready", "/docs", "/redoc"} {
+	for _, path := range []string{"/health", "/ready", "/metrics/service", "/metrics", "/docs", "/redoc"} {
 		status, _, _ := requestHTTP(t, server, "GET", path, "", "", "")
 		if status != 404 {
 			t.Fatalf("unexpected API route %s: %d", path, status)

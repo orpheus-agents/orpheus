@@ -14,12 +14,13 @@ func accountLimitsResponse(report store.LimitReport) api.GetAccountLimits200JSON
 	}
 	for _, item := range report.Items {
 		mapped := api.AccountLimitItem{
-			AccountID:     item.AccountID,
-			Profiles:      item.Profiles,
-			State:         api.AccountLimitItemState(item.State),
-			ObservedAt:    item.ObservedAt,
-			LastAttemptAt: item.LastAttemptAt,
-			Buckets:       make([]api.AccountLimitBucket, 0, len(item.Buckets)),
+			AccountID:             item.AccountID,
+			Profiles:              item.Profiles,
+			State:                 api.AccountLimitItemState(item.State),
+			ObservedAt:            item.ObservedAt,
+			LastAttemptAt:         item.LastAttemptAt,
+			Buckets:               make([]api.AccountLimitBucket, 0, len(item.Buckets)),
+			ResetCreditsAvailable: item.ResetCreditsAvailable,
 		}
 		if item.ErrorCode != nil {
 			mapped.ErrorCode = new(api.AccountLimitItemErrorCode(*item.ErrorCode))

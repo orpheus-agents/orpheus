@@ -84,10 +84,12 @@ system = os.environ["SMOKE_SYSTEM_URL"]
 for base, path, expected in (
     (system, "/health", 200),
     (system, "/ready", 200),
+    (system, "/metrics/service", 200),
     (system, "/api/v1/sessions", 404),
     (system, "/openapi.json", 404),
     (api, "/health", 404),
     (api, "/ready", 404),
+    (api, "/metrics/service", 404),
     (api, "/api/v1/sessions", 200),
 ):
     request = urllib.request.Request(base + path, headers={"Authorization": "Bearer smoke"})
@@ -97,9 +99,12 @@ for base, path, expected in (
         response = error
     with response:
         assert response.status == expected, (base, path, response.status)
-        if expected == 200:
+        if path == "/metrics/service" and expected == 200:
+            assert response.headers["Content-Type"].startswith("text/plain")
+            assert response.read() == b"", "API-key-only config must have no account series"
+        elif expected == 200:
             json.load(response)
-print("System probes and authenticated API work on separate ports.")
+print("System probes, service metrics and authenticated API work on separate ports.")
 PY
 docker stop -t 15 "$api_name" "$worker_name" >/dev/null
 [ "$(docker inspect -f '{{.State.ExitCode}}' "$api_name")" = 0 ]

@@ -29,7 +29,7 @@ components:
         AccountLimitItem:
             type: object
             additionalProperties: false
-            required: [account_id, profiles, state, observed_at, last_attempt_at, error_code, buckets]
+            required: [account_id, profiles, state, observed_at, last_attempt_at, error_code, buckets, reset_credits_available]
             properties:
                 account_id: {type: string}
                 profiles:
@@ -47,6 +47,13 @@ components:
                 buckets:
                     type: array
                     items: {$ref: '#/components/schemas/AccountLimitBucket'}
+                reset_credits_available:
+                    description: Available earned rate-limit resets for the account; null when unknown. Uses the same observation time and freshness state as the quota windows.
+                    anyOf:
+                        - type: integer
+                          format: int64
+                          minimum: 0
+                        - type: 'null'
         AccountLimits:
             type: object
             additionalProperties: false

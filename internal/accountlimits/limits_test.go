@@ -1,11 +1,88 @@
 package accountlimits
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestParseResetCreditsFixture(t *testing.T) {
+	raw, err := os.ReadFile("../../tests/fixtures/codex-reset-credits-0.159.3.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := Parse(raw)
+	if err != nil || snapshot.ResetCreditsAvailable == nil || *snapshot.ResetCreditsAvailable != 3 || len(snapshot.Buckets) != 1 {
+		t.Fatal(snapshot, err)
+	}
+}
+
+func TestParseResetCredits(t *testing.T) {
+	for _, limits := range []string{
+		`"rateLimitsByLimitId":{"codex":{}}`,
+		`"rateLimits":{"limitId":"codex"}`,
+		`"rateLimitsByLimitId":{}`,
+	} {
+		for _, tc := range []struct {
+			name, credits string
+			want          *int64
+		}{
+			{"absent", "", nil},
+			{"null", `,"rateLimitResetCredits":null`, nil},
+			{"zero", `,"rateLimitResetCredits":{"availableCount":0}`, new(int64(0))},
+			{"count", `,"rateLimitResetCredits":{"availableCount":3}`, new(int64(3))},
+			{"capped details", `,"rateLimitResetCredits":{"availableCount":3,"credits":[{"id":"synthetic"}]}`, new(int64(3))},
+			{"null details", `,"rateLimitResetCredits":{"availableCount":2,"credits":null}`, new(int64(2))},
+		} {
+			t.Run(limits+"/"+tc.name, func(t *testing.T) {
+				snapshot, err := Parse([]byte("{" + limits + tc.credits + "}"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				got := snapshot.ResetCreditsAvailable
+				if (got == nil) != (tc.want == nil) || got != nil && *got != *tc.want {
+					t.Fatalf("reset credits: got %v want %v", got, tc.want)
+				}
+				raw, err := json.Marshal(snapshot)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strings.Contains(string(raw), "synthetic") || strings.Contains(string(raw), `"credits"`) {
+					t.Fatal("credit details persisted")
+				}
+				var roundTrip Snapshot
+				if err := json.Unmarshal(raw, &roundTrip); err != nil {
+					t.Fatal(err)
+				}
+				if (roundTrip.ResetCreditsAvailable == nil) != (got == nil) || got != nil && *roundTrip.ResetCreditsAvailable != *got {
+					t.Fatal("reset credits lost in stored JSON", string(raw))
+				}
+			})
+		}
+	}
+}
+
+func TestParseRejectsInvalidResetCredits(t *testing.T) {
+	for _, credits := range []string{
+		`{}`, `[]`, `"bad"`, `true`, `2`,
+		`{"availableCount":null}`, `{"availableCount":"2"}`,
+		`{"availableCount":-1}`, `{"availableCount":1.5}`,
+		`{"availableCount":9223372036854775808}`,
+	} {
+		t.Run(credits, func(t *testing.T) {
+			_, err := Parse([]byte(`{"rateLimitsByLimitId":{},"rateLimitResetCredits":` + credits + `}`))
+			if !errors.Is(err, ErrInvalidResponse) {
+				t.Fatal("accepted invalid reset summary", err)
+			}
+		})
+	}
+	if _, err := Parse([]byte(`{"rateLimitResetCredits":{"availableCount":2}}`)); !errors.Is(err, ErrNoData) {
+		t.Fatal("reset credits bypassed missing limits", err)
+	}
+}
 
 func TestParseCompleteMultiBucketSnapshot(t *testing.T) {
 	raw, err := os.ReadFile("../../tests/fixtures/codex-rate-limits-0.156.1.json")

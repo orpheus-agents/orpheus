@@ -56,6 +56,8 @@ The API is available at `http://localhost:8000`. By default, session requests re
 For read-only browser access, see [browser authentication](docs/browser-auth.md).
 For the dashboard snapshot and session filters, see [dashboard analytics](docs/dashboard-analytics.md).
 For provider quota snapshots by account, see [account limits](docs/account-limits.md).
+For database-backed Prometheus metrics on the internal system listener, see
+[service metrics](docs/service-metrics.md).
 Run `make stop` to stop the project; database data is preserved.
 
 Run and hook deadlines are independent of the sandbox timeout. The worker creates

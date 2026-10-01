@@ -5,6 +5,7 @@ package codex
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	sdk "github.com/abox-dev/sdk/packages/go-sdk"
+	"github.com/orpheus-agents/orpheus/internal/accountlimits"
 	"github.com/orpheus-agents/orpheus/internal/agentbox"
 	"github.com/orpheus-agents/orpheus/internal/config"
 	"github.com/orpheus-agents/orpheus/internal/credentials"
@@ -41,7 +43,12 @@ func TestLiveAccountLimits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	box, err := platform.Create(ctx, "codex", 180*time.Second, map[string]string{"purpose": "orpheus-account-limits-live-test"})
+	template := os.Getenv("ORPHEUS_TEST_ACCOUNT_TEMPLATE")
+	if template == "" {
+		template = "codex"
+	}
+	t.Log("template", template)
+	box, err := platform.Create(ctx, template, 180*time.Second, map[string]string{"purpose": "orpheus-account-limits-live-test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,12 +117,34 @@ func TestLiveAccountLimits(t *testing.T) {
 	}
 	readCtx, stop := context.WithTimeout(ctx, 3*time.Second)
 	defer stop()
-	snapshot, err := driver.ReadAccountLimits(readCtx)
+	response, err := driver.readAccountLimitsResponse(readCtx)
 	if err != nil {
 		t.Fatal("rate-limit read failed", err)
 	}
+	snapshot, err := accountlimits.Parse(response)
+	if err != nil {
+		t.Fatal("invalid rate-limit response", err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(response, &fields); err != nil {
+		t.Fatal("cannot inspect rate-limit response")
+	}
 	if len(snapshot.Buckets) == 0 {
 		t.Fatal("account returned no limit buckets")
+	}
+	if _, present := fields["rateLimitResetCredits"]; !present {
+		t.Log("reset credits field absent; response does not establish support")
+	} else if snapshot.ResetCreditsAvailable == nil {
+		t.Log("reset credits field present but null; count unavailable, not zero")
+	} else {
+		t.Log("reset credits available", *snapshot.ResetCreditsAvailable)
+		var summary struct {
+			Credits json.RawMessage `json:"credits"`
+		}
+		if err := json.Unmarshal(fields["rateLimitResetCredits"], &summary); err != nil || !bytes.Equal(bytes.TrimSpace(summary.Credits), []byte("null")) {
+			t.Fatal("reset-credit details were not excluded")
+		}
+		t.Log("reset-credit details excluded")
 	}
 	for _, bucket := range snapshot.Buckets {
 		if bucket.LimitID == "" {
