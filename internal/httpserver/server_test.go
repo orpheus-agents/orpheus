@@ -33,7 +33,7 @@ import (
 func testServer(t *testing.T) (*httptest.Server, *store.Store) {
 	t.Helper()
 	c, _ := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
-	s := &store.Store{Pool: testutil.Database(t), Cipher: c, Settings: config.DefaultSettings(), Profiles: config.Profiles{Profiles: map[string]config.Profile{"default": {Harness: "codex", Model: new("fixture"), Instructions: "profile instruction", Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
+	s := &store.Store{Pool: testutil.Database(t), Cipher: c, Settings: config.DefaultSettings(), Profiles: config.Profiles{Templates: map[string]config.Template{"codex": {}}, Profiles: map[string]config.Profile{"default": {Harness: "codex", Model: new("fixture"), Instructions: "profile instruction", Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
 	s.Settings.PublicAPIKeys = []string{"key"}
 	handler, err := Handler(s, t.Context())
 	if err != nil {

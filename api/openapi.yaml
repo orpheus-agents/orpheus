@@ -1,5 +1,47 @@
 components:
     schemas:
+        Profile:
+            type: object
+            additionalProperties: false
+            required: [name, description, harness, model, codex, instructions]
+            properties:
+                name: {type: string}
+                description: {type: [string, 'null']}
+                harness: {type: string, enum: [codex]}
+                model: {type: [string, 'null']}
+                codex: {$ref: '#/components/schemas/CodexProfile'}
+                instructions: {type: string}
+        CodexProfile:
+            type: object
+            additionalProperties: false
+            properties:
+                effort: {type: string, enum: [none, minimal, low, medium, high, xhigh, max, ultra]}
+                summary: {type: string, enum: [auto, concise, detailed, none]}
+                personality: {type: string, enum: [none, friendly, pragmatic]}
+                service_tier: {type: string, minLength: 1}
+        Profiles:
+            type: object
+            additionalProperties: false
+            required: [items]
+            properties:
+                items:
+                    type: array
+                    items: {$ref: '#/components/schemas/Profile'}
+        Template:
+            type: object
+            additionalProperties: false
+            required: [name, description]
+            properties:
+                name: {type: string}
+                description: {type: [string, 'null']}
+        Templates:
+            type: object
+            additionalProperties: false
+            required: [items]
+            properties:
+                items:
+                    type: array
+                    items: {$ref: '#/components/schemas/Template'}
         AccountLimitWindow:
             type: object
             additionalProperties: false
@@ -1407,6 +1449,60 @@ info:
     version: 0.1.0
 openapi: 3.1.0
 paths:
+    /api/v1/profiles:
+        get:
+            operationId: get_profiles
+            summary: List configured profiles
+            description: Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+            responses:
+                '200':
+                    description: Configured profiles
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Profiles'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '503':
+                    description: Authentication temporarily unavailable
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - HTTPBearer: []
+                - BrowserSession: []
+    /api/v1/templates:
+        get:
+            operationId: get_templates
+            summary: List configured templates
+            description: Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+            responses:
+                '200':
+                    description: Configured templates
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Templates'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '503':
+                    description: Authentication temporarily unavailable
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - HTTPBearer: []
+                - BrowserSession: []
     /api/v1/accounts/limits:
         get:
             operationId: get_account_limits

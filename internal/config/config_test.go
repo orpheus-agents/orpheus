@@ -15,7 +15,8 @@ import (
 )
 
 func TestCodexProfileOptions(t *testing.T) {
-	const profile = `[profiles.default]
+	const profile = `[templates.codex]
+[profiles.default]
 harness="codex"
 model="model"
 [profiles.default.auth]
@@ -100,7 +101,8 @@ api_key_env="OPENAI_API_KEY"
 }
 
 func TestResolve(t *testing.T) {
-	p, err := ReadProfiles(strings.NewReader(`[profiles.default]
+	p, err := ReadProfiles(strings.NewReader(`[templates.codex]
+[profiles.default]
 harness="codex"
 model="model"
 instructions="default instructions"
@@ -151,7 +153,8 @@ api_key_env="OPENAI_API_KEY"
 	}
 }
 func TestOptionalCodexEffort(t *testing.T) {
-	const profile = `[profiles.default]
+	const profile = `[templates.codex]
+[profiles.default]
 harness="codex"
 model="model"
 [profiles.default.auth]
@@ -247,7 +250,8 @@ func TestSandboxValidation(t *testing.T) {
 	}
 }
 func TestAccountProfiles(t *testing.T) {
-	source := `[credential_stores.s]
+	source := `[templates.codex]
+[credential_stores.s]
 bucket="b"
 [profiles.account]
 harness="codex"

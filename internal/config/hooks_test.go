@@ -11,7 +11,7 @@ import (
 )
 
 func TestResolveHooks(t *testing.T) {
-	profiles := Profiles{Profiles: map[string]Profile{"default": {Harness: "codex", Model: new("model"), Auth: Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}
+	profiles := Profiles{Templates: map[string]Template{"template": {}}, Profiles: map[string]Profile{"default": {Harness: "codex", Model: new("model"), Auth: Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}
 	input := session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "template"}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
 	got, err := Resolve(input, profiles, nil, DefaultMaxSessionTokens)
 	if err != nil || got.Public.Hooks.TimeoutSeconds != 300 {

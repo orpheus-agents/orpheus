@@ -254,7 +254,7 @@ func setupSession(t *testing.T, multiple bool, sandbox session.SandboxInput, run
 	settings := config.DefaultSettings()
 	settings.DatabaseURL = pool.Config().ConnString()
 	settings.WorkerPoll = time.Millisecond
-	s := &store.Store{Pool: pool, Settings: settings, Cipher: c, Profiles: config.Profiles{Profiles: map[string]config.Profile{"p": {Harness: "codex", Model: new("model"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}}
+	s := &store.Store{Pool: pool, Settings: settings, Cipher: c, Profiles: config.Profiles{Templates: map[string]config.Template{sandbox.Template: {}}, Profiles: map[string]config.Profile{"p": {Harness: "codex", Model: new("model"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}}
 	message := session.TextMessage{Text: "task"}
 	if len(metadata) > 0 {
 		message.Metadata = metadata[0]

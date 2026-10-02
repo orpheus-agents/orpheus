@@ -109,6 +109,87 @@ func (e BrowserAuthSessionMode) Valid() bool {
 	}
 }
 
+// Defines values for CodexProfileEffort.
+const (
+	CodexProfileEffortHigh    CodexProfileEffort = "high"
+	CodexProfileEffortLow     CodexProfileEffort = "low"
+	CodexProfileEffortMax     CodexProfileEffort = "max"
+	CodexProfileEffortMedium  CodexProfileEffort = "medium"
+	CodexProfileEffortMinimal CodexProfileEffort = "minimal"
+	CodexProfileEffortNone    CodexProfileEffort = "none"
+	CodexProfileEffortUltra   CodexProfileEffort = "ultra"
+	CodexProfileEffortXhigh   CodexProfileEffort = "xhigh"
+)
+
+// Valid indicates whether the value is a known member of the CodexProfileEffort enum.
+func (e CodexProfileEffort) Valid() bool {
+	switch e {
+	case CodexProfileEffortHigh:
+		return true
+	case CodexProfileEffortLow:
+		return true
+	case CodexProfileEffortMax:
+		return true
+	case CodexProfileEffortMedium:
+		return true
+	case CodexProfileEffortMinimal:
+		return true
+	case CodexProfileEffortNone:
+		return true
+	case CodexProfileEffortUltra:
+		return true
+	case CodexProfileEffortXhigh:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CodexProfilePersonality.
+const (
+	CodexProfilePersonalityFriendly  CodexProfilePersonality = "friendly"
+	CodexProfilePersonalityNone      CodexProfilePersonality = "none"
+	CodexProfilePersonalityPragmatic CodexProfilePersonality = "pragmatic"
+)
+
+// Valid indicates whether the value is a known member of the CodexProfilePersonality enum.
+func (e CodexProfilePersonality) Valid() bool {
+	switch e {
+	case CodexProfilePersonalityFriendly:
+		return true
+	case CodexProfilePersonalityNone:
+		return true
+	case CodexProfilePersonalityPragmatic:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CodexProfileSummary.
+const (
+	CodexProfileSummaryAuto     CodexProfileSummary = "auto"
+	CodexProfileSummaryConcise  CodexProfileSummary = "concise"
+	CodexProfileSummaryDetailed CodexProfileSummary = "detailed"
+	CodexProfileSummaryNone     CodexProfileSummary = "none"
+)
+
+// Valid indicates whether the value is a known member of the CodexProfileSummary enum.
+func (e CodexProfileSummary) Valid() bool {
+	switch e {
+	case CodexProfileSummaryAuto:
+		return true
+	case CodexProfileSummaryConcise:
+		return true
+	case CodexProfileSummaryDetailed:
+		return true
+	case CodexProfileSummaryNone:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorPhase.
 const (
 	ErrorPhaseExecution    ErrorPhase = "execution"
@@ -352,6 +433,21 @@ const (
 func (e MessageItemType) Valid() bool {
 	switch e {
 	case MessageItemTypeMessage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProfileHarness.
+const (
+	Codex ProfileHarness = "codex"
+)
+
+// Valid indicates whether the value is a known member of the ProfileHarness enum.
+func (e ProfileHarness) Valid() bool {
+	switch e {
+	case Codex:
 		return true
 	default:
 		return false
@@ -1022,6 +1118,23 @@ type Cancelled struct {
 	Status RunStatus          `json:"status"`
 }
 
+// CodexProfile defines model for CodexProfile.
+type CodexProfile struct {
+	Effort      *CodexProfileEffort      `json:"effort,omitempty"`
+	Personality *CodexProfilePersonality `json:"personality,omitempty"`
+	ServiceTier *string                  `json:"service_tier,omitempty"`
+	Summary     *CodexProfileSummary     `json:"summary,omitempty"`
+}
+
+// CodexProfileEffort defines model for CodexProfile.Effort.
+type CodexProfileEffort string
+
+// CodexProfilePersonality defines model for CodexProfile.Personality.
+type CodexProfilePersonality string
+
+// CodexProfileSummary defines model for CodexProfile.Summary.
+type CodexProfileSummary string
+
 // Configuration defines model for Configuration.
 type Configuration struct {
 	Agent   AgentConfiguration   `json:"agent"`
@@ -1285,6 +1398,24 @@ type Position struct {
 	RunNumber int `json:"run_number"`
 }
 
+// Profile defines model for Profile.
+type Profile struct {
+	Codex        CodexProfile   `json:"codex"`
+	Description  *string        `json:"description"`
+	Harness      ProfileHarness `json:"harness"`
+	Instructions string         `json:"instructions"`
+	Model        *string        `json:"model"`
+	Name         string         `json:"name"`
+}
+
+// ProfileHarness defines model for Profile.Harness.
+type ProfileHarness string
+
+// Profiles defines model for Profiles.
+type Profiles struct {
+	Items []Profile `json:"items"`
+}
+
 // Run defines model for Run.
 type Run struct {
 	AgentError        *Error          `json:"agent_error"`
@@ -1453,6 +1584,17 @@ type StatusCounts struct {
 	Finalizing int64 `json:"finalizing"`
 	Running    int64 `json:"running"`
 	Starting   int64 `json:"starting"`
+}
+
+// Template defines model for Template.
+type Template struct {
+	Description *string `json:"description"`
+	Name        string  `json:"name"`
+}
+
+// Templates defines model for Templates.
+type Templates struct {
+	Items []Template `json:"items"`
 }
 
 // TextMessage defines model for TextMessage.
@@ -2314,6 +2456,13 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/auth/session (the `AuthSession` operationId).
 	AuthSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetProfiles List configured profiles
+	//
+	// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+	//
+	// Corresponds with GET /api/v1/profiles (the `GetProfiles` operationId).
+	GetProfiles(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAllRuns List All Runs
 	//
 	// Corresponds with GET /api/v1/runs (the `ListAllRuns` operationId).
@@ -2405,6 +2554,13 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/sessions/{sid}/runs/{rid}/messages (the `SendMessage` operationId).
 	SendMessage(ctx context.Context, sid openapi_types.UUID, rid openapi_types.UUID, params *SendMessageParams, body SendMessageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetTemplates List configured templates
+	//
+	// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+	//
+	// Corresponds with GET /api/v1/templates (the `GetTemplates` operationId).
+	GetTemplates(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// BrowserCallback Consume a signed SAML HTTP-POST response
 	//
 	// SAML mode only. Body is application/x-www-form-urlencoded with exactly one SAMLResponse and RelayState, at most 1 MiB. One-time request and browser nonce are required. Unsolicited responses are rejected.
@@ -2473,6 +2629,23 @@ func (c *Client) GetAnalyticsOverview(ctx context.Context, params *GetAnalyticsO
 // Corresponds with GET /api/v1/auth/session (the `AuthSession` operationId).
 func (c *Client) AuthSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewAuthSessionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetProfiles List configured profiles
+//
+// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+//
+// Corresponds with GET /api/v1/profiles (the `GetProfiles` operationId).
+func (c *Client) GetProfiles(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProfilesRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -2724,6 +2897,23 @@ func (c *Client) SendMessage(ctx context.Context, sid openapi_types.UUID, rid op
 	return c.Client.Do(req)
 }
 
+// GetTemplates List configured templates
+//
+// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+//
+// Corresponds with GET /api/v1/templates (the `GetTemplates` operationId).
+func (c *Client) GetTemplates(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTemplatesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // BrowserCallback Consume a signed SAML HTTP-POST response
 //
 // SAML mode only. Body is application/x-www-form-urlencoded with exactly one SAMLResponse and RelayState, at most 1 MiB. One-time request and browser nonce are required. Unsolicited responses are rejected.
@@ -2941,6 +3131,33 @@ func NewAuthSessionRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/auth/session")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetProfilesRequest constructs an http.Request for the GetProfiles method
+func NewGetProfilesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/profiles")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3903,6 +4120,33 @@ func NewSendMessageRequestWithBody(server string, sid openapi_types.UUID, rid op
 	return req, nil
 }
 
+// NewGetTemplatesRequest constructs an http.Request for the GetTemplates method
+func NewGetTemplatesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/templates")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewBrowserCallbackRequest constructs an http.Request for the BrowserCallback method
 func NewBrowserCallbackRequest(server string) (*http.Request, error) {
 	var err error
@@ -4109,6 +4353,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/auth/session (the `AuthSession` operationId).
 	AuthSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*AuthSessionHTTPResponse, error)
 
+	// GetProfilesWithResponse List configured profiles
+	//
+	// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/profiles (the `GetProfiles` operationId).
+	GetProfilesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetProfilesHTTPResponse, error)
+
 	// ListAllRunsWithResponse List All Runs
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -4217,6 +4470,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/sessions/{sid}/runs/{rid}/messages (the `SendMessage` operationId).
 	SendMessageWithResponse(ctx context.Context, sid openapi_types.UUID, rid openapi_types.UUID, params *SendMessageParams, body SendMessageJSONRequestBody, reqEditors ...RequestEditorFn) (*SendMessageHTTPResponse, error)
+
+	// GetTemplatesWithResponse List configured templates
+	//
+	// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/templates (the `GetTemplates` operationId).
+	GetTemplatesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTemplatesHTTPResponse, error)
 
 	// BrowserCallbackWithResponse Consume a signed SAML HTTP-POST response
 	//
@@ -4412,6 +4674,61 @@ func (r AuthSessionHTTPResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r AuthSessionHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetProfilesHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Profiles
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *ErrorResponse
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetProfilesHTTPResponse) GetJSON200() *Profiles {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetProfilesHTTPResponse) GetJSON401() *ErrorResponse {
+	return r.JSON401
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetProfilesHTTPResponse) GetJSON503() *ErrorResponse {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetProfilesHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProfilesHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProfilesHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetProfilesHTTPResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5631,6 +5948,61 @@ func (r SendMessageHTTPResponse) ContentType() string {
 	return ""
 }
 
+type GetTemplatesHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Templates
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *ErrorResponse
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetTemplatesHTTPResponse) GetJSON200() *Templates {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetTemplatesHTTPResponse) GetJSON401() *ErrorResponse {
+	return r.JSON401
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetTemplatesHTTPResponse) GetJSON503() *ErrorResponse {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetTemplatesHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTemplatesHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTemplatesHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetTemplatesHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // BrowserCallbackHTTPResponse303Headers the declared response headers of an HTTP 303 response for BrowserCallback
 type BrowserCallbackHTTPResponse303Headers struct {
 	Location *string
@@ -5854,6 +6226,21 @@ func (c *ClientWithResponses) AuthSessionWithResponse(ctx context.Context, reqEd
 	return ParseAuthSessionHTTPResponse(rsp)
 }
 
+// GetProfilesWithResponse List configured profiles
+//
+// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/profiles (the `GetProfiles` operationId).
+func (c *ClientWithResponses) GetProfilesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetProfilesHTTPResponse, error) {
+	rsp, err := c.GetProfiles(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProfilesHTTPResponse(rsp)
+}
+
 // ListAllRunsWithResponse List All Runs
 //
 // Returns a wrapper object for the known response body format(s).
@@ -6053,6 +6440,21 @@ func (c *ClientWithResponses) SendMessageWithResponse(ctx context.Context, sid o
 	return ParseSendMessageHTTPResponse(rsp)
 }
 
+// GetTemplatesWithResponse List configured templates
+//
+// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/templates (the `GetTemplates` operationId).
+func (c *ClientWithResponses) GetTemplatesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTemplatesHTTPResponse, error) {
+	rsp, err := c.GetTemplates(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTemplatesHTTPResponse(rsp)
+}
+
 // BrowserCallbackWithResponse Consume a signed SAML HTTP-POST response
 //
 // SAML mode only. Body is application/x-www-form-urlencoded with exactly one SAMLResponse and RelayState, at most 1 MiB. One-time request and browser nonce are required. Unsolicited responses are rejected.
@@ -6225,6 +6627,46 @@ func ParseAuthSessionHTTPResponse(rsp *http.Response) (*AuthSessionHTTPResponse,
 			return nil, err
 		}
 		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProfilesHTTPResponse parses an HTTP response from a GetProfilesWithResponse call
+func ParseGetProfilesHTTPResponse(rsp *http.Response) (*GetProfilesHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProfilesHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Profiles
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -7277,6 +7719,46 @@ func ParseSendMessageHTTPResponse(rsp *http.Response) (*SendMessageHTTPResponse,
 			headers.Location = value
 		}
 		response.Headers202 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetTemplatesHTTPResponse parses an HTTP response from a GetTemplatesWithResponse call
+func ParseGetTemplatesHTTPResponse(rsp *http.Response) (*GetTemplatesHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTemplatesHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Templates
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	return response, nil

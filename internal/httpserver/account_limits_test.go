@@ -30,7 +30,8 @@ func TestAccountLimitsHTTPAndGeneratedClient(t *testing.T) {
 	if err := json.Unmarshal(body, &empty); err != nil || len(empty.Items) != 0 {
 		t.Fatal(empty, err)
 	}
-	p, err := config.ReadProfiles(strings.NewReader(`[credential_stores.s]
+	p, err := config.ReadProfiles(strings.NewReader(`[templates.codex]
+[credential_stores.s]
 bucket="test-credentials"
 [profiles.account]
 harness="codex"
