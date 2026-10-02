@@ -18,7 +18,8 @@ import (
 func accountLimitFixture(t *testing.T) (*Store, config.Account) {
 	t.Helper()
 	s := fixture(t)
-	p, err := config.ReadProfiles(strings.NewReader(`[credential_stores.s]
+	p, err := config.ReadProfiles(strings.NewReader(`[templates.codex]
+[credential_stores.s]
 bucket="test-credentials"
 [profiles.fast]
 harness="codex"

@@ -21,6 +21,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 cat > "$config" <<'TOML'
+[templates.codex]
 [profiles.default]
 harness = "codex"
 model = "fixture"

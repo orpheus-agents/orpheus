@@ -23,28 +23,15 @@ cp orpheus.toml.dist orpheus.toml
 
 Set `AGENTBOX_API_KEY` and `OPENAI_API_KEY` in `.env`.
 Add `model = "your-model"` under `[profiles.default]` in `orpheus.toml`.
-Optional Codex settings belong under `[profiles.default.codex]`:
+The copied configuration already registers `orpheus-codex`. To allow another
+AgentBox template, add its exact name to `orpheus.toml`, for example:
 
 ```toml
-[profiles.default.codex]
-effort = "medium"
-summary = "auto"
-personality = "friendly"
-service_tier = "default"
+[templates."orpheus-codex:v1.2.0"]
+description = "Pinned sandbox"
 ```
 
-| Setting | Values |
-| --- | --- |
-| `effort` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
-| `summary` | `auto`, `concise`, `detailed`, `none` |
-| `personality` | `none`, `friendly`, `pragmatic` |
-| `service_tier` | A nonblank tier name accepted by the Codex provider, such as `default` |
-
-Each setting is optional; omitted settings are not sent to Codex. Explicit empty
-values are rejected. Model and account support still determine which options
-Codex can use. Settings are captured when a session is created and reused after
-resume; changing the profile affects new sessions. They are profile settings,
-not public API overrides. Connectors select them through `agent.profile`.
+At least one template is required; each key is its exact AgentBox name, including any tag.
 
 ```sh
 make start
@@ -55,6 +42,8 @@ The API is available at `http://localhost:8000`. By default, session requests re
 `Authorization: Bearer <key>` using a key from `PUBLIC_API_KEYS` in `.env`.
 For read-only browser access, see [browser authentication](docs/browser-auth.md).
 For the dashboard snapshot and session filters, see [dashboard analytics](docs/dashboard-analytics.md).
+For profile settings, template registration and catalog APIs, see
+[profiles and templates](docs/profiles-and-templates.md).
 For provider quota snapshots by account, see [account limits](docs/account-limits.md).
 For database-backed Prometheus metrics on the internal system listener, see
 [service metrics](docs/service-metrics.md).

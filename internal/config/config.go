@@ -38,7 +38,11 @@ type CodexProfile struct {
 	Personality string `toml:"personality"`
 	ServiceTier string `toml:"service_tier"`
 }
+type Template struct {
+	Description *string `toml:"description"`
+}
 type Profile struct {
+	Description  *string      `toml:"description"`
 	Harness      string       `toml:"harness"`
 	Model        *string      `toml:"model"`
 	Codex        CodexProfile `toml:"codex"`
@@ -46,6 +50,7 @@ type Profile struct {
 	Auth         Auth         `toml:"auth"`
 }
 type Profiles struct {
+	Templates        map[string]Template                `toml:"templates"`
 	Profiles         map[string]Profile                 `toml:"profiles"`
 	CredentialStores map[string]session.CredentialStore `toml:"credential_stores"`
 }
@@ -54,10 +59,12 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 	// Presence matters: an omitted default and an explicitly empty value are
 	// different, as are forbidden fields in either authentication variant.
 	var source struct {
-		Profiles map[string]struct {
-			Harness string  `toml:"harness"`
-			Model   *string `toml:"model"`
-			Codex   struct {
+		Templates map[string]Template `toml:"templates"`
+		Profiles  map[string]struct {
+			Description *string `toml:"description"`
+			Harness     string  `toml:"harness"`
+			Model       *string `toml:"model"`
+			Codex       struct {
 				Effort      *string `toml:"effort"`
 				Summary     *string `toml:"summary"`
 				Personality *string `toml:"personality"`
@@ -86,6 +93,17 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 	if len(source.Profiles) == 0 {
 		return p, errors.New("at least one named profile is required")
 	}
+	if len(source.Templates) == 0 {
+		return p, errors.New("at least one named template is required")
+	}
+	for name, template := range source.Templates {
+		if name == "" || strings.TrimSpace(name) != name {
+			return p, errors.New("invalid template name")
+		}
+		template.Description = normalizedDescription(template.Description)
+		source.Templates[name] = template
+	}
+	p.Templates = source.Templates
 	for name, raw := range source.CredentialStores {
 		s := session.CredentialStore{Type: "s3", Bucket: raw.Bucket, Region: "us-east-1", EndpointURL: raw.EndpointURL}
 		if raw.Type != nil {
@@ -100,7 +118,7 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 		p.CredentialStores[name] = s
 	}
 	for name, raw := range source.Profiles {
-		v := Profile{Harness: raw.Harness, Model: raw.Model, Instructions: raw.Instructions, Auth: Auth{Mode: raw.Auth.Mode}}
+		v := Profile{Description: normalizedDescription(raw.Description), Harness: raw.Harness, Model: raw.Model, Instructions: raw.Instructions, Auth: Auth{Mode: raw.Auth.Mode}}
 		for _, option := range []struct {
 			name   string
 			value  *string
@@ -164,20 +182,25 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 	return p, nil
 }
 
+func normalizedDescription(value *string) *string {
+	if value == nil || strings.TrimSpace(*value) == "" {
+		return nil
+	}
+	return value
+}
+
+var codexOptionEnums = map[string][]string{
+	"effort":      {"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"},
+	"summary":     {"auto", "concise", "detailed", "none"},
+	"personality": {"none", "friendly", "pragmatic"},
+}
+
 func validCodexOption(name, value string) bool {
-	switch name {
-	case "effort":
-		return slices.Contains([]string{"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}, value)
-	case "summary":
-		return slices.Contains([]string{"auto", "concise", "detailed", "none"}, value)
-	case "personality":
-		return slices.Contains([]string{"none", "friendly", "pragmatic"}, value)
-	case "service_tier":
+	if name == "service_tier" {
 		// The app-server protocol accepts a string; supported tiers depend on the provider.
 		return value != "" && strings.TrimSpace(value) == value
-	default:
-		return false
 	}
+	return slices.Contains(codexOptionEnums[name], value)
 }
 func LoadProfiles(path string) (Profiles, error) {
 	f, err := os.Open(path)
@@ -283,6 +306,11 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if !ok {
 		problem := invalid("Unknown agent profile.", "configuration", "agent", "profile")
 		problem.Problem.Code = "unknown_profile"
+		return out, problem
+	}
+	if _, ok := p.Templates[in.Sandbox.Template]; !ok {
+		problem := invalid("Unknown sandbox template.", "configuration", "sandbox", "template")
+		problem.Problem.Code = "unknown_template"
 		return out, problem
 	}
 	for _, name := range in.Sandbox.EnvFrom {
