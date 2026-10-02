@@ -1,6 +1,7 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"reflect"
@@ -292,7 +293,7 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 					if code == "" {
 						code = "harness_failed"
 					}
-					problem = &session.Error{Code: code, Message: "Harness execution failed.", Phase: new("execution"), Details: []session.Detail{}}
+					problem = &session.Error{Code: code, Message: cmp.Or(turn.ErrorMessage, "Harness execution failed."), Phase: new("execution"), Details: []session.Detail{}}
 				}
 				if err := AgentFinished(ctx, tx, record, r, turn.Status, problem, nil); err != nil {
 					return err
