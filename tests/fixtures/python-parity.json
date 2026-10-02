@@ -1854,7 +1854,8 @@
                 "TruncationReason": null
               }
             ],
-            "ErrorCode": "authentication_failed"
+            "ErrorCode": "authentication_failed",
+            "ErrorMessage": "token_expired"
           }
         ],
         "Path": null,

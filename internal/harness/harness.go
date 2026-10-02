@@ -37,10 +37,11 @@ type Item struct {
 	TruncationReason *string
 }
 type Turn struct {
-	NativeID  string
-	Status    session.Status
-	Items     []Item
-	ErrorCode string
+	NativeID     string
+	Status       session.Status
+	Items        []Item
+	ErrorCode    string
+	ErrorMessage string
 }
 type Snapshot struct {
 	Usage  []UsageReport

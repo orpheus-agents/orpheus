@@ -1082,8 +1082,10 @@ type CreateSession struct {
 type Error struct {
 	Code    string        `json:"code"`
 	Details []ErrorDetail `json:"details"`
-	Message string        `json:"message"`
-	Phase   *ErrorPhase   `json:"phase"`
+
+	// Message Human-readable error message. Harness execution failures include the original harness message and additional details when available; otherwise a generic message is returned.
+	Message string      `json:"message"`
+	Phase   *ErrorPhase `json:"phase"`
 }
 
 // ErrorPhase defines model for Error.Phase.

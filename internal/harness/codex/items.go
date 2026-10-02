@@ -134,6 +134,7 @@ func Normalize(thread Thread, completed map[string]bool, outputs map[string]Outp
 		turn := harness.Turn{NativeID: native.ID, Status: status, Items: []harness.Item{}}
 		if len(native.Error) > 0 && string(native.Error) != "null" {
 			turn.ErrorCode = "harness_failed"
+			turn.ErrorMessage = nativeErrorMessage(native.Error)
 			detail := strings.ToLower(string(native.Error))
 			for _, v := range []string{"unauthorized", "authentication", "401", "token_expired", "refresh_token"} {
 				if strings.Contains(detail, v) {
@@ -268,4 +269,26 @@ func Normalize(thread Thread, completed map[string]bool, outputs map[string]Outp
 		snapshot.Turns = append(snapshot.Turns, turn)
 	}
 	return snapshot
+}
+
+func nativeErrorMessage(raw json.RawMessage) string {
+	var message string
+	if json.Unmarshal(raw, &message) == nil {
+		return strings.TrimSpace(message)
+	}
+	var detail struct {
+		Message           string `json:"message"`
+		AdditionalDetails string `json:"additionalDetails"`
+	}
+	if json.Unmarshal(raw, &detail) != nil {
+		return ""
+	}
+	message = strings.TrimSpace(detail.Message)
+	if additional := strings.TrimSpace(detail.AdditionalDetails); additional != "" && additional != message {
+		if message != "" {
+			message += "\n"
+		}
+		message += additional
+	}
+	return message
 }
