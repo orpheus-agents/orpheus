@@ -42,6 +42,35 @@ components:
                 items:
                     type: array
                     items: {$ref: '#/components/schemas/Template'}
+        ServiceCodes:
+            description: Unique configured service codes. Order is insignificant; an unknown code rejects the entire request.
+            type: array
+            uniqueItems: true
+            items:
+                type: string
+                minLength: 1
+                maxLength: 64
+                pattern: '^[a-z][a-z0-9_-]*$'
+        Service:
+            type: object
+            additionalProperties: false
+            required: [code, name, description, env_from]
+            properties:
+                code: {type: string}
+                name: {type: string}
+                description: {type: string}
+                env_from:
+                    description: Sorted environment variable names; never their values.
+                    type: array
+                    items: {type: string}
+        Services:
+            type: object
+            additionalProperties: false
+            required: [items]
+            properties:
+                items:
+                    type: array
+                    items: {$ref: '#/components/schemas/Service'}
         AccountLimitWindow:
             type: object
             additionalProperties: false
@@ -350,6 +379,9 @@ components:
                     type: object
                     additionalProperties:
                         type: string
+                services:
+                    description: Services available only to this run's before_run and after_run hooks, as with run env_from. Never passed to the harness, after_create, or before_remove.
+                    $ref: '#/components/schemas/ServiceCodes'
                 env_from:
                     description: Allowlisted orchestrator environment variable names for the first run's before_run and after_run hooks only. Resolved before each hook; override session sources and are never passed to the harness, after_create, or before_remove.
                     type: array
@@ -853,8 +885,12 @@ components:
                     type: array
                     items:
                         type: string
+                services:
+                    description: Immutable service descriptions and environment names resolved when accepted.
+                    type: array
+                    items: {$ref: '#/components/schemas/Service'}
                 env_from:
-                    description: Sorted orchestrator environment variable names supplied for this run.
+                    description: Sorted orchestrator environment variable names for this run, including expanded services.
                     type: array
                     items:
                         type: string
@@ -948,6 +984,7 @@ components:
                 - input_fingerprint
                 - env_names
                 - env_from
+                - services
                 - id
                 - session_id
                 - number
@@ -993,7 +1030,12 @@ components:
         SandboxConfiguration:
             additionalProperties: false
             properties:
+                services:
+                    description: Immutable service descriptions and environment names resolved when accepted.
+                    type: array
+                    items: {$ref: '#/components/schemas/Service'}
                 env_from:
+                    description: Sorted orchestrator environment variable names, including expanded services.
                     items:
                         type: string
                     title: Env From
@@ -1010,6 +1052,7 @@ components:
                 - template
                 - env_names
                 - env_from
+                - services
             title: SandboxConfiguration
             type: object
         SandboxEvent:
@@ -1046,6 +1089,9 @@ components:
                         type: string
                     title: Env
                     type: object
+                services:
+                    description: Services available to the agent and session hooks, expanded together with env_from.
+                    $ref: '#/components/schemas/ServiceCodes'
                 env_from:
                     items:
                         type: string
@@ -1121,6 +1167,9 @@ components:
                     type: object
                     additionalProperties:
                         type: string
+                services:
+                    description: Services available only to this run's before_run and after_run hooks, as with run env_from. Never passed to the harness, after_create, or before_remove.
+                    $ref: '#/components/schemas/ServiceCodes'
                 env_from:
                     description: Allowlisted orchestrator environment variable names available only to this run's before_run and after_run hooks. Resolved before each hook; override session sources and are never passed to the harness, after_create, or before_remove.
                     type: array
@@ -1488,6 +1537,33 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Templates'
+                '401':
+                    description: Unauthorized
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '503':
+                    description: Authentication temporarily unavailable
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - HTTPBearer: []
+                - BrowserSession: []
+    /api/v1/services:
+        get:
+            operationId: get_services
+            summary: List configured services
+            description: Returns the complete catalog sorted by code from local configuration. No provider or credential lookups are performed.
+            responses:
+                '200':
+                    description: Configured services
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Services'
                 '401':
                     description: Unauthorized
                     content:

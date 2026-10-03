@@ -59,7 +59,15 @@ type AgentInput struct {
 	Model        *string `json:"model,omitzero"`
 	Instructions *string `json:"instructions,omitzero"`
 }
+type Service struct {
+	Code        string   `json:"code"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	EnvFrom     []string `json:"env_from"`
+}
+
 type SandboxInput struct {
+	Services []string          `json:"services,omitzero"`
 	Template string            `json:"template"`
 	Env      map[string]string `json:"env"`
 	EnvFrom  []string          `json:"env_from"`
@@ -108,9 +116,10 @@ type AgentConfiguration struct {
 	Instructions string             `json:"instructions"`
 }
 type SandboxConfiguration struct {
-	Template string   `json:"template"`
-	EnvNames []string `json:"env_names"`
-	EnvFrom  []string `json:"env_from"`
+	Services []Service `json:"services"`
+	Template string    `json:"template"`
+	EnvNames []string  `json:"env_names"`
+	EnvFrom  []string  `json:"env_from"`
 }
 type Configuration struct {
 	Agent   AgentConfiguration   `json:"agent"`
@@ -143,6 +152,7 @@ type TextMessage struct {
 	Metadata    json.RawMessage `json:"metadata,omitzero"`
 }
 type CreateSession struct {
+	Services          []string           `json:"services,omitzero"`
 	AllowMultipleRuns bool               `json:"allow_multiple_runs,omitzero"`
 	Namespace         *string            `json:"namespace,omitzero"`
 	ExternalKey       *string            `json:"external_key,omitzero"`
@@ -205,6 +215,7 @@ type HookResult struct {
 	Error              *Error          `json:"error"`
 }
 type Run struct {
+	Services           []Service    `json:"services"`
 	Usage              Usage        `json:"usage"`
 	InputFingerprint   *string      `json:"input_fingerprint"`
 	EnvNames           []string     `json:"env_names"`

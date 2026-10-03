@@ -50,6 +50,7 @@ type Profile struct {
 	Auth         Auth         `toml:"auth"`
 }
 type Profiles struct {
+	Services         map[string]Service                 `toml:"services"`
 	Templates        map[string]Template                `toml:"templates"`
 	Profiles         map[string]Profile                 `toml:"profiles"`
 	CredentialStores map[string]session.CredentialStore `toml:"credential_stores"`
@@ -59,6 +60,7 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 	// Presence matters: an omitted default and an explicitly empty value are
 	// different, as are forbidden fields in either authentication variant.
 	var source struct {
+		Services  map[string]Service  `toml:"services"`
 		Templates map[string]Template `toml:"templates"`
 		Profiles  map[string]struct {
 			Description *string `toml:"description"`
@@ -104,6 +106,10 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 		source.Templates[name] = template
 	}
 	p.Templates = source.Templates
+	if err := validateServices(source.Services); err != nil {
+		return p, err
+	}
+	p.Services = source.Services
 	for name, raw := range source.CredentialStores {
 		s := session.CredentialStore{Type: "s3", Bucket: raw.Bucket, Region: "us-east-1", EndpointURL: raw.EndpointURL}
 		if raw.Type != nil {
@@ -298,6 +304,11 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if err := ValidateSandbox(in.Sandbox); err != nil {
 		return out, err
 	}
+	refs, services, err := ResolveServices(in.Sandbox.Env, in.Sandbox.EnvFrom, in.Sandbox.Services, p, "configuration", "sandbox")
+	if err != nil {
+		return out, err
+	}
+	allowlist = p.EnvironmentAllowlist(allowlist)
 	hooks, err := resolveHooks(in.Hooks)
 	if err != nil {
 		return out, err
@@ -313,7 +324,7 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 		problem.Problem.Code = "unknown_template"
 		return out, problem
 	}
-	for _, name := range in.Sandbox.EnvFrom {
+	for _, name := range refs {
 		if !slices.Contains(allowlist, name) {
 			return out, invalid("Environment reference is not allowed.", "configuration", "sandbox", "env_from")
 		}
@@ -354,11 +365,7 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if names == nil {
 		names = []string{}
 	}
-	refs := slices.Clone(in.Sandbox.EnvFrom)
-	if refs == nil {
-		refs = []string{}
-	}
-	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Codex: session.CodexConfiguration{Effort: profile.Codex.Effort, Summary: profile.Codex.Summary, Personality: profile.Codex.Personality, ServiceTier: profile.Codex.ServiceTier}, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs}, Limits: in.Limits, Hooks: hooks}, Credentials: creds}
+	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Codex: session.CodexConfiguration{Effort: profile.Codex.Effort, Summary: profile.Codex.Summary, Personality: profile.Codex.Personality, ServiceTier: profile.Codex.ServiceTier}, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs, Services: services}, Limits: in.Limits, Hooks: hooks}, Credentials: creds}
 	return out, nil
 }
 func Environment(cipher *secret.Cipher, id uuid.UUID, token *string, cfg session.Configuration, allowlist []string) (map[string]string, error) {

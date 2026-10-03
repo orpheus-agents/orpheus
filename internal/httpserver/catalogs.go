@@ -41,3 +41,12 @@ func (s *Server) GetTemplates(_ context.Context, _ api.GetTemplatesRequestObject
 	}
 	return api.GetTemplates200JSONResponse{Items: items}, nil
 }
+
+func (s *Server) GetServices(_ context.Context, _ api.GetServicesRequestObject) (api.GetServicesResponseObject, error) {
+	items := make([]api.Service, 0, len(s.Store.Profiles.Services))
+	for _, code := range slices.Sorted(maps.Keys(s.Store.Profiles.Services)) {
+		service := s.Store.Profiles.Services[code]
+		items = append(items, api.Service{Code: code, Name: service.Name, Description: service.Description, EnvFrom: slices.Sorted(slices.Values(service.EnvFrom))})
+	}
+	return api.GetServices200JSONResponse{Items: items}, nil
+}

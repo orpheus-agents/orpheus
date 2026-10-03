@@ -14,7 +14,7 @@ import (
 
 func TestCatalogValidationAndExistingSessions(t *testing.T) {
 	server, storage := testServer(t)
-	for _, path := range []string{"/api/v1/profiles", "/api/v1/templates"} {
+	for _, path := range []string{"/api/v1/profiles", "/api/v1/templates", "/api/v1/services"} {
 		// requestHTTP validates successful responses against OpenAPI.
 		externalRequest(t, server, "GET", path, "", "", 200)
 	}

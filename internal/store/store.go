@@ -163,6 +163,9 @@ func RunViews(ctx context.Context, q db.DBTX, records []RunRecord) ([]session.Ru
 		if v.EnvFrom == nil {
 			v.EnvFrom = []string{}
 		}
+		if v.Services == nil {
+			v.Services = []session.Service{}
+		}
 		v.Hooks = byRun[r.ID]
 		if v.Hooks == nil {
 			v.Hooks = []session.HookResult{}
@@ -510,6 +513,7 @@ type Admission struct {
 	RunID            uuid.UUID
 	Env              map[string]string
 	EnvFrom          []string
+	Services         []string
 }
 
 func fingerprint(a Admission) (string, error) {
@@ -526,12 +530,14 @@ func fingerprint(a Admission) (string, error) {
 	}
 	runEnvNames := slices.Sorted(maps.Keys(a.Env))
 	runEnvFrom := slices.Sorted(slices.Values(a.EnvFrom))
+	runServices := slices.Sorted(slices.Values(a.Services))
 	var value any = struct {
 		Messages         []session.TextMessage `json:"messages"`
 		InputFingerprint *string               `json:"input_fingerprint,omitzero"`
 		EnvNames         []string              `json:"env_names,omitzero"`
 		EnvFrom          []string              `json:"env_from,omitzero"`
-	}{messages, a.InputFingerprint, runEnvNames, runEnvFrom}
+		Services         []string              `json:"services,omitzero"`
+	}{messages, a.InputFingerprint, runEnvNames, runEnvFrom, runServices}
 	if a.Create != nil {
 		c := a.Create.Configuration
 		if c.Sandbox.EnvFrom == nil {
@@ -550,6 +556,7 @@ func fingerprint(a Admission) (string, error) {
 			Messages          []session.TextMessage `json:"messages"`
 			RunEnvNames       []string              `json:"run_env_names,omitzero"`
 			RunEnvFrom        []string              `json:"run_env_from,omitzero"`
+			RunServices       []string              `json:"run_services,omitzero"`
 		}{AllowMultipleRuns: a.Create.AllowMultipleRuns, Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, InputFingerprint: a.Create.InputFingerprint, Configuration: struct {
 			Agent   session.AgentInput  `json:"agent"`
 			Sandbox any                 `json:"sandbox"`
@@ -559,7 +566,8 @@ func fingerprint(a Admission) (string, error) {
 			Template string   `json:"template"`
 			Env      []string `json:"env"`
 			EnvFrom  []string `json:"env_from"`
-		}{c.Sandbox.Template, names, c.Sandbox.EnvFrom}, Limits: c.Limits, Hooks: c.Hooks}, Messages: messages, RunEnvNames: runEnvNames, RunEnvFrom: runEnvFrom}
+			Services []string `json:"services,omitzero"`
+		}{c.Sandbox.Template, names, c.Sandbox.EnvFrom, slices.Sorted(slices.Values(c.Sandbox.Services))}, Limits: c.Limits, Hooks: c.Hooks}, Messages: messages, RunEnvNames: runEnvNames, RunEnvFrom: runEnvFrom, RunServices: runServices}
 	}
 	raw, err := json.Marshal(value)
 	if err != nil {
@@ -578,6 +586,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 		a.InputFingerprint = a.Create.InputFingerprint
 		a.Env = a.Create.Env
 		a.EnvFrom = a.Create.EnvFrom
+		a.Services = a.Create.Services
 	}
 	if len(a.Messages) == 0 {
 		problem := session.Problem(422, "validation_error", "At least one message is required.")
@@ -654,8 +663,14 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
+		var runServices []session.Service
+		var runEnvFrom []string
 		if a.RunID == uuid.Nil {
-			if err := config.ValidateRunEnvironment(a.Env, a.EnvFrom, s.Settings.HarnessEnvAllowlist); err != nil {
+			runEnvFrom, runServices, err = config.ResolveServices(a.Env, a.EnvFrom, a.Services, s.Profiles)
+			if err != nil {
+				return err
+			}
+			if err := config.ValidateRunEnvironment(a.Env, runEnvFrom, s.Profiles.EnvironmentAllowlist(s.Settings.HarnessEnvAllowlist)); err != nil {
 				return err
 			}
 		}
@@ -730,11 +745,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			if envNames == nil {
 				envNames = []string{}
 			}
-			envFrom := slices.Sorted(slices.Values(a.EnvFrom))
-			if envFrom == nil {
-				envFrom = []string{}
-			}
-			run, err = runRecord(db.New(tx).CreateRun(ctx, db.CreateRunParams{InputFingerprint: a.InputFingerprint, ID: runID, SessionID: record.ID, Number: record.NextRunNumber, EnvCiphertext: token, EnvNames: envNames, EnvFrom: envFrom}))
+			run, err = runRecord(db.New(tx).CreateRun(ctx, db.CreateRunParams{InputFingerprint: a.InputFingerprint, ID: runID, SessionID: record.ID, Number: record.NextRunNumber, EnvCiphertext: token, EnvNames: envNames, EnvFrom: runEnvFrom, Services: runServices}))
 			if err != nil {
 				return err
 			}
