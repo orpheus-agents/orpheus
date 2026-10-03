@@ -108,7 +108,7 @@ func (s *Server) CreateRun(ctx context.Context, r api.CreateRunRequestObject) (a
 	if r.Body == nil {
 		return nil, session.Problem(422, "validation_error", "Request body is required.")
 	}
-	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, Messages: inputMessages(r.Body.Messages), InputFingerprint: r.Body.InputFingerprint, Env: value(r.Body.Env, nil), EnvFrom: value(r.Body.EnvFrom, nil), Key: id})
+	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, Messages: inputMessages(r.Body.Messages), InputFingerprint: r.Body.InputFingerprint, Env: value(r.Body.Env, nil), EnvFrom: value(r.Body.EnvFrom, nil), Services: value(r.Body.Services, nil), Key: id})
 	if err != nil {
 		return nil, err
 	}

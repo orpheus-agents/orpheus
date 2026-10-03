@@ -12,7 +12,7 @@ import (
 )
 
 const runsByNativeIDs = `-- name: RunsByNativeIDs :many
-SELECT id, session_id, number, status, observation, created_at, execution_started_at, deadline_at, finished_at, cancel_requested_at, cancel_attempted_at, stop_reason, stop_method, error, native_turn_id, next_delivery_number, final_message_id, input_fingerprint, env_ciphertext, env_names, env_from, phase, agent_status, agent_error, input_tokens, output_tokens, total_tokens, cached_input_tokens, reasoning_output_tokens FROM runs WHERE session_id = $1 AND native_turn_id = ANY($2::text[]) ORDER BY number
+SELECT id, session_id, number, status, observation, created_at, execution_started_at, deadline_at, finished_at, cancel_requested_at, cancel_attempted_at, stop_reason, stop_method, error, native_turn_id, next_delivery_number, final_message_id, input_fingerprint, env_ciphertext, env_names, env_from, phase, agent_status, agent_error, input_tokens, output_tokens, total_tokens, cached_input_tokens, reasoning_output_tokens, services FROM runs WHERE session_id = $1 AND native_turn_id = ANY($2::text[]) ORDER BY number
 `
 
 type RunsByNativeIDsParams struct {
@@ -59,6 +59,7 @@ func (q *Queries) RunsByNativeIDs(ctx context.Context, arg RunsByNativeIDsParams
 			&i.TotalTokens,
 			&i.CachedInputTokens,
 			&i.ReasoningOutputTokens,
+			&i.Services,
 		); err != nil {
 			return nil, err
 		}

@@ -1164,6 +1164,9 @@ type CreateRun struct {
 
 	// Messages Ordered user messages accepted atomically. The last starts the run; earlier messages are injected into the agent context first.
 	Messages []TextMessage `json:"messages"`
+
+	// Services Services available only to this run's before_run and after_run hooks, as with run env_from. Never passed to the harness, after_create, or before_remove.
+	Services *ServiceCodes `json:"services,omitempty"`
 }
 
 // CreateSession defines model for CreateSession.
@@ -1189,6 +1192,9 @@ type CreateSession struct {
 
 	// Namespace Logical integration or workflow name. Opaque identifier, 1–128 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
 	Namespace *string `json:"namespace,omitempty"`
+
+	// Services Services available only to this run's before_run and after_run hooks, as with run env_from. Never passed to the harness, after_create, or before_remove.
+	Services *ServiceCodes `json:"services,omitempty"`
 }
 
 // Error defines model for Error.
@@ -1424,7 +1430,7 @@ type Run struct {
 	CreatedAt         time.Time       `json:"created_at"`
 	DeadlineAt        *time.Time      `json:"deadline_at"`
 
-	// EnvFrom Sorted orchestrator environment variable names supplied for this run.
+	// EnvFrom Sorted orchestrator environment variable names for this run, including expanded services.
 	EnvFrom []string `json:"env_from"`
 
 	// EnvNames Sorted names of explicit variables supplied for this run; values are never returned.
@@ -1437,12 +1443,15 @@ type Run struct {
 	ID                 openapi_types.UUID `json:"id"`
 
 	// InputFingerprint Input snapshot version supplied when the run was accepted. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
-	InputFingerprint *string            `json:"input_fingerprint"`
-	Number           int                `json:"number"`
-	Observation      *RunObservation    `json:"observation"`
-	Phase            *RunPhase          `json:"phase"`
-	SessionID        openapi_types.UUID `json:"session_id"`
-	Status           RunStatus          `json:"status"`
+	InputFingerprint *string         `json:"input_fingerprint"`
+	Number           int             `json:"number"`
+	Observation      *RunObservation `json:"observation"`
+	Phase            *RunPhase       `json:"phase"`
+
+	// Services Immutable service descriptions and environment names resolved when accepted.
+	Services  []Service          `json:"services"`
+	SessionID openapi_types.UUID `json:"session_id"`
+	Status    RunStatus          `json:"status"`
 
 	// StopMethod How cancellation stopped agent execution. Null until confirmed, or if the run was cancelled before the first dispatch attempt, including user-requested cancellation.
 	StopMethod *RunStopMethod `json:"stop_method"`
@@ -1490,9 +1499,13 @@ type RunStatus string
 
 // SandboxConfiguration defines model for SandboxConfiguration.
 type SandboxConfiguration struct {
+	// EnvFrom Sorted orchestrator environment variable names, including expanded services.
 	EnvFrom  []string `json:"env_from"`
 	EnvNames []string `json:"env_names"`
-	Template string   `json:"template"`
+
+	// Services Immutable service descriptions and environment names resolved when accepted.
+	Services []Service `json:"services"`
+	Template string    `json:"template"`
 }
 
 // SandboxEvent defines model for SandboxEvent.
@@ -1509,9 +1522,12 @@ type SandboxEventType string
 
 // SandboxInput defines model for SandboxInput.
 type SandboxInput struct {
-	Env      *map[string]string `json:"env,omitempty"`
-	EnvFrom  *[]string          `json:"env_from,omitempty"`
-	Template string             `json:"template"`
+	Env     *map[string]string `json:"env,omitempty"`
+	EnvFrom *[]string          `json:"env_from,omitempty"`
+
+	// Services Services available to the agent and session hooks, expanded together with env_from.
+	Services *ServiceCodes `json:"services,omitempty"`
+	Template string        `json:"template"`
 }
 
 // SandboxState defines model for SandboxState.
@@ -1534,6 +1550,24 @@ type SandboxStateState string
 type SendMessage struct {
 	// Messages Ordered user messages accepted atomically for the active run.
 	Messages []TextMessage `json:"messages"`
+}
+
+// Service defines model for Service.
+type Service struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+
+	// EnvFrom Sorted environment variable names; never their values.
+	EnvFrom []string `json:"env_from"`
+	Name    string   `json:"name"`
+}
+
+// ServiceCodes Unique configured service codes. Order is insignificant; an unknown code rejects the entire request.
+type ServiceCodes = []string
+
+// Services defines model for Services.
+type Services struct {
+	Items []Service `json:"items"`
 }
 
 // Session defines model for Session.
@@ -2468,6 +2502,13 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/runs (the `ListAllRuns` operationId).
 	ListAllRuns(ctx context.Context, params *ListAllRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetServices List configured services
+	//
+	// Returns the complete catalog sorted by code from local configuration. No provider or credential lookups are performed.
+	//
+	// Corresponds with GET /api/v1/services (the `GetServices` operationId).
+	GetServices(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListSessions List Sessions
 	//
 	// Corresponds with GET /api/v1/sessions (the `ListSessions` operationId).
@@ -2661,6 +2702,23 @@ func (c *Client) GetProfiles(ctx context.Context, reqEditors ...RequestEditorFn)
 // Corresponds with GET /api/v1/runs (the `ListAllRuns` operationId).
 func (c *Client) ListAllRuns(ctx context.Context, params *ListAllRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListAllRunsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetServices List configured services
+//
+// Returns the complete catalog sorted by code from local configuration. No provider or credential lookups are performed.
+//
+// Corresponds with GET /api/v1/services (the `GetServices` operationId).
+func (c *Client) GetServices(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetServicesRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -3291,6 +3349,33 @@ func NewListAllRunsRequest(server string, params *ListAllRunsParams) (*http.Requ
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
 		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetServicesRequest constructs an http.Request for the GetServices method
+func NewGetServicesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/services")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -4369,6 +4454,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/runs (the `ListAllRuns` operationId).
 	ListAllRunsWithResponse(ctx context.Context, params *ListAllRunsParams, reqEditors ...RequestEditorFn) (*ListAllRunsHTTPResponse, error)
 
+	// GetServicesWithResponse List configured services
+	//
+	// Returns the complete catalog sorted by code from local configuration. No provider or credential lookups are performed.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/services (the `GetServices` operationId).
+	GetServicesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetServicesHTTPResponse, error)
+
 	// ListSessionsWithResponse List Sessions
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -4826,6 +4920,61 @@ func (r ListAllRunsHTTPResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListAllRunsHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetServicesHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Services
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *ErrorResponse
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetServicesHTTPResponse) GetJSON200() *Services {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetServicesHTTPResponse) GetJSON401() *ErrorResponse {
+	return r.JSON401
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetServicesHTTPResponse) GetJSON503() *ErrorResponse {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetServicesHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetServicesHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetServicesHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetServicesHTTPResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -6254,6 +6403,21 @@ func (c *ClientWithResponses) ListAllRunsWithResponse(ctx context.Context, param
 	return ParseListAllRunsHTTPResponse(rsp)
 }
 
+// GetServicesWithResponse List configured services
+//
+// Returns the complete catalog sorted by code from local configuration. No provider or credential lookups are performed.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/services (the `GetServices` operationId).
+func (c *ClientWithResponses) GetServicesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetServicesHTTPResponse, error) {
+	rsp, err := c.GetServices(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetServicesHTTPResponse(rsp)
+}
+
 // ListSessionsWithResponse List Sessions
 //
 // Returns a wrapper object for the known response body format(s).
@@ -6742,6 +6906,46 @@ func ParseListAllRunsHTTPResponse(rsp *http.Response) (*ListAllRunsHTTPResponse,
 			return nil, err
 		}
 		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetServicesHTTPResponse parses an HTTP response from a GetServicesWithResponse call
+func ParseGetServicesHTTPResponse(rsp *http.Response) (*GetServicesHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetServicesHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Services
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse

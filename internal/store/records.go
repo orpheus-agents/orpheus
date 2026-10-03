@@ -15,6 +15,7 @@ func runRecord(v db.Run, err error) (RunRecord, error) {
 		InputFingerprint:   v.InputFingerprint,
 		EnvNames:           v.EnvNames,
 		EnvFrom:            v.EnvFrom,
+		Services:           v.Services,
 		ID:                 v.ID,
 		SessionID:          v.SessionID,
 		Number:             v.Number,

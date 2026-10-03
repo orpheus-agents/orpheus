@@ -270,7 +270,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 				return err
 			}
 		} else {
-			env, err := config.Environment(e.Store.Cipher, e.ID, record.EnvCiphertext, cfg.Public, e.Store.Settings.HarnessEnvAllowlist)
+			env, err := config.Environment(e.Store.Cipher, e.ID, record.EnvCiphertext, cfg.Public, e.Store.Profiles.EnvironmentAllowlist(e.Store.Settings.HarnessEnvAllowlist))
 			if err != nil {
 				return harness.Failure("environment_unavailable", "Harness environment is unavailable.")
 			}

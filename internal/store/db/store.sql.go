@@ -15,7 +15,7 @@ import (
 )
 
 const activeRun = `-- name: ActiveRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services
 FROM runs r
 WHERE session_id = $1 AND status IN ('accepted', 'starting', 'running', 'cancelling', 'finalizing')
 `
@@ -53,6 +53,7 @@ func (q *Queries) ActiveRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 		&i.TotalTokens,
 		&i.CachedInputTokens,
 		&i.ReasoningOutputTokens,
+		&i.Services,
 	)
 	return i, err
 }
@@ -80,19 +81,20 @@ func (q *Queries) CountReserved(ctx context.Context) (int64, error) {
 }
 
 const createRun = `-- name: CreateRun :one
-INSERT INTO runs AS r(id, session_id, number, input_fingerprint, env_ciphertext, env_names, env_from)
-VALUES($1, $2, $3, $4, $5, $6, $7)
-RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens
+INSERT INTO runs AS r(id, session_id, number, input_fingerprint, env_ciphertext, env_names, env_from, services)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services
 `
 
 type CreateRunParams struct {
-	ID               uuid.UUID `json:"id"`
-	SessionID        uuid.UUID `json:"session_id"`
-	Number           int       `json:"number"`
-	InputFingerprint *string   `json:"input_fingerprint"`
-	EnvCiphertext    *string   `json:"env_ciphertext"`
-	EnvNames         []string  `json:"env_names"`
-	EnvFrom          []string  `json:"env_from"`
+	ID               uuid.UUID         `json:"id"`
+	SessionID        uuid.UUID         `json:"session_id"`
+	Number           int               `json:"number"`
+	InputFingerprint *string           `json:"input_fingerprint"`
+	EnvCiphertext    *string           `json:"env_ciphertext"`
+	EnvNames         []string          `json:"env_names"`
+	EnvFrom          []string          `json:"env_from"`
+	Services         []session.Service `json:"services"`
 }
 
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, error) {
@@ -104,6 +106,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		arg.EnvCiphertext,
 		arg.EnvNames,
 		arg.EnvFrom,
+		arg.Services,
 	)
 	var i Run
 	err := row.Scan(
@@ -136,6 +139,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		&i.TotalTokens,
 		&i.CachedInputTokens,
 		&i.ReasoningOutputTokens,
+		&i.Services,
 	)
 	return i, err
 }
@@ -259,7 +263,7 @@ func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 }
 
 const getRun = `-- name: GetRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services
 FROM runs r
 WHERE session_id = $1 AND id = $2
 `
@@ -302,6 +306,7 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (Run, error) {
 		&i.TotalTokens,
 		&i.CachedInputTokens,
 		&i.ReasoningOutputTokens,
+		&i.Services,
 	)
 	return i, err
 }
@@ -399,7 +404,7 @@ func (q *Queries) InsertIdempotency(ctx context.Context, arg InsertIdempotencyPa
 }
 
 const latestRun = `-- name: LatestRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services
 FROM runs r
 WHERE session_id = $1
 ORDER BY number DESC
@@ -439,6 +444,7 @@ func (q *Queries) LatestRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 		&i.TotalTokens,
 		&i.CachedInputTokens,
 		&i.ReasoningOutputTokens,
+		&i.Services,
 	)
 	return i, err
 }

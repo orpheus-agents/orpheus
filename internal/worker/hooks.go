@@ -108,7 +108,7 @@ func (e *Executor) hookEnvironment(record store.SessionRecord, run store.RunReco
 		}
 		runEnvFrom = run.EnvFrom
 	}
-	env, err := config.MergedEnvironment(e.Store.Cipher, e.ID, record.EnvCiphertext, record.Configuration.Public, e.Store.Settings.HarnessEnvAllowlist, runEnv, runEnvFrom)
+	env, err := config.MergedEnvironment(e.Store.Cipher, e.ID, record.EnvCiphertext, record.Configuration.Public, e.Store.Profiles.EnvironmentAllowlist(e.Store.Settings.HarnessEnvAllowlist), runEnv, runEnvFrom)
 	if err != nil {
 		return nil, err
 	}
