@@ -77,6 +77,27 @@ registry upload is unnecessary. Generation happens before committing; CI rejects
 stale output instead of silently generating a different release.
 [Go module publishing](https://go.dev/doc/modules/publishing).
 
+## Service access
+
+Define named groups of worker ENV names in `orpheus.toml`:
+
+```toml
+[services.helpdesk]
+name = "Helpdesk"
+description = "Read tickets and publish replies."
+env_from = ["HELPDESK_URL", "HELPDESK_TOKEN"]
+```
+
+Supply values to the worker. `GET /api/v1/services` returns the catalog without
+secret values. Select codes in `configuration.sandbox.services` for the agent
+and session hooks, or top-level `services` for only that run's `before_run` and
+`after_run`. Services combine with `env_from`. Their ENV names also join the
+explicit `HARNESS_ENV_ALLOWLIST` on API and worker. No service is automatically
+selected. Unknown codes reject the request with `422 unknown_service`.
+
+Accepted sessions and runs retain service snapshots. Catalog edits apply to new
+sessions and runs, not existing snapshots. See the [service setup guide](https://orpheus-agents.github.io/en/configuration/secrets.html).
+
 ## Development
 
 The application, generators, linters and tests run in Docker; host Go and Python
