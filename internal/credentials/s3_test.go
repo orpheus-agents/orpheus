@@ -3,6 +3,7 @@
 package credentials
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"testing"
@@ -32,7 +33,7 @@ func TestS3RoundTrip(t *testing.T) {
 		_, _ = client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: &bucket})
 	})
 	source := &s3Store{client: client, bucket: bucket, key: key}
-	if err := source.Put(t.Context(), []byte(authA)); err != nil {
+	if _, err := client.PutObject(t.Context(), &s3.PutObjectInput{Bucket: &bucket, Key: &key, Body: bytes.NewReader([]byte(authA))}); err != nil {
 		t.Fatal(err)
 	}
 	box := &fakeBox{}
@@ -41,10 +42,18 @@ func TestS3RoundTrip(t *testing.T) {
 	if err := account.Seed(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+	staleBox := &fakeBox{}
+	stale := NewWithStore(staleBox, "/home", source)
+	defer func() { _ = stale.Close() }()
+	if err := stale.Seed(t.Context()); err != nil {
+		t.Fatal(err)
+	}
 	box.raw = authB
 	account.Sync(t.Context(), true)
-	raw, err := source.Get(t.Context())
-	if err != nil || string(raw) != authB {
+	staleBox.raw = authC
+	stale.Sync(t.Context(), true)
+	blob, err := source.Get(t.Context())
+	if err != nil || string(blob.Raw) != authB {
 		t.Fatal("S3 rotation failed", err)
 	}
 }

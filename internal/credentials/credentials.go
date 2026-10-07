@@ -40,8 +40,12 @@ func Validate(raw []byte) error {
 }
 
 type BlobStore interface {
-	Get(context.Context) ([]byte, error)
-	Put(context.Context, []byte) error
+	Get(context.Context) (Blob, error)
+	Put(context.Context, []byte, string) (string, error)
+}
+type Blob struct {
+	Raw  []byte
+	ETag string
 }
 type Sync interface {
 	Seed(context.Context) error
@@ -54,6 +58,7 @@ type Account struct {
 	home        string
 	source      BlobStore
 	digest      [32]byte
+	etag        string
 	dirty       atomic.Bool
 	watch       harness.Watch
 	watchCancel context.CancelFunc
@@ -82,12 +87,15 @@ func NewWithStore(sandbox harness.Sandbox, home string, source BlobStore) *Accou
 func (a *Account) Seed(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	raw, err := a.source.Get(ctx)
+	blob, err := a.source.Get(ctx)
 	if err == nil {
-		err = Validate(raw)
+		err = Validate(blob.Raw)
+	}
+	if err == nil && blob.ETag == "" {
+		err = errors.New("credential object ETag is unavailable")
 	}
 	if err == nil {
-		err = a.sandbox.Write(ctx, a.home+"/auth.json", raw)
+		err = a.sandbox.Write(ctx, a.home+"/auth.json", blob.Raw)
 	}
 	if err == nil {
 		_, err = a.sandbox.Run(ctx, "chmod 600 "+harness.Quote(a.home+"/auth.json"))
@@ -95,7 +103,8 @@ func (a *Account) Seed(ctx context.Context) error {
 	if err != nil {
 		return harness.Failure("credentials_unavailable", "Account credentials are unavailable.")
 	}
-	a.digest = sha256.Sum256(raw)
+	a.digest = sha256.Sum256(blob.Raw)
+	a.etag = blob.ETag
 	return nil
 }
 func (a *Account) Watch(ctx context.Context) error {
@@ -186,13 +195,30 @@ func (a *Account) sync(ctx context.Context) error {
 		}
 	}
 	digest := sha256.Sum256(raw)
+	if a.etag == "" {
+		blob, err := a.source.Get(ctx)
+		if err != nil {
+			return err
+		}
+		if blob.ETag == "" {
+			return errors.New("credential object ETag is unavailable")
+		}
+		if sha256.Sum256(blob.Raw) != digest {
+			return errors.New("credential object changed before synchronization")
+		}
+		a.digest = digest
+		a.etag = blob.ETag
+		return nil
+	}
 	if digest == a.digest {
 		return nil
 	}
-	if err := a.source.Put(ctx, raw); err != nil {
+	etag, err := a.source.Put(ctx, raw, a.etag)
+	if err != nil {
 		return err
 	}
 	a.digest = digest
+	a.etag = etag
 	return nil
 }
 func (a *Account) Close() error {
@@ -211,15 +237,23 @@ type s3Store struct {
 	bucket, key string
 }
 
-func (s *s3Store) Get(ctx context.Context) ([]byte, error) {
+func (s *s3Store) Get(ctx context.Context) (Blob, error) {
 	response, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(s.key)})
 	if err != nil {
-		return nil, err
+		return Blob{}, err
 	}
 	defer func() { _ = response.Body.Close() }()
-	return io.ReadAll(io.LimitReader(response.Body, MaxAuthBytes+1))
+	raw, err := io.ReadAll(io.LimitReader(response.Body, MaxAuthBytes+1))
+	return Blob{Raw: raw, ETag: aws.ToString(response.ETag)}, err
 }
-func (s *s3Store) Put(ctx context.Context, raw []byte) error {
-	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(s.key), Body: bytes.NewReader(raw), ContentType: aws.String("application/json")})
-	return err
+func (s *s3Store) Put(ctx context.Context, raw []byte, etag string) (string, error) {
+	response, err := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(s.key), Body: bytes.NewReader(raw), ContentType: aws.String("application/json"), IfMatch: aws.String(etag)})
+	if err != nil {
+		return "", err
+	}
+	etag = aws.ToString(response.ETag)
+	if etag == "" {
+		return "", errors.New("credential object ETag is unavailable")
+	}
+	return etag, nil
 }

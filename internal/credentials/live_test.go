@@ -3,6 +3,7 @@
 package credentials
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -72,7 +73,7 @@ func TestLiveAccountFiles(t *testing.T) {
 		return raw
 	}
 	source := &s3Store{client: client, bucket: bucket, key: key}
-	if err := source.Put(ctx, fixture("first")); err != nil {
+	if _, err := client.PutObject(ctx, &s3.PutObjectInput{Bucket: &bucket, Key: &key, Body: bytes.NewReader(fixture("first"))}); err != nil {
 		t.Fatal(err)
 	}
 	account := NewWithStore(box, home, source)
@@ -108,7 +109,7 @@ func TestLiveAccountFiles(t *testing.T) {
 	}
 	account.Sync(ctx, false)
 	saved, err := source.Get(ctx)
-	if err != nil || string(saved) != string(rotated) {
+	if err != nil || string(saved.Raw) != string(rotated) {
 		t.Fatal("rotated credentials not persisted", err)
 	}
 	// This validates native auth-file recognition and rotation transport, not a

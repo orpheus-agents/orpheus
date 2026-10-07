@@ -3,6 +3,7 @@ package credentials
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -14,21 +15,35 @@ import (
 
 const authA = `{"tokens":{"access_token":"a","refresh_token":"r","id_token":"i"}}`
 const authB = `{"tokens":{"access_token":"b","refresh_token":"r","id_token":"i"}}`
+const authC = `{"tokens":{"access_token":"c","refresh_token":"r","id_token":"i"}}`
 
 type fakeStore struct {
 	raw  []byte
 	puts int
 	err  error
+	etag string
 }
 
-func (s *fakeStore) Get(context.Context) ([]byte, error) { return s.raw, s.err }
-func (s *fakeStore) Put(_ context.Context, b []byte) error {
+func (s *fakeStore) currentETag() string {
+	if s.etag == "" {
+		s.etag = "1"
+	}
+	return s.etag
+}
+func (s *fakeStore) Get(context.Context) (Blob, error) {
+	return Blob{Raw: s.raw, ETag: s.currentETag()}, s.err
+}
+func (s *fakeStore) Put(_ context.Context, b []byte, etag string) (string, error) {
 	if s.err != nil {
-		return s.err
+		return "", s.err
+	}
+	if etag != s.currentETag() {
+		return "", errors.New("credential object changed")
 	}
 	s.raw = append([]byte(nil), b...)
 	s.puts++
-	return nil
+	s.etag = fmt.Sprintf("%d", s.puts+1)
+	return s.etag, nil
 }
 
 type fakeWatch struct {
@@ -164,8 +179,8 @@ func TestWatchReplacementAndReconnectReadCurrentAuth(t *testing.T) {
 	restarted := NewWithStore(box, "/home", source)
 	defer func() { _ = restarted.Close() }()
 	restarted.Sync(t.Context(), false)
-	if string(source.raw) != authA {
-		t.Fatal("reconnect relied on watch replay")
+	if string(source.raw) != authB {
+		t.Fatal("stale reconnect overwrote newer credentials")
 	}
 }
 
@@ -177,5 +192,27 @@ func TestBrokenSeedNeverWritesSandbox(t *testing.T) {
 	}
 	if box.raw != "untouched" {
 		t.Fatal("invalid seed wrote sandbox")
+	}
+}
+
+func TestConcurrentSyncDoesNotOverwriteNewerCredentials(t *testing.T) {
+	source := &fakeStore{raw: []byte(authA)}
+	firstBox, secondBox := &fakeBox{}, &fakeBox{}
+	first := NewWithStore(firstBox, "/home", source)
+	second := NewWithStore(secondBox, "/home", source)
+	t.Cleanup(func() { _ = first.Close() })
+	t.Cleanup(func() { _ = second.Close() })
+	if err := first.Seed(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.Seed(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	firstBox.raw = authB
+	first.Sync(t.Context(), true)
+	secondBox.raw = authC
+	second.Sync(t.Context(), true)
+	if string(source.raw) != authB || source.puts != 1 || !second.dirty.Load() {
+		t.Fatal("stale credentials overwrote the newer object", source.puts)
 	}
 }
