@@ -850,6 +850,29 @@ func TestAccountRepairAcrossPreparationFailure(t *testing.T) {
 		t.Fatalf("repair condition lost: starts=%d seeds=%d", r.starts, r.seeds)
 	}
 }
+func TestAccountRelaunchSeedsCurrentCredentials(t *testing.T) {
+	s, r, a, e := setup(t)
+	record, _, err := s.Read(t.Context(), a.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.Configuration.Credentials = session.Credentials{Mode: "account", Store: &session.CredentialStore{Type: "s3", Bucket: "fixture", Region: "us-east-1"}, Key: "auth.json"}
+	if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET configuration=$2 WHERE id=$1", a.SessionID, record.Configuration); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, e)
+	complete(r)
+	tick(t, e)
+	tick(t, e)
+	r.processes = nil
+	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "again"}}}); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, e)
+	if r.launches != 2 || r.seeds != 2 {
+		t.Fatalf("relaunch did not seed current credentials: launches=%d seeds=%d", r.launches, r.seeds)
+	}
+}
 func TestRestartBeforeCleanupKeepsAuthSyncPolicy(t *testing.T) {
 	for _, multiple := range []bool{false, true} {
 		for _, account := range []bool{false, true} {

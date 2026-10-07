@@ -274,7 +274,9 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 			if err != nil {
 				return harness.Failure("environment_unavailable", "Harness environment is unavailable.")
 			}
-			if e.account != nil && (record.ProcessID == nil || repair) {
+			if e.account != nil {
+				// A replacement process must not inherit credentials that became
+				// stale while its sandbox was paused or disconnected.
 				if err := e.account.Seed(ctx); err != nil {
 					return err
 				}
