@@ -47,9 +47,6 @@ For profile settings, template registration and catalog APIs, see
 For provider quota snapshots by account, see [account limits](docs/account-limits.md).
 For database-backed Prometheus metrics on the internal system listener, see
 [service metrics](docs/service-metrics.md).
-History orders native items by their start time, using the native journal timestamp
-when item timing is absent. Live updates, worker restarts and offline recovery use
-the same ordering; later completion events retain the earliest observed item time.
 Run `make stop` to stop the project; database data is preserved.
 
 Run and hook deadlines are independent of the sandbox timeout. The worker creates
