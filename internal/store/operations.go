@@ -35,7 +35,7 @@ func (s *Store) Operation(ctx context.Context, sid uuid.UUID, kind string, rid, 
 	return out, err
 }
 func SaveOperation(ctx context.Context, tx db.DBTX, o *Operation) error {
-	return db.New(tx).SaveOperation(ctx, db.SaveOperationParams{ID: o.ID, Status: o.Status, Result: o.Result, AttemptedAt: o.AttemptedAt})
+	return db.New(tx).SaveOperation(ctx, db.SaveOperationParams{ID: o.ID, Status: o.Status, Result: o.Result, AttemptedAt: o.AttemptedAt, DeadlineAt: o.DeadlineAt, NextCheckAt: o.NextCheckAt, CheckAttempts: o.CheckAttempts, FirstError: o.FirstError, AbandonedAt: o.AbandonedAt})
 }
 func (s *Store) SetOperation(ctx context.Context, sid, id uuid.UUID, status string, result any) error {
 	return s.Mutate(ctx, sid, false, func(tx pgx.Tx, _ *SessionRecord) error {
@@ -86,4 +86,23 @@ func (s *Store) AuthFailedBefore(ctx context.Context, sid uuid.UUID, number int,
 		return false, err
 	}
 	return r.Error != nil && r.Error.Code == "authentication_failed", nil
+}
+
+// RecoverProvisionReservations runs once after acquiring worker ownership. An old
+// worker can release a restored reservation between the data migration and its
+// shutdown. Admission uses the same capacity lock; normal scheduling is unchanged.
+func (s *Store) RecoverProvisionReservations(ctx context.Context) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := db.New(tx)
+	if err := q.AdvisoryLock(ctx, CapacityLock); err != nil {
+		return err
+	}
+	if err := q.RestoreProvisionReservations(ctx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

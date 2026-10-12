@@ -184,23 +184,24 @@ func TestReplacementReconnectCompletesPreparation(t *testing.T) {
 	}
 }
 
-func TestCancelAfterLostCreateFindsAndPausesSandbox(t *testing.T) {
+func TestCancelAfterLostCreateDeletesWithoutConnecting(t *testing.T) {
 	s, r, a, e := setup(t)
 	r.lostCreate = true
-	if err := e.Tick(t.Context()); !errors.Is(err, harness.ErrUncertain) {
+	if err := e.Tick(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Cancel(t.Context(), a.SessionID, a.RunID); err != nil {
 		t.Fatal(err)
 	}
 	e.Disconnect()
+	e.clock = func() time.Time { return time.Now().Add(10 * time.Second) }
 	tick(t, e)
 	tick(t, e)
 	record, _, err := s.Read(t.Context(), a.SessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.creates != 1 || r.starts != 0 || r.pauses != 1 || record.SlotReserved {
+	if r.creates != 1 || r.starts != 0 || r.pauses != 0 || r.deletes != 1 || r.resumes != 0 || record.SlotReserved {
 		t.Fatalf("create=%d start=%d pause=%d reserved=%v", r.creates, r.starts, r.pauses, record.SlotReserved)
 	}
 }

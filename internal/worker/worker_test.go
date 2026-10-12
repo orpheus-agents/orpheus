@@ -579,12 +579,13 @@ func TestLostAcknowledgements(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := e.Tick(t.Context()); !errors.Is(err, harness.ErrUncertain) {
+			if err := e.Tick(t.Context()); (phase == "create" && err != nil) || (phase != "create" && !errors.Is(err, harness.ErrUncertain)) {
 				t.Fatalf("want uncertain, got %v", err)
 			}
 			e.Disconnect()
 			e = executor(a.SessionID, s, r)
 			defer e.Disconnect()
+			e.clock = func() time.Time { return time.Now().Add(10 * time.Second) }
 			tick(t, e)
 			tick(t, e)
 			if r.creates != 1 || r.launches != 1 || r.starts != 1 {

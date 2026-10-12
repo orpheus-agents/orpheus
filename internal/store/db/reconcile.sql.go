@@ -70,7 +70,7 @@ func (q *Queries) ReconcileMessages(ctx context.Context, arg ReconcileMessagesPa
 }
 
 const reconcileOperations = `-- name: ReconcileOperations :many
-SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at
+SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at, o.deadline_at, o.next_check_at, o.check_attempts, o.first_error, o.abandoned_at
 FROM operations o
 WHERE session_id = $1 AND kind IN ('start', 'steer') AND run_id = ANY($2::uuid[])
 ORDER BY created_at
@@ -101,6 +101,11 @@ func (q *Queries) ReconcileOperations(ctx context.Context, arg ReconcileOperatio
 			&i.Result,
 			&i.AttemptedAt,
 			&i.CreatedAt,
+			&i.DeadlineAt,
+			&i.NextCheckAt,
+			&i.CheckAttempts,
+			&i.FirstError,
+			&i.AbandonedAt,
 		); err != nil {
 			return nil, err
 		}

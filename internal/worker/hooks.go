@@ -172,7 +172,7 @@ func (e *Executor) startHook(ctx context.Context, record store.SessionRecord, ru
 		return err
 	}
 	if err := e.Store.ChangeHook(ctx, e.ID, run.ID, name, func(h *store.HookExecution, r *store.RunRecord) error {
-		if r.CancelRequestedAt != nil && name != "after_run" {
+		if r.Status.Terminal() || (r.CancelRequestedAt != nil && name != "after_run") {
 			return nil
 		}
 		if h.Status != "pending" {
@@ -402,7 +402,7 @@ func (e *Executor) observeHook(ctx context.Context, record store.SessionRecord, 
 			if h.Status != "running" {
 				return nil
 			}
-			if r.CancelRequestedAt != nil && name != "after_run" {
+			if r.Status.Terminal() || (r.CancelRequestedAt != nil && name != "after_run") {
 				reason = "cancelled"
 			}
 			h.CancelAttemptedAt = &attempted

@@ -16,7 +16,7 @@ import (
 const createOperation = `-- name: CreateOperation :one
 INSERT INTO operations AS o(id, session_id, run_id, message_id, kind, parameters)
 VALUES($1, $2, $3, $4, $5, $6)
-RETURNING o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at
+RETURNING o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at, o.deadline_at, o.next_check_at, o.check_attempts, o.first_error, o.abandoned_at
 `
 
 type CreateOperationParams struct {
@@ -49,12 +49,53 @@ func (q *Queries) CreateOperation(ctx context.Context, arg CreateOperationParams
 		&i.Result,
 		&i.AttemptedAt,
 		&i.CreatedAt,
+		&i.DeadlineAt,
+		&i.NextCheckAt,
+		&i.CheckAttempts,
+		&i.FirstError,
+		&i.AbandonedAt,
+	)
+	return i, err
+}
+
+const currentSandboxCreate = `-- name: CurrentSandboxCreate :one
+SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at, o.deadline_at, o.next_check_at, o.check_attempts, o.first_error, o.abandoned_at FROM operations o JOIN runs r ON r.session_id = o.session_id
+WHERE o.session_id = $1 AND r.id = $2 AND o.kind = 'sandbox_create'
+  AND (o.run_id = r.id OR (o.run_id IS NULL AND o.created_at >= r.created_at
+       AND (r.finished_at IS NULL OR o.created_at <= r.finished_at)))
+ORDER BY o.created_at DESC LIMIT 1
+`
+
+type CurrentSandboxCreateParams struct {
+	SessionID uuid.UUID `json:"session_id"`
+	ID        uuid.UUID `json:"id"`
+}
+
+func (q *Queries) CurrentSandboxCreate(ctx context.Context, arg CurrentSandboxCreateParams) (Operation, error) {
+	row := q.db.QueryRow(ctx, currentSandboxCreate, arg.SessionID, arg.ID)
+	var i Operation
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.RunID,
+		&i.MessageID,
+		&i.Kind,
+		&i.Status,
+		&i.Parameters,
+		&i.Result,
+		&i.AttemptedAt,
+		&i.CreatedAt,
+		&i.DeadlineAt,
+		&i.NextCheckAt,
+		&i.CheckAttempts,
+		&i.FirstError,
+		&i.AbandonedAt,
 	)
 	return i, err
 }
 
 const findOperation = `-- name: FindOperation :one
-SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at
+SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at, o.deadline_at, o.next_check_at, o.check_attempts, o.first_error, o.abandoned_at
 FROM operations o
 WHERE session_id = $1 AND kind = $2 AND run_id IS NOT DISTINCT
 FROM $3::uuid AND message_id IS NOT DISTINCT
@@ -89,12 +130,17 @@ func (q *Queries) FindOperation(ctx context.Context, arg FindOperationParams) (O
 		&i.Result,
 		&i.AttemptedAt,
 		&i.CreatedAt,
+		&i.DeadlineAt,
+		&i.NextCheckAt,
+		&i.CheckAttempts,
+		&i.FirstError,
+		&i.AbandonedAt,
 	)
 	return i, err
 }
 
 const getOperation = `-- name: GetOperation :one
-SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at
+SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at, o.deadline_at, o.next_check_at, o.check_attempts, o.first_error, o.abandoned_at
 FROM operations o
 WHERE id = $1
 `
@@ -113,12 +159,17 @@ func (q *Queries) GetOperation(ctx context.Context, id uuid.UUID) (Operation, er
 		&i.Result,
 		&i.AttemptedAt,
 		&i.CreatedAt,
+		&i.DeadlineAt,
+		&i.NextCheckAt,
+		&i.CheckAttempts,
+		&i.FirstError,
+		&i.AbandonedAt,
 	)
 	return i, err
 }
 
 const getSessionOperation = `-- name: GetSessionOperation :one
-SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at
+SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at, o.deadline_at, o.next_check_at, o.check_attempts, o.first_error, o.abandoned_at
 FROM operations o
 WHERE id = $1 AND session_id = $2
 `
@@ -142,6 +193,11 @@ func (q *Queries) GetSessionOperation(ctx context.Context, arg GetSessionOperati
 		&i.Result,
 		&i.AttemptedAt,
 		&i.CreatedAt,
+		&i.DeadlineAt,
+		&i.NextCheckAt,
+		&i.CheckAttempts,
+		&i.FirstError,
+		&i.AbandonedAt,
 	)
 	return i, err
 }
@@ -193,7 +249,7 @@ func (q *Queries) LastTerminalRun(ctx context.Context, sessionID uuid.UUID) (Run
 }
 
 const latestAttempt = `-- name: LatestAttempt :one
-SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at
+SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at, o.deadline_at, o.next_check_at, o.check_attempts, o.first_error, o.abandoned_at
 FROM operations o
 WHERE session_id = $1 AND kind = $2 AND status IN ('sending', 'uncertain', 'confirmed')
 ORDER BY created_at DESC
@@ -219,6 +275,47 @@ func (q *Queries) LatestAttempt(ctx context.Context, arg LatestAttemptParams) (O
 		&i.Result,
 		&i.AttemptedAt,
 		&i.CreatedAt,
+		&i.DeadlineAt,
+		&i.NextCheckAt,
+		&i.CheckAttempts,
+		&i.FirstError,
+		&i.AbandonedAt,
+	)
+	return i, err
+}
+
+const openSandboxCreate = `-- name: OpenSandboxCreate :one
+SELECT o.id, o.session_id, o.run_id, o.message_id, o.kind, o.status, o.parameters, o.result, o.attempted_at, o.created_at, o.deadline_at, o.next_check_at, o.check_attempts, o.first_error, o.abandoned_at FROM operations o
+WHERE o.session_id = $1 AND o.kind = 'sandbox_create'
+  AND o.status IN ('sending','uncertain','confirmed')
+  AND COALESCE(o.result->>'adopted','false') <> 'true'
+  AND NOT EXISTS (
+    SELECT 1 FROM operations d WHERE d.session_id = o.session_id
+      AND d.kind = 'sandbox_delete' AND d.status = 'confirmed'
+      AND d.parameters->>'create_operation_id' = o.id::text
+      AND d.parameters->>'sandbox_id' = o.result->>'sandbox_id')
+ORDER BY o.created_at DESC LIMIT 1
+`
+
+func (q *Queries) OpenSandboxCreate(ctx context.Context, sessionID uuid.UUID) (Operation, error) {
+	row := q.db.QueryRow(ctx, openSandboxCreate, sessionID)
+	var i Operation
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.RunID,
+		&i.MessageID,
+		&i.Kind,
+		&i.Status,
+		&i.Parameters,
+		&i.Result,
+		&i.AttemptedAt,
+		&i.CreatedAt,
+		&i.DeadlineAt,
+		&i.NextCheckAt,
+		&i.CheckAttempts,
+		&i.FirstError,
+		&i.AbandonedAt,
 	)
 	return i, err
 }
@@ -274,19 +371,116 @@ func (q *Queries) PreviousExecutedRun(ctx context.Context, arg PreviousExecutedR
 	return i, err
 }
 
+const provisionHasWork = `-- name: ProvisionHasWork :one
+SELECT EXISTS (SELECT 1 FROM hook_executions h WHERE h.session_id = $1 AND h.started_at IS NOT NULL)
+    OR EXISTS (SELECT 1 FROM operations o WHERE o.session_id = $1
+        AND o.kind IN ('launch','start') AND o.status IN ('sending','uncertain','confirmed')) AS started
+`
+
+func (q *Queries) ProvisionHasWork(ctx context.Context, sessionID uuid.UUID) (*bool, error) {
+	row := q.db.QueryRow(ctx, provisionHasWork, sessionID)
+	var started *bool
+	err := row.Scan(&started)
+	return started, err
+}
+
+const restoreProvisionReservations = `-- name: RestoreProvisionReservations :exec
+UPDATE sessions s SET slot_reserved = true
+WHERE NOT s.slot_reserved AND EXISTS (
+  SELECT 1 FROM operations o WHERE o.session_id = s.id AND o.kind = 'sandbox_create'
+    AND o.status IN ('sending','uncertain','confirmed')
+    AND COALESCE(o.result->>'adopted','false') <> 'true'
+    AND NOT EXISTS (SELECT 1 FROM operations d WHERE d.session_id = s.id
+      AND d.kind = 'sandbox_delete' AND d.status = 'confirmed'
+      AND d.parameters->>'create_operation_id' = o.id::text
+      AND d.parameters->>'sandbox_id' = o.result->>'sandbox_id'))
+`
+
+func (q *Queries) RestoreProvisionReservations(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, restoreProvisionReservations)
+	return err
+}
+
+const sandboxCreateOwner = `-- name: SandboxCreateOwner :many
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services FROM runs r JOIN operations o ON o.session_id = r.session_id
+WHERE o.id = $1 AND (r.id = o.run_id OR (o.run_id IS NULL
+  AND o.created_at >= r.created_at AND (r.finished_at IS NULL OR o.created_at <= r.finished_at)))
+`
+
+func (q *Queries) SandboxCreateOwner(ctx context.Context, id uuid.UUID) ([]Run, error) {
+	rows, err := q.db.Query(ctx, sandboxCreateOwner, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Run{}
+	for rows.Next() {
+		var i Run
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.Number,
+			&i.Status,
+			&i.Observation,
+			&i.CreatedAt,
+			&i.ExecutionStartedAt,
+			&i.DeadlineAt,
+			&i.FinishedAt,
+			&i.CancelRequestedAt,
+			&i.CancelAttemptedAt,
+			&i.StopReason,
+			&i.StopMethod,
+			&i.Error,
+			&i.NativeTurnID,
+			&i.NextDeliveryNumber,
+			&i.FinalMessageID,
+			&i.InputFingerprint,
+			&i.EnvCiphertext,
+			&i.EnvNames,
+			&i.EnvFrom,
+			&i.Phase,
+			&i.AgentStatus,
+			&i.AgentError,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.CachedInputTokens,
+			&i.ReasoningOutputTokens,
+			&i.Services,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const saveOperation = `-- name: SaveOperation :exec
 UPDATE operations
 SET status = $2,
     result = $3,
-    attempted_at = $4
+    attempted_at = $4,
+    deadline_at = $5,
+    next_check_at = $6,
+    check_attempts = $7,
+    first_error = $8,
+    abandoned_at = $9
 WHERE id = $1
 `
 
 type SaveOperationParams struct {
-	ID          uuid.UUID       `json:"id"`
-	Status      string          `json:"status"`
-	Result      json.RawMessage `json:"result"`
-	AttemptedAt *time.Time      `json:"attempted_at"`
+	ID            uuid.UUID       `json:"id"`
+	Status        string          `json:"status"`
+	Result        json.RawMessage `json:"result"`
+	AttemptedAt   *time.Time      `json:"attempted_at"`
+	DeadlineAt    *time.Time      `json:"deadline_at"`
+	NextCheckAt   *time.Time      `json:"next_check_at"`
+	CheckAttempts int             `json:"check_attempts"`
+	FirstError    json.RawMessage `json:"first_error"`
+	AbandonedAt   *time.Time      `json:"abandoned_at"`
 }
 
 func (q *Queries) SaveOperation(ctx context.Context, arg SaveOperationParams) error {
@@ -295,6 +489,11 @@ func (q *Queries) SaveOperation(ctx context.Context, arg SaveOperationParams) er
 		arg.Status,
 		arg.Result,
 		arg.AttemptedAt,
+		arg.DeadlineAt,
+		arg.NextCheckAt,
+		arg.CheckAttempts,
+		arg.FirstError,
+		arg.AbandonedAt,
 	)
 	return err
 }

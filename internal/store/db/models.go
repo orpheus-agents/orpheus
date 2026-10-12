@@ -88,16 +88,21 @@ type Message struct {
 }
 
 type Operation struct {
-	ID          uuid.UUID       `json:"id"`
-	SessionID   uuid.UUID       `json:"session_id"`
-	RunID       *uuid.UUID      `json:"run_id"`
-	MessageID   *uuid.UUID      `json:"message_id"`
-	Kind        string          `json:"kind"`
-	Status      string          `json:"status"`
-	Parameters  json.RawMessage `json:"parameters"`
-	Result      json.RawMessage `json:"result"`
-	AttemptedAt *time.Time      `json:"attempted_at"`
-	CreatedAt   time.Time       `json:"created_at"`
+	ID            uuid.UUID       `json:"id"`
+	SessionID     uuid.UUID       `json:"session_id"`
+	RunID         *uuid.UUID      `json:"run_id"`
+	MessageID     *uuid.UUID      `json:"message_id"`
+	Kind          string          `json:"kind"`
+	Status        string          `json:"status"`
+	Parameters    json.RawMessage `json:"parameters"`
+	Result        json.RawMessage `json:"result"`
+	AttemptedAt   *time.Time      `json:"attempted_at"`
+	CreatedAt     time.Time       `json:"created_at"`
+	DeadlineAt    *time.Time      `json:"deadline_at"`
+	NextCheckAt   *time.Time      `json:"next_check_at"`
+	CheckAttempts int             `json:"check_attempts"`
+	FirstError    json.RawMessage `json:"first_error"`
+	AbandonedAt   *time.Time      `json:"abandoned_at"`
 }
 
 type Run struct {
