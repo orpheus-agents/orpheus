@@ -133,6 +133,19 @@ type Run struct {
 	Services              []session.Service `json:"services"`
 }
 
+type RunInputSubject struct {
+	MessageID uuid.UUID       `json:"message_id"`
+	Subject   json.RawMessage `json:"subject"`
+}
+
+type RunServiceCredential struct {
+	RunID         uuid.UUID       `json:"run_id"`
+	InvocationID  uuid.UUID       `json:"invocation_id"`
+	AccessContext json.RawMessage `json:"access_context"`
+	Scopes        json.RawMessage `json:"scopes"`
+	Ciphertext    string          `json:"ciphertext"`
+}
+
 type Session struct {
 	ID                         uuid.UUID                     `json:"id"`
 	CreatedAt                  time.Time                     `json:"created_at"`

@@ -343,9 +343,65 @@ components:
                 - sandbox
             title: ConfigurationInput
             type: object
+        AccessSubject:
+            description: A namespaced human or service principal, supplied by a trusted caller.
+            type: object
+            additionalProperties: false
+            required: [namespace, id]
+            properties:
+                namespace:
+                    type: string
+                    minLength: 1
+                    maxLength: 128
+                id:
+                    type: string
+                    minLength: 1
+                    maxLength: 128
+        AccessScopeContext:
+            description: Opaque JSON object interpreted only by the selected credentials provider. Its serialized JSON must not exceed 1 MiB. Orpheus does not derive input permissions from this object.
+            type: object
+            additionalProperties: true
+            x-go-type: map[string]json.RawMessage
+        AccessContext:
+            description: Trusted caller snapshot for a new invocation. Never inferred from prompts or message metadata. Protected service scope changes return 409 service_scope_changed before execution.
+            type: object
+            additionalProperties: false
+            required: [invocation_id, subject, scope_context, context_observed_at]
+            properties:
+                invocation_id:
+                    type: string
+                    format: uuid
+                subject:
+                    $ref: '#/components/schemas/AccessSubject'
+                scope_context:
+                    $ref: '#/components/schemas/AccessScopeContext'
+                context_observed_at:
+                    type: string
+                    format: date-time
+                allowed_input_subjects:
+                    description: Frozen explicit allowlist for SendMessage during this run. Absent or empty denies interactive inputs. The initiating subject need not be listed. Never forwarded to credentials providers.
+                    type: array
+                    maxItems: 4096
+                    uniqueItems: true
+                    items:
+                        $ref: '#/components/schemas/AccessSubject'
+        InputAccessContext:
+            description: Confirmed authors of every message in order, checked against the active run's allowed_input_subjects without issuing another credential.
+            type: object
+            additionalProperties: false
+            required: [input_subjects]
+            properties:
+                input_subjects:
+                    type: array
+                    minItems: 1
+                    maxItems: 256
+                    items:
+                        $ref: '#/components/schemas/AccessSubject'
         CreateSession:
             additionalProperties: false
             properties:
+                access_context:
+                    $ref: '#/components/schemas/AccessContext'
                 allow_multiple_runs:
                     description: Immutable session policy. If false, only the run created with the session is allowed and its sandbox is deleted after completion, failure or cancellation. If true, the sandbox is paused for subsequent runs. Recovery and messages within the current run are allowed in either mode.
                     type: boolean
@@ -1150,6 +1206,8 @@ components:
         CreateRun:
             additionalProperties: false
             properties:
+                access_context:
+                    $ref: '#/components/schemas/AccessContext'
                 input_fingerprint:
                     description: Opaque input snapshot version for this run; does not deduplicate requests. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
                     type: string
@@ -1182,6 +1240,8 @@ components:
         SendMessage:
             additionalProperties: false
             properties:
+                access_context:
+                    $ref: '#/components/schemas/InputAccessContext'
                 messages:
                     description: Ordered user messages accepted atomically for the active run.
                     type: array

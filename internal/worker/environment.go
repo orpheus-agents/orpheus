@@ -494,6 +494,9 @@ func (e *Executor) pauseNow(ctx context.Context, record store.SessionRecord) err
 		e.unregisterLimits()
 		e.unregisterLimits = nil
 	}
+	if err := e.cleanLastCredentials(ctx); err != nil {
+		return err
+	}
 	if err := e.sandbox.Pause(ctx); err != nil {
 		return err
 	}

@@ -91,3 +91,15 @@ func (c *Cipher) decrypt(prefix string, aad []byte, ciphertext *string) (map[str
 	}
 	return values, nil
 }
+
+func (c *Cipher) EncryptCredentials(sessionID, runID uuid.UUID, value string) (*string, error) {
+	return c.encrypt("aes-gcm-service-v1:", serviceAAD(sessionID, runID), map[string]string{"state": value})
+}
+func (c *Cipher) DecryptCredentials(sessionID, runID uuid.UUID, token *string) (string, error) {
+	value, err := c.decrypt("aes-gcm-service-v1:", serviceAAD(sessionID, runID), token)
+	return value["state"], err
+}
+
+func serviceAAD(sessionID, runID uuid.UUID) []byte {
+	return append([]byte("orpheus-service-credentials-v1\x00"), runAAD(sessionID, runID)...)
+}

@@ -29,8 +29,10 @@ import (
 )
 
 type remote struct {
-	deleteHook func()
-	lostDelete bool
+	credentialCommands func(string) ([]byte, error)
+	credentialWrite    func(string, []byte) error
+	deleteHook         func()
+	lostDelete         bool
 	harness.Sandbox
 	state                                                                                  string
 	metadata                                                                               map[string]string
@@ -138,8 +140,17 @@ func (r *remote) Kill(_ context.Context, pid int) error {
 	r.processes = slices.DeleteFunc(r.processes, func(p harness.Process) bool { return p.PID == pid })
 	return nil
 }
-func (r *remote) Run(context.Context, string) ([]byte, error) {
+func (r *remote) Run(_ context.Context, command string) ([]byte, error) {
+	if r.credentialCommands != nil {
+		return r.credentialCommands(command)
+	}
 	return []byte("/home/template/workspace"), nil
+}
+func (r *remote) Write(_ context.Context, path string, raw []byte) error {
+	if r.credentialWrite != nil {
+		return r.credentialWrite(path, raw)
+	}
+	return nil
 }
 func (r *remote) Read(context.Context, string) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader("{}")), nil

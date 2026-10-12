@@ -6,26 +6,33 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/orpheus-agents/orpheus/internal/servicecredentials"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
 var serviceCode = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 
 type Service struct {
-	Name        string   `toml:"name"`
-	Description string   `toml:"description"`
-	EnvFrom     []string `toml:"env_from"`
+	Provider    *servicecredentials.Config `toml:"provider"`
+	Name        string                     `toml:"name"`
+	Description string                     `toml:"description"`
+	EnvFrom     []string                   `toml:"env_from"`
 }
 
 func validateServices(services map[string]Service) error {
 	for code, service := range services {
 		service.Name = strings.TrimSpace(service.Name)
 		service.Description = strings.TrimSpace(service.Description)
-		if !serviceCode.MatchString(code) || service.Name == "" || service.Description == "" || len(service.EnvFrom) == 0 {
+		if !serviceCode.MatchString(code) || service.Name == "" || service.Description == "" || (len(service.EnvFrom) == 0 && service.Provider == nil) {
 			return fmt.Errorf("invalid service %q: code, name, description and environment references are required", code)
 		}
 		if err := validateEnvironment(nil, service.EnvFrom, nil); err != nil {
 			return fmt.Errorf("invalid service %q environment references", code)
+		}
+		if service.Provider != nil {
+			if err := service.Provider.Validate(); err != nil {
+				return fmt.Errorf("invalid service %q provider: %w", code, err)
+			}
 		}
 		slices.Sort(service.EnvFrom)
 		services[code] = service
@@ -39,6 +46,11 @@ func (p Profiles) EnvironmentAllowlist(explicit []string) []string {
 	names := slices.Clone(explicit)
 	for _, service := range p.Services {
 		names = append(names, service.EnvFrom...)
+	}
+	for _, service := range p.Services {
+		if service.Provider != nil {
+			names = slices.DeleteFunc(names, func(name string) bool { return name == service.Provider.SecretEnv })
+		}
 	}
 	slices.Sort(names)
 	return slices.Compact(names)
@@ -66,6 +78,9 @@ func ResolveServices(env map[string]string, from, codes []string, p Profiles, pr
 			return nil, nil, problem
 		}
 		names := slices.Sorted(slices.Values(service.EnvFrom))
+		if names == nil {
+			names = []string{}
+		}
 		for _, name := range names {
 			if _, exists := env[name]; exists {
 				return nil, nil, invalid(fmt.Sprintf("Service %q conflicts with explicit environment variable %q.", code, name), path...)

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/orpheus-agents/orpheus/internal/servicecredentials"
+
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/secret"
 	"github.com/orpheus-agents/orpheus/internal/session"
@@ -133,5 +135,23 @@ func TestServiceEnvironmentUsesFrozenReferencesAndCurrentAllowlist(t *testing.T)
 	p.Services["gitlab"] = Service{EnvFrom: []string{"SERVICE_TOKEN"}}
 	if _, err := Resolve(in, p, nil, DefaultMaxSessionTokens); err != nil {
 		t.Fatal("direct catalog reference rejected", err)
+	}
+}
+
+func TestProviderSecretNeverEntersEnvironmentAllowlist(t *testing.T) {
+	p := Profiles{Services: map[string]Service{"protected": {Name: "Protected", Description: "Protected service", Provider: &servicecredentials.Config{Endpoint: "https://provider.invalid", SecretEnv: "CORE_SECRET", TokenFile: "~/.kord/run.token", ContextFields: []string{"subject", "scope_context", "context_observed_at"}}}, "legacy": {Name: "Legacy", Description: "Legacy service", EnvFrom: []string{"LEGACY_KEY", "CORE_SECRET"}}}}
+	if err := validateServices(p.Services); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.EnvironmentAllowlist([]string{"EXTRA", "CORE_SECRET"}); slices.Contains(got, "CORE_SECRET") || !slices.Contains(got, "LEGACY_KEY") {
+		t.Fatal(got)
+	}
+}
+
+func TestProviderSecretCannotBeModelAPIKey(t *testing.T) {
+	p := Profiles{Templates: map[string]Template{"codex": {}}, Profiles: map[string]Profile{"p": {Harness: "codex", Model: new("model"), Auth: Auth{Mode: "api_key", APIKeyEnv: "CORE_SECRET"}}}, Services: map[string]Service{"protected": {Provider: &servicecredentials.Config{SecretEnv: "CORE_SECRET"}}}}
+	_, err := Resolve(session.ConfigurationInput{Agent: session.AgentInput{Profile: "p"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 1200}}, p, nil, 1000)
+	if err == nil {
+		t.Fatal("provider key accepted as model key")
 	}
 }

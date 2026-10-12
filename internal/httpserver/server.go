@@ -108,7 +108,7 @@ func (s *Server) CreateRun(ctx context.Context, r api.CreateRunRequestObject) (a
 	if r.Body == nil {
 		return nil, session.Problem(422, "validation_error", "Request body is required.")
 	}
-	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, Messages: inputMessages(r.Body.Messages), InputFingerprint: r.Body.InputFingerprint, Env: value(r.Body.Env, nil), EnvFrom: value(r.Body.EnvFrom, nil), Services: value(r.Body.Services, nil), Key: id})
+	a, err := s.Store.Accept(ctx, store.Admission{AccessContext: accessContext(r.Body.AccessContext), SessionID: r.Sid, Messages: inputMessages(r.Body.Messages), InputFingerprint: r.Body.InputFingerprint, Env: value(r.Body.Env, nil), EnvFrom: value(r.Body.EnvFrom, nil), Services: value(r.Body.Services, nil), Key: id})
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (s *Server) SendMessage(ctx context.Context, r api.SendMessageRequestObject
 	if r.Body == nil {
 		return nil, session.Problem(422, "validation_error", "Request body is required.")
 	}
-	a, err := s.Store.Accept(ctx, store.Admission{SessionID: r.Sid, RunID: r.Rid, Messages: inputMessages(r.Body.Messages), Key: id})
+	a, err := s.Store.Accept(ctx, store.Admission{InputSubjects: inputSubjects(r.Body.AccessContext), SessionID: r.Sid, RunID: r.Rid, Messages: inputMessages(r.Body.Messages), Key: id})
 	if err != nil {
 		return nil, err
 	}
@@ -298,4 +298,25 @@ func (s *Server) ListAllRuns(ctx context.Context, r api.ListAllRunsRequestObject
 		return nil, err
 	}
 	return mapResponse[api.ListAllRuns200JSONResponse](v)
+}
+
+func accessContext(in *api.AccessContext) *session.AccessContext {
+	if in == nil {
+		return nil
+	}
+	return &session.AccessContext{InvocationID: in.InvocationID, Subject: session.AccessSubject{Namespace: in.Subject.Namespace, ID: in.Subject.ID}, ScopeContext: in.ScopeContext, AllowedInputSubjects: convertSubjects(value(in.AllowedInputSubjects, nil)), ContextObservedAt: in.ContextObservedAt}
+}
+func inputSubjects(in *api.InputAccessContext) []session.AccessSubject {
+	if in == nil {
+		return nil
+	}
+	return convertSubjects(in.InputSubjects)
+}
+
+func convertSubjects(subjects []api.AccessSubject) []session.AccessSubject {
+	out := make([]session.AccessSubject, len(subjects))
+	for i, s := range subjects {
+		out[i] = session.AccessSubject{Namespace: s.Namespace, ID: s.ID}
+	}
+	return out
 }

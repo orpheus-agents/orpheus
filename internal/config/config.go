@@ -357,6 +357,11 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if in.Limits.MaxSessionTokens <= 0 {
 		return out, invalid("Invalid session token budget.", "configuration", "limits", "max_session_tokens")
 	}
+	for _, service := range p.Services {
+		if service.Provider != nil && service.Provider.SecretEnv == profile.Auth.APIKeyEnv {
+			return out, invalid("Provider server secret cannot be used as model credentials.", "configuration", "agent", "profile")
+		}
+	}
 	creds := session.Credentials{Mode: profile.Auth.Mode, AccountID: profile.Auth.AccountID, APIKeyEnv: profile.Auth.APIKeyEnv, Key: profile.Auth.Key}
 	if profile.Auth.Mode == "account" {
 		creds.Store = new(p.CredentialStores[profile.Auth.Store])
