@@ -132,6 +132,67 @@ class ReaderTests(unittest.TestCase):
         tail, _ = self.read(records, mode="journal", offset=size)
         self.assertEqual(tail["items"], [])
 
+    def test_missing_item_timing_uses_journal_timestamp(self):
+        path = ROOT / "internal/harness/codex/testdata/missing-item-timing.jsonl"
+        records = [json.loads(line) for line in path.read_text().splitlines()]
+        journal, size = self.read(records, mode="journal")
+        orders = {
+            item["id"]: item["started_at_ms"]
+            for item in journal["items"]
+            if item["type"] == "order"
+        }
+        self.assertEqual(orders["search"], 1791811669635)
+        self.assertEqual(orders["open"], 1791811686523)
+        index, _ = self.read(records, mode="index", offset=size)
+        self.assertEqual(index["orders"], orders)
+
+    def test_item_time_preserves_explicit_zero_and_handles_offsets(self):
+        self.assertEqual(
+            READER.item_time({"payload": {"started_at_ms": 0}, "timestamp": "invalid"}),
+            0,
+        )
+        for timestamp in ("2026-10-12T13:27:49.635Z", "2026-10-12T16:27:49.635+03:00"):
+            self.assertEqual(
+                READER.item_time({"payload": {}, "timestamp": timestamp}),
+                1791811669635,
+            )
+        self.assertIsNone(READER.item_time({"payload": {}}))
+        self.assertEqual(READER.item_time({"payload": {}}, 42), 42)
+
+    def test_start_is_not_moved_by_completion_without_timing(self):
+        records = [
+            {"type": "event_msg", "payload": {"type": "task_started", "turn_id": "t"}},
+        ]
+        for kind, ident, stamp in (
+            ("item_started", "search", "2026-10-12T13:27:49.635Z"),
+            ("item_completed", "later", "2026-10-12T13:27:50.635Z"),
+            ("item_completed", "search", "2026-10-12T13:27:51.635Z"),
+        ):
+            records.append(
+                {
+                    "timestamp": stamp,
+                    "type": "event_msg",
+                    "payload": {
+                        "type": kind,
+                        "turn_id": "t",
+                        "item": {"type": "WebSearch", "id": ident},
+                    },
+                }
+            )
+        first, size = self.read(records[:2], mode="journal")
+        self.assertEqual([i["type"] for i in first["items"]], ["order"])
+        tail, total = self.read(records, mode="journal", offset=size)
+        self.assertEqual(
+            [i["id"] for i in tail["items"] if i["type"] == "completed"],
+            ["later", "search"],
+        )
+        index, _ = self.read(records, mode="index", offset=total)
+        self.assertEqual(index["orders"]["search"], 1791811669635)
+        offline, _ = self.read(records)
+        self.assertEqual(
+            [i["id"] for i in offline["turns"][0]["items"]], ["search", "later"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

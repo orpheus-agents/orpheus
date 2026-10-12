@@ -361,7 +361,9 @@ func (d *Driver) snapshot(ctx context.Context, thread string, path *string, offs
 				case "output":
 					d.outputs[item.ID] = item.Output
 				case "order":
-					d.orders[item.ID] = item.StartedAtMS
+					if previous, exists := d.orders[item.ID]; !exists || item.StartedAtMS < previous {
+						d.orders[item.ID] = item.StartedAtMS
+					}
 				case "command":
 					d.commands[item.ID] = item.Argv
 				}

@@ -32,6 +32,22 @@ ITEM_TYPES = TOOL_TYPES | {
 VISIBLE_TYPES = TOOL_TYPES | {"UserMessage", "AgentMessage"}
 
 
+def item_time(record, fallback=None):
+    started = record["payload"].get("started_at_ms")
+    if started is not None:
+        return started
+    timestamp = record.get("timestamp")
+    if timestamp:
+        # Python 3.10 requires an explicit UTC offset instead of Z.
+        return round(
+            datetime.datetime.fromisoformat(
+                timestamp.replace("Z", "+00:00")
+            ).timestamp()
+            * 1000
+        )
+    return fallback
+
+
 def bounded(value, limit):
     raw = (
         value
@@ -271,17 +287,21 @@ def journal():
                 break
             record = json.loads(line)
             p = record.get("payload", {})
-            if record.get("type") == "event_msg" and p.get("type") == "item_completed":
+            if record.get("type") == "event_msg" and p.get("type") in (
+                "item_started",
+                "item_completed",
+            ):
                 item = p["item"]
-                if item["type"] in ITEM_TYPES and p.get("started_at_ms") is not None:
+                started = item_time(record)
+                if item["type"] in ITEM_TYPES and started is not None:
                     items.append(
                         {
                             "type": "order",
                             "id": item["id"],
-                            "started_at_ms": p["started_at_ms"],
+                            "started_at_ms": started,
                         }
                     )
-                if item["type"] in VISIBLE_TYPES:
+                if p["type"] == "item_completed" and item["type"] in VISIBLE_TYPES:
                     if item["type"] == "CommandExecution":
                         changed.add(item["id"])
                         items.append(
@@ -322,11 +342,17 @@ def index():
     orders, commands, completed = {}, {}, []
     for record in records_before(path, stop):
         payload = record.get("payload", {})
-        if record.get("type") != "event_msg" or payload.get("type") != "item_completed":
+        if record.get("type") != "event_msg" or payload.get("type") not in (
+            "item_started",
+            "item_completed",
+        ):
             continue
         item = payload["item"]
-        if item["type"] in ITEM_TYPES and payload.get("started_at_ms") is not None:
-            orders[item["id"]] = payload["started_at_ms"]
+        started = item_time(record)
+        if item["type"] in ITEM_TYPES and started is not None:
+            orders[item["id"]] = min(orders.get(item["id"], started), started)
+        if payload["type"] != "item_completed":
+            continue
         if item["type"] in VISIBLE_TYPES:
             completed.append(item["id"])
         if item["type"] == "CommandExecution":
@@ -357,20 +383,8 @@ def offline():
                     if item["type"] in ITEM_TYPES:
                         ident = item["id"]
                         key = (tid, ident)
-                        started = p.get("started_at_ms")
-                        if started is None:
-                            timestamp = record.get("timestamp")
-                            started = (
-                                datetime.datetime.fromisoformat(
-                                    timestamp.replace(
-                                        "Z", "+00:00"
-                                    )  # Python 3.10 requires an explicit UTC offset.
-                                ).timestamp()
-                                * 1000
-                                if timestamp
-                                else sequence
-                            )
-                        orders.setdefault(key, (started, ident))
+                        order = (item_time(record, sequence), ident)
+                        orders[key] = min(orders.get(key, order), order)
                         turns[tid]["items"][ident] = project(item)
                         if kind == "item_completed":
                             completed.add(ident)

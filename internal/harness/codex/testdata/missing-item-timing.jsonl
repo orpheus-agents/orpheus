@@ -1,0 +1,7 @@
+{"timestamp":"2026-10-12T13:25:50.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn"}}
+{"timestamp":"2026-10-12T13:25:50.001Z","type":"event_msg","payload":{"type":"item_completed","turn_id":"turn","started_at_ms":1791811550001,"item":{"id":"user","type":"UserMessage","content":[{"type":"text","text":"Search and summarize."}]}}}
+{"timestamp":"2026-10-12T13:27:49.635Z","type":"event_msg","payload":{"type":"item_completed","turn_id":"turn","started_at_ms":null,"item":{"id":"search","type":"WebSearch","query":"example","action":{"type":"search","query":"example"}}}}
+{"timestamp":"2026-10-12T13:28:06.523Z","type":"event_msg","payload":{"type":"item_completed","turn_id":"turn","item":{"id":"open","type":"WebSearch","query":"https://example.com","action":{"type":"open_page","url":"https://example.com"}}}}
+{"timestamp":"2026-10-12T13:28:32.855Z","type":"event_msg","payload":{"type":"item_completed","turn_id":"turn","started_at_ms":1791811712854,"item":{"id":"command","type":"CommandExecution","command":["printf","done"],"status":"completed","exit_code":0}}}
+{"timestamp":"2026-10-12T13:29:18.238Z","type":"event_msg","payload":{"type":"item_completed","turn_id":"turn","started_at_ms":1791811758230,"item":{"id":"answer","type":"AgentMessage","content":[{"type":"text","text":"Summary."}],"phase":"final_answer"}}}
+{"timestamp":"2026-10-12T13:29:18.239Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"turn"}}
