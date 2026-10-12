@@ -47,6 +47,7 @@ type Executor struct {
 	timeoutRunID     uuid.UUID
 	runnerReady      bool
 	hookTermSent     uuid.UUID
+	clock            func() time.Time
 }
 
 func NewExecutor(id uuid.UUID, s *store.Store, p harness.Platform) *Executor {
@@ -97,6 +98,7 @@ type operationResult struct {
 	TurnID      string  `json:"turn_id,omitzero"`
 	ID          string  `json:"id,omitzero"`
 	Path        *string `json:"path,omitzero"`
+	Adopted     bool    `json:"adopted,omitzero"`
 	Initialized bool    `json:"initialized,omitzero"`
 	Accepted    *bool   `json:"accepted,omitzero"`
 }
@@ -113,8 +115,40 @@ func (e *Executor) operation(ctx context.Context, kind string, rid, mid *uuid.UU
 	return e.Store.Operation(ctx, e.ID, kind, rid, mid, params)
 }
 func (e *Executor) opStatus(ctx context.Context, id uuid.UUID, status string, result any) error {
+	if status == "sending" {
+		blocked := false
+		err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, _ *store.SessionRecord) error {
+			o, err := db.New(tx).GetSessionOperation(ctx, db.GetSessionOperationParams{ID: id, SessionID: e.ID})
+			if err != nil {
+				return err
+			}
+			if o.Kind == "launch" && o.RunID != nil {
+				run, err := store.GetRun(ctx, tx, e.ID, *o.RunID)
+				if err != nil {
+					return err
+				}
+				if run.Status.Terminal() || run.CancelRequestedAt != nil {
+					blocked = true
+					return nil
+				}
+			}
+			o.Status = status
+			if o.AttemptedAt == nil {
+				o.AttemptedAt = new(time.Now().UTC())
+			}
+			return store.SaveOperation(ctx, tx, &o)
+		})
+		if err != nil {
+			return err
+		}
+		if blocked {
+			return errProvisionWait
+		}
+		return nil
+	}
 	return e.Store.SetOperation(ctx, e.ID, id, status, result)
 }
+
 func (e *Executor) invoke(ctx context.Context, o store.Operation, call func() (operationResult, error)) (operationResult, error) {
 	if o.Status == "confirmed" {
 		return decodeResult(o)
@@ -254,6 +288,9 @@ func (e *Executor) Run(ctx context.Context) {
 }
 func (e *Executor) Tick(ctx context.Context) error {
 	err := e.tick(ctx)
+	if errors.Is(err, errProvisionWait) {
+		return nil
+	}
 	if err == nil {
 		return nil
 	}
@@ -363,6 +400,9 @@ func (e *Executor) tick(ctx context.Context) error {
 			return err
 		}
 	}
+	if _, err := e.provision(ctx, run.ID, false, nil); err != nil {
+		return err
+	}
 	if run.CancelRequestedAt != nil && run.ExecutionStartedAt == nil {
 		if run.Phase != nil && (*run.Phase == "after_create" || *run.Phase == "before_run") {
 			h, err := e.Store.Hook(ctx, run.ID, *run.Phase)
@@ -385,21 +425,18 @@ func (e *Executor) tick(ctx context.Context) error {
 		if err := e.skipHooks(ctx, *run, "after_create", "before_run", "after_run"); err != nil {
 			return err
 		}
-		if record.SandboxID == nil {
-			attempt, err := e.Store.LatestAttempt(ctx, e.ID, "sandbox_create")
-			if err != nil {
-				return err
-			}
-			if attempt != nil {
-				if err := e.ensureSandbox(ctx, &record, run); err != nil {
-					return err
-				}
-			}
-		}
+
 		return e.cancelRun(ctx, record, *run)
 	}
 	if err := e.ensureSandbox(ctx, &record, run); err != nil {
 		return err
+	}
+	record, run, err = e.read(ctx)
+	if err != nil || run == nil {
+		return err
+	}
+	if run.ExecutionStartedAt == nil && run.CancelRequestedAt != nil {
+		return nil
 	}
 	if run.Status == session.Finalizing {
 		return e.finalizeRun(ctx, record, *run)
@@ -526,6 +563,9 @@ func run(ctx context.Context, s *store.Store, platform harness.Platform, cleanup
 	}
 	if !owned {
 		return errors.New("another worker owns the executor lock")
+	}
+	if err := s.RecoverProvisionReservations(ctx); err != nil {
+		return err
 	}
 	slog.InfoContext(ctx, "Worker started")
 	defer slog.InfoContext(ctx, "Worker stopped")

@@ -31,18 +31,19 @@ func TestSingleRunCleanupOutcomes(t *testing.T) {
 				wantStatus, wantSandbox, wantDeletes = session.Cancelled, "not_created", 0
 			case "create_rejected":
 				box.createError = harness.ErrEnvironmentRejected
-				wantSandbox, wantDeletes = "provisioning", 0
+				wantSandbox, wantDeletes = "not_created", 0
 			case "prepare_rejected":
 				box.prepareError = harness.ErrEnvironmentRejected
 			case "lost_create_cancel":
 				box.lostCreate = true
-				if err := e.Tick(t.Context()); !errors.Is(err, harness.ErrUncertain) {
+				if err := e.Tick(t.Context()); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := s.Cancel(t.Context(), a.SessionID, a.RunID); err != nil {
 					t.Fatal(err)
 				}
-				wantStatus = session.Cancelled
+				wantStatus, wantSandbox = session.Cancelled, "unavailable"
+				e.clock = func() time.Time { return time.Now().Add(10 * time.Second) }
 			default:
 				tick(t, e)
 				switch outcome {

@@ -285,7 +285,7 @@ func TestSettingsValidation(t *testing.T) {
 	if err != nil || got.MaxConcurrentSessions != 50 {
 		t.Fatal(got, err)
 	}
-	for _, name := range []string{"MAX_CONCURRENT_SESSIONS", "MAX_TOOL_RESULT_BYTES", "MAX_REQUEST_BYTES", "DATABASE_PING_TIMEOUT", "RPC_TIMEOUT_SECONDS"} {
+	for _, name := range []string{"MAX_CONCURRENT_SESSIONS", "MAX_TOOL_RESULT_BYTES", "MAX_REQUEST_BYTES", "DATABASE_PING_TIMEOUT", "RPC_TIMEOUT_SECONDS", "SANDBOX_PROVISION_TIMEOUT_SECONDS"} {
 		t.Run(name, func(t *testing.T) {
 			t.Setenv(name, "0")
 			if _, err := Load(); err == nil {

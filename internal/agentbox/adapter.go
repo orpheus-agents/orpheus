@@ -51,7 +51,7 @@ func (p *Platform) Find(ctx context.Context, metadata map[string]string) ([]stri
 	out := []string{}
 	next := ""
 	for {
-		page, err := p.client.Sandboxes.List(ctx, &sdk.ListSandboxOptions{Metadata: metadata, NextToken: next})
+		page, err := p.client.Sandboxes.List(ctx, &sdk.ListSandboxOptions{Metadata: metadata, States: []sdk.SandboxState{sdk.SandboxRunning, sdk.SandboxPaused}, NextToken: next})
 		if err != nil {
 			return nil, classify(err)
 		}
@@ -200,7 +200,47 @@ func (w *watch) Close() error {
 	w.once.Do(func() { w.cancel(); err = w.h.Close(); <-w.done })
 	return err
 }
+
+// Preserve the HTTP status without exposing the upstream message to the journal.
+type platformError struct {
+	cause  error
+	status int
+}
+
+func (e *platformError) Error() string   { return "AgentBox request failed" }
+func (e *platformError) Unwrap() error   { return e.cause }
+func (e *platformError) HTTPStatus() int { return e.status }
+
 func classify(err error) error {
+	classified := classifyError(err)
+	status := 0
+	if err == nil {
+		return nil
+	}
+	if e, ok := errors.AsType[*sdk.SandboxError](err); ok {
+		status = e.StatusCode
+	}
+	if e, ok := errors.AsType[*sdk.RateLimitError](err); ok {
+		status = e.StatusCode
+	}
+	if e, ok := errors.AsType[*sdk.TimeoutError](err); ok {
+		status = e.StatusCode
+	}
+	if e, ok := errors.AsType[*sdk.AuthenticationError](err); ok {
+		status = e.StatusCode
+	}
+	if e, ok := errors.AsType[*sdk.SandboxNotFoundError](err); ok {
+		status = e.StatusCode
+	}
+	if e, ok := errors.AsType[*sdk.TemplateError](err); ok {
+		status = e.StatusCode
+	}
+	if status != 0 {
+		return &platformError{cause: classified, status: status}
+	}
+	return classified
+}
+func classifyError(err error) error {
 	if err == nil {
 		return nil
 	}

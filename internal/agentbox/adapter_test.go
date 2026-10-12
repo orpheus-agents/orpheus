@@ -273,3 +273,84 @@ func TestMissingFileReadIsNotEnvironmentRejection(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateDoesNotRetry(t *testing.T) {
+	for _, status := range []int{http.StatusTooManyRequests, http.StatusServiceUnavailable, http.StatusGatewayTimeout} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				if r.Method != http.MethodPost || r.URL.Path != "/sandboxes" {
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				_, _ = io.WriteString(w, `{"message":"secret upstream detail"}`)
+			}))
+			defer server.Close()
+			client, err := sdk.NewClient(sdk.WithAPIKey("fixture"), sdk.WithAPIURL(server.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = (&Platform{client: client}).Create(t.Context(), "template", time.Minute, map[string]string{"orpheus_operation_id": "same-operation"})
+			if err == nil || errors.Is(err, harness.ErrRejected) || calls != 1 {
+				t.Fatalf("calls=%d err=%v", calls, err)
+			}
+			upstream, ok := errors.AsType[interface {
+				error
+				HTTPStatus() int
+			}](err)
+			if !ok || upstream.HTTPStatus() != status {
+				t.Fatal("HTTP status lost", err)
+			}
+		})
+	}
+}
+
+func TestFindTraversesAllStatesAndPages(t *testing.T) {
+	for _, failPage := range []bool{false, true} {
+		t.Run(fmt.Sprint(failPage), func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				if r.Method != http.MethodGet || r.URL.Path != "/v2/sandboxes" {
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+				}
+				if r.URL.Query().Get("state") != "running,paused" {
+					t.Error("Find must include paused sandboxes")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if calls == 1 {
+					w.Header().Set("X-Next-Token", "next")
+					_, _ = io.WriteString(w, `[]`)
+					return
+				}
+				if r.URL.Query().Get("nextToken") != "next" {
+					t.Error("pagination token lost", r.URL.RawQuery)
+				}
+				if failPage {
+					w.WriteHeader(503)
+					_, _ = io.WriteString(w, `{"message":"offline"}`)
+					return
+				}
+				_, _ = io.WriteString(w, `[{"sandboxID":"late","templateID":"template","state":"paused"}]`)
+			}))
+			defer server.Close()
+			client, err := sdk.NewClient(sdk.WithAPIKey("fixture"), sdk.WithAPIURL(server.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			found, err := (&Platform{client: client}).Find(t.Context(), map[string]string{"orpheus_operation_id": "original"})
+			if calls != 2 {
+				t.Fatal(calls)
+			}
+			if failPage {
+				if err == nil || len(found) != 0 {
+					t.Fatal("partial list accepted", found, err)
+				}
+			} else if err != nil || len(found) != 1 || found[0] != "late" {
+				t.Fatal(found, err)
+			}
+		})
+	}
+}

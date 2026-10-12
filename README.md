@@ -58,6 +58,26 @@ after a run, Orpheus deletes a single-run sandbox or pauses a reusable one.
 The AgentBox plan's maximum uninterrupted sandbox lifetime still applies:
 lease renewal does not extend that limit.
 
+Initial sandbox creation and connection have a separate, persisted two-minute
+provisioning deadline. Set `SANDBOX_PROVISION_TIMEOUT_SECONDS` to change it for new
+attempts. Cancellation during this stage completes locally even if AgentBox is
+unreachable; an expired attempt fails with `sandbox_provision_timeout`.
+
+Orpheus never automatically repeats a Create with an unknown outcome. It searches
+using the original operation metadata with persisted backoff. A cancelled or
+expired attempt cannot start agent work: a late sandbox is deleted directly,
+including for reusable sessions. The session remains unavailable, with its
+capacity slot reserved until deletion is confirmed. An empty search is not proof
+of absence, so an unresolved resource can retain a slot indefinitely. Existing
+run results remain readable; `sandbox.error` reports pending cleanup or conflicts.
+
+On upgrade, old cancelling creations complete as cancelled and expired creations
+fail on the first local pass. After acquiring execution ownership, the worker
+restores unresolved reservations once more to cover writes made by the old worker
+during rollout. Legacy adopted environments keep their normal lifecycle. Do not
+roll back just the worker binary after new cleanup obligations have been recorded;
+migration Down is not a production rollback procedure.
+
 ## Go API client
 
 Connectors import `github.com/orpheus-agents/orpheus/client`. The public HTTP client

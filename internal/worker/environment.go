@@ -23,52 +23,17 @@ import (
 const sandboxLeaseTimeout = 5 * time.Minute
 
 func (e *Executor) ensureSandbox(ctx context.Context, record *store.SessionRecord, run *store.RunRecord) error {
-	if record.SandboxID == nil {
-		if err := e.state(ctx, "provisioning", nil); err != nil {
-			return err
-		}
-		o, err := e.operation(ctx, "sandbox_create", nil, nil, nil)
-		if err != nil {
-			return err
-		}
-		var result operationResult
-		if o.Status == "sending" || o.Status == "uncertain" {
-			found, err := e.Platform.Find(ctx, map[string]string{"orpheus_session_id": e.ID.String(), "orpheus_operation_id": o.ID.String()})
-			if err != nil {
-				return err
-			}
-			if len(found) != 1 {
-				return harness.ErrUncertain
-			}
-			result.SandboxID = found[0]
-			if err := e.opStatus(ctx, o.ID, "confirmed", result); err != nil {
-				return err
-			}
-		} else {
-			result, err = e.invoke(ctx, o, func() (operationResult, error) {
-				box, err := e.Platform.Create(ctx, record.Configuration.Public.Sandbox.Template, sandboxLeaseTimeout, map[string]string{"orpheus_session_id": e.ID.String(), "orpheus_operation_id": o.ID.String()})
-				if err != nil {
-					return operationResult{}, err
-				}
-				e.sandbox = box
-				return operationResult{SandboxID: box.ID()}, nil
-			})
-			if err != nil {
-				return err
-			}
-		}
-		if result.SandboxID == "" {
-			return harness.ErrUncertain
-		}
-		record.SandboxID = &result.SandboxID
-		if err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
-			return store.UpdateSandbox(ctx, tx, r, func(r *store.SessionRecord) {
-				r.SandboxID = record.SandboxID
-			})
-		}); err != nil {
-			return err
-		}
+	o, err := e.provision(ctx, run.ID, true, nil)
+	if err != nil {
+		return err
 	}
+	if o != nil {
+		return e.ensureProvision(ctx, record, run, *o)
+	}
+	if record.SandboxID == nil {
+		return harness.ErrUncertain
+	}
+
 	switch {
 	case e.sandbox == nil:
 		state, err := e.Platform.Info(ctx, *record.SandboxID)
@@ -422,10 +387,18 @@ func (e *Executor) refresh(ctx context.Context, record store.SessionRecord) erro
 	return nil
 }
 func (e *Executor) settleEnvironment(ctx context.Context, record store.SessionRecord) error {
+	outstanding, err := openCreate(ctx, e.Store.Pool, e.ID)
+	if err != nil {
+		return err
+	}
+	if outstanding != nil {
+		return e.settleProvision(ctx, *outstanding)
+	}
+
 	if time.Now().Before(e.settleRetryAt) {
 		return nil
 	}
-	err := e.settleEnvironmentNow(ctx, record)
+	err = e.settleEnvironmentNow(ctx, record)
 	if err == nil {
 		e.settleRetryAt = time.Time{}
 		e.settleRetryDelay = 5 * time.Second
@@ -588,6 +561,13 @@ func (e *Executor) finalAuthSync(ctx context.Context, record store.SessionRecord
 
 func (e *Executor) releaseEnvironment(ctx context.Context, record store.SessionRecord, settled string) error {
 	return e.Store.Mutate(ctx, e.ID, true, func(tx pgx.Tx, r *store.SessionRecord) error {
+		outstanding, err := openCreate(ctx, tx, e.ID)
+		if err != nil {
+			return err
+		}
+		if outstanding != nil {
+			return nil
+		}
 		if record.SandboxID != nil && (record.SandboxState != "unavailable" || !record.AllowMultipleRuns) {
 			if err := store.UpdateSandbox(ctx, tx, r, func(r *store.SessionRecord) {
 				r.SandboxState = settled
