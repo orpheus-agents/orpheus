@@ -24,5 +24,6 @@ Read [README.md](README.md).
 * Test new migrations in both directions against the test database.
 
 # Docs
+* Write documentation in English.
 * Follow the principles of Maxim Ilyakhov's "Write, Cut": be concise without losing substance.
 * Prefer clear structure, diagrams, and lists over long blocks of text.
