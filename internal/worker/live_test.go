@@ -113,7 +113,7 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 	}
 	model := os.Getenv("ORPHEUS_TEST_MODEL")
 	if model == "" {
-		model = "gpt-5.4"
+		model = "gpt-6-luna"
 	}
 	s := &store.Store{Pool: testutil.Database(t), Settings: settings, Cipher: cipher, Profiles: config.Profiles{Templates: map[string]config.Template{"codex": {}}, Profiles: map[string]config.Profile{"live": {Harness: "codex", Model: &model, Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
 	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Minute)
