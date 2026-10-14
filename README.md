@@ -148,7 +148,7 @@ directory. Use `migrate --dir /path/to/migrations up` or
 | `make test` | Unit, reader, PostgreSQL, S3 and migration tests |
 | `make test-go-race` | Unit and integration tests with the race detector |
 | `make test-saml` | Signed SAML round trip through the production HTTP handler and isolated Keycloak; no UI required |
-| `make test-live` | Manually run real AgentBox/Codex, lost-response recovery, reconnect and account-file checks; not run by CI |
+| `make test-live` | Run real AgentBox/Codex, lost-response recovery, reconnect and account-file checks; also run by CI on branches and eligible pull requests |
 | `make vuln` | govulncheck and Trivy vulnerability/configuration scans |
 | `make build` | Compile the application inside the tools container |
 | `make docker-build` / `make smoke` | Build images / verify production serve, worker, migrate and shutdown |
