@@ -45,6 +45,7 @@ func resultChanged(item harness.Item, meta *toolMeta) bool {
 	return replaceResult(item, &meta.ToolRecord, meta.HasResult) && (resultDigest(item.Result) != meta.ResultDigest || item.Completeness != meta.OutputCompleteness || !reflect.DeepEqual(item.TruncationReason, meta.TruncationReason))
 }
 func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot harness.Snapshot) error {
+	sanitizeSnapshot(&snapshot)
 	turnIDs := make([]string, 0, len(snapshot.Turns))
 	messageKeys := []string{}
 	toolKeys := []string{}

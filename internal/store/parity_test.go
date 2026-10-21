@@ -64,6 +64,92 @@ func TestLargeIntegerProjectionChanges(t *testing.T) {
 	}
 }
 
+func TestReconcileSanitizesPostgresUnsupportedNUL(t *testing.T) {
+	s := fixture(t)
+	a, err := s.Accept(t.Context(), request())
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	snapshot := harness.Snapshot{Turns: []harness.Turn{{
+		NativeID: "turn",
+		Status:   session.Cancelled,
+		Items: []harness.Item{
+			{NativeID: "answer", Type: "assistant", Text: "before\x00after", Kind: new("answer")},
+			{NativeID: "tool", Type: "tool", Index: 1, Name: "native", Input: json.RawMessage(`{"nul":"\u0000","literal":"\\u0000"}`), Status: "completed", Result: json.RawMessage(`{"type":"text","text":"\u0000","original_bytes":1}`), Completeness: "complete"},
+		},
+	}}}
+	apply := func() error {
+		return s.Mutate(t.Context(), a.SessionID, false, func(tx pgx.Tx, r *SessionRecord) error {
+			return Reconcile(t.Context(), tx, r, snapshot)
+		})
+	}
+	if err := s.Mutate(t.Context(), a.SessionID, false, func(tx pgx.Tx, r *SessionRecord) error {
+		r.ThreadID = new("thread")
+		run, err := GetRun(t.Context(), tx, a.SessionID, a.RunID)
+		if err != nil {
+			return err
+		}
+		run.NativeTurnID = new("turn")
+		run.Status = session.Cancelling
+		run.ExecutionStartedAt = &now
+		run.CancelRequestedAt = &now
+		return SaveRun(t.Context(), tx, &run)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := apply(); err != nil {
+		t.Fatal(err)
+	}
+	run, err := s.Run(t.Context(), a.SessionID, a.RunID)
+	if err != nil || run.Status != session.Cancelled {
+		t.Fatal("cancelling run did not recover", run.Status, err)
+	}
+	record, _, err := s.Read(t.Context(), a.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := s.History(t.Context(), a.SessionID, nil, 50, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundMessage, foundTool := false, false
+	for _, item := range page.Items {
+		switch {
+		case item.Message != nil && item.Message.Role == "assistant":
+			foundMessage = true
+			if item.Message.Text != "before\uFFFDafter" {
+				t.Fatal("message NUL was not replaced", item.Message.Text)
+			}
+		case item.ToolCall != nil:
+			foundTool = true
+			var input map[string]string
+			var result struct {
+				Text string `json:"text"`
+			}
+			if err := json.Unmarshal(item.ToolCall.Input, &input); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(item.ToolCall.Result, &result); err != nil {
+				t.Fatal(err)
+			}
+			if input["nul"] != replacementCharacter || input["literal"] != `\u0000` || result.Text != replacementCharacter {
+				t.Fatal("tool JSON was not sanitized", input, result)
+			}
+		}
+	}
+	if !foundMessage || !foundTool {
+		t.Fatal("sanitized projections are missing", foundMessage, foundTool)
+	}
+	if err := apply(); err != nil {
+		t.Fatal(err)
+	}
+	after, _, err := s.Read(t.Context(), a.SessionID)
+	if err != nil || after.NextEventSequence != record.NextEventSequence {
+		t.Fatal("replay changed events", after.NextEventSequence, record.NextEventSequence, err)
+	}
+}
+
 func TestMalformedCursorComponents(t *testing.T) {
 	s := fixture(t)
 	a, err := s.Accept(t.Context(), request())
