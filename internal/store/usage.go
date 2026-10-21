@@ -32,6 +32,7 @@ func ApplyUsage(ctx context.Context, tx pgx.Tx, record *SessionRecord, reports [
 	if record.ThreadID == nil || len(reports) == 0 {
 		return nil
 	}
+	reports = sanitizeUsageReports(reports)
 	ids := make([]string, 0, len(reports))
 	for _, report := range reports {
 		if report.ContextID == *record.ThreadID {
