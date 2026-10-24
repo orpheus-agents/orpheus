@@ -183,19 +183,48 @@ func RunViews(ctx context.Context, q db.DBTX, records []RunRecord) ([]session.Ru
 	return views, nil
 }
 func SessionView(ctx context.Context, q db.DBTX, s SessionRecord) (session.Session, error) {
-	r, err := runRecord(db.New(q).LatestRun(ctx, s.ID))
+	views, err := SessionViews(ctx, q, []SessionRecord{s})
 	if err != nil {
 		return session.Session{}, err
 	}
-	v, err := RunView(ctx, q, r)
+	return views[0], nil
+}
+
+// SessionViews loads latest runs and their related data once for the whole page.
+// Results retain the input order within the caller's snapshot.
+func SessionViews(ctx context.Context, q db.DBTX, records []SessionRecord) ([]session.Session, error) {
+	views := make([]session.Session, 0, len(records))
+	if len(records) == 0 {
+		return views, nil
+	}
+	ids := make([]uuid.UUID, 0, len(records))
+	for _, s := range records {
+		ids = append(ids, s.ID)
+	}
+	runs, err := runRecords(db.New(q).LatestRunsForSessions(ctx, ids))
 	if err != nil {
-		return session.Session{}, err
+		return nil, err
 	}
-	out := session.Session{AllowMultipleRuns: s.AllowMultipleRuns, Usage: s.Usage(), Namespace: s.Namespace, ExternalKey: s.ExternalKey, ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, LastRunCreatedAt: r.CreatedAt, Status: r.Status, Phase: r.Phase, FinalMessage: v.FinalMessage, Error: r.Error}
-	if !r.Status.Terminal() {
-		out.ActiveRunID = &r.ID
+	runViews, err := RunViews(ctx, q, runs)
+	if err != nil {
+		return nil, err
 	}
-	return out, nil
+	bySession := make(map[uuid.UUID]session.Run, len(runViews))
+	for _, r := range runViews {
+		bySession[r.SessionID] = r
+	}
+	for _, s := range records {
+		r, ok := bySession[s.ID]
+		if !ok {
+			return nil, pgx.ErrNoRows
+		}
+		out := session.Session{AllowMultipleRuns: s.AllowMultipleRuns, Usage: s.Usage(), Namespace: s.Namespace, ExternalKey: s.ExternalKey, ID: s.ID, CreatedAt: s.CreatedAt, Configuration: s.Configuration.Public, Sandbox: s.Sandbox(), LastRunID: r.ID, LastRunCreatedAt: r.CreatedAt, Status: r.Status, Phase: r.Phase, FinalMessage: r.FinalMessage, Error: r.Error}
+		if !r.Status.Terminal() {
+			out.ActiveRunID = &r.ID
+		}
+		views = append(views, out)
+	}
+	return views, nil
 }
 func Advisory(ctx context.Context, tx pgx.Tx, key int64) error {
 	return db.New(tx).AdvisoryLock(ctx, key)

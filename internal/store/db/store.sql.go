@@ -403,50 +403,64 @@ func (q *Queries) InsertIdempotency(ctx context.Context, arg InsertIdempotencyPa
 	return err
 }
 
-const latestRun = `-- name: LatestRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services
-FROM runs r
-WHERE session_id = $1
-ORDER BY number DESC
-LIMIT 1
+const latestRunsForSessions = `-- name: LatestRunsForSessions :many
+SELECT latest.id, latest.session_id, latest.number, latest.status, latest.observation, latest.created_at, latest.execution_started_at, latest.deadline_at, latest.finished_at, latest.cancel_requested_at, latest.cancel_attempted_at, latest.stop_reason, latest.stop_method, latest.error, latest.native_turn_id, latest.next_delivery_number, latest.final_message_id, latest.input_fingerprint, latest.env_ciphertext, latest.env_names, latest.env_from, latest.phase, latest.agent_status, latest.agent_error, latest.input_tokens, latest.output_tokens, latest.total_tokens, latest.cached_input_tokens, latest.reasoning_output_tokens, latest.services FROM sessions s
+CROSS JOIN LATERAL (
+  SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services FROM runs r WHERE r.session_id = s.id
+  ORDER BY r.number DESC LIMIT 1
+) latest
+WHERE s.id = ANY($1::uuid[])
 `
 
-func (q *Queries) LatestRun(ctx context.Context, sessionID uuid.UUID) (Run, error) {
-	row := q.db.QueryRow(ctx, latestRun, sessionID)
-	var i Run
-	err := row.Scan(
-		&i.ID,
-		&i.SessionID,
-		&i.Number,
-		&i.Status,
-		&i.Observation,
-		&i.CreatedAt,
-		&i.ExecutionStartedAt,
-		&i.DeadlineAt,
-		&i.FinishedAt,
-		&i.CancelRequestedAt,
-		&i.CancelAttemptedAt,
-		&i.StopReason,
-		&i.StopMethod,
-		&i.Error,
-		&i.NativeTurnID,
-		&i.NextDeliveryNumber,
-		&i.FinalMessageID,
-		&i.InputFingerprint,
-		&i.EnvCiphertext,
-		&i.EnvNames,
-		&i.EnvFrom,
-		&i.Phase,
-		&i.AgentStatus,
-		&i.AgentError,
-		&i.InputTokens,
-		&i.OutputTokens,
-		&i.TotalTokens,
-		&i.CachedInputTokens,
-		&i.ReasoningOutputTokens,
-		&i.Services,
-	)
-	return i, err
+func (q *Queries) LatestRunsForSessions(ctx context.Context, sessionIds []uuid.UUID) ([]Run, error) {
+	rows, err := q.db.Query(ctx, latestRunsForSessions, sessionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Run{}
+	for rows.Next() {
+		var i Run
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.Number,
+			&i.Status,
+			&i.Observation,
+			&i.CreatedAt,
+			&i.ExecutionStartedAt,
+			&i.DeadlineAt,
+			&i.FinishedAt,
+			&i.CancelRequestedAt,
+			&i.CancelAttemptedAt,
+			&i.StopReason,
+			&i.StopMethod,
+			&i.Error,
+			&i.NativeTurnID,
+			&i.NextDeliveryNumber,
+			&i.FinalMessageID,
+			&i.InputFingerprint,
+			&i.EnvCiphertext,
+			&i.EnvNames,
+			&i.EnvFrom,
+			&i.Phase,
+			&i.AgentStatus,
+			&i.AgentError,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.CachedInputTokens,
+			&i.ReasoningOutputTokens,
+			&i.Services,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const lockSession = `-- name: LockSession :one
