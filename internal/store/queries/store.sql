@@ -18,12 +18,13 @@ SELECT r.*
 FROM runs r
 WHERE session_id = $1 AND status IN ('accepted', 'starting', 'running', 'cancelling', 'finalizing');
 
--- name: LatestRun :one
-SELECT r.*
-FROM runs r
-WHERE session_id = $1
-ORDER BY number DESC
-LIMIT 1;
+-- name: LatestRunsForSessions :many
+SELECT latest.* FROM sessions s
+CROSS JOIN LATERAL (
+  SELECT r.* FROM runs r WHERE r.session_id = s.id
+  ORDER BY r.number DESC LIMIT 1
+) latest
+WHERE s.id = ANY(sqlc.arg(session_ids)::uuid[]);
 
 -- name: AdvisoryLock :exec
 SELECT pg_advisory_xact_lock(sqlc.arg(lock_key)::bigint);

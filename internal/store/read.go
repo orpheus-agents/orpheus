@@ -128,12 +128,9 @@ func (s *Store) ListSessions(ctx context.Context, limit int, cursor string, filt
 		if err != nil {
 			return err
 		}
-		for _, r := range records[:min(limit, len(records))] {
-			v, err := SessionView(ctx, tx, r)
-			if err != nil {
-				return err
-			}
-			out.Items = append(out.Items, v)
+		out.Items, err = SessionViews(ctx, tx, records[:min(limit, len(records))])
+		if err != nil {
+			return err
 		}
 		if len(records) > limit {
 			last := out.Items[len(out.Items)-1]
