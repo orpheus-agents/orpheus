@@ -86,11 +86,17 @@ Run this against the target template and a test account before enabling the
 collector in production. This is a manual check, not a CI job. `AGENTBOX_API_KEY`
 must be set, and the sandbox must be able to reach the ChatGPT backend. The
 test creates a short-lived sandbox and removes it afterward. It starts Codex
-with the same `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY` defaults as the worker; set
-`SANDBOX_PROXY_URL` to override the proxy or to an empty value to disable it.
+with the same proxy settings as the worker. The default HTTPS proxy uses
+`HTTPS_PROXY`/`HTTP_PROXY`; a `socks5://` or `socks5h://` URL uses `ALL_PROXY`.
+Both keep localhost direct through `NO_PROXY`. Set `SANDBOX_PROXY_URL` to override
+the proxy or to an empty value to disable it. For AgentBox SOCKS5 with proxy-side
+DNS resolution, use `socks5h://sandbox-proxy.agentbox.ru:65180`.
+Verify SOCKS support for the installed harness and authentication mode. In a
+Codex 0.164.0 smoke test, an API-key turn succeeded over SOCKS5, but ChatGPT account
+authentication failed with `workspace routing discovery failed`: its HTTP client
+sent HTTP CONNECT to the SOCKS endpoint. Keep HTTPS for those account requests.
 The manual run on 2026-09-25 passed with the AgentBox `codex` template
-(Codex 0.157.0) and the default HTTPS proxy. An old SOCKS5 override is rejected
-at startup; update it to an HTTP(S) proxy URL before deploying this version.
+(Codex 0.157.0) and the default HTTPS proxy.
 
 On 2026-10-01, the reset-count live test passed with Codex 0.159.3 in a temporary
 template built from the current `orpheus-codex` definition in a personal AgentBox

@@ -216,8 +216,13 @@ func TestSandboxProxyURL(t *testing.T) {
 		{"AgentBox HTTPS", "https://sandbox-proxy.agentbox.ru:65181", true},
 		{"custom HTTP", "http://proxy.example:3128", true},
 		{"disabled", "", true},
-		{"old SOCKS", "socks5h://sandbox-proxy.agentbox.ru:65180", false},
+		{"AgentBox SOCKS5H", "socks5h://sandbox-proxy.agentbox.ru:65180", true},
+		{"custom SOCKS5", "socks5://proxy.example:1080", true},
+		{"uppercase SOCKS5H", "SOCKS5H://proxy.example:1080", true},
+		{"unsupported scheme", "socks4://proxy.example:1080", false},
 		{"missing host", "https://", false},
+		{"missing SOCKS host", "socks5h://:1080", false},
+		{"invalid URL", "socks5h://proxy.example:invalid", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("SANDBOX_PROXY_URL", tc.value)
