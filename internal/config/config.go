@@ -440,8 +440,14 @@ func AddSandboxProxy(env map[string]string, proxy string) {
 	if proxy == "" {
 		return
 	}
-	env["HTTPS_PROXY"] = proxy
-	env["HTTP_PROXY"] = proxy
+	scheme, _, _ := strings.Cut(proxy, ":")
+	switch strings.ToLower(scheme) {
+	case "socks5", "socks5h":
+		env["ALL_PROXY"] = proxy
+	default:
+		env["HTTPS_PROXY"] = proxy
+		env["HTTP_PROXY"] = proxy
+	}
 	env["NO_PROXY"] = "localhost,127.0.0.1"
 }
 func Load() (Settings, error) {
@@ -453,8 +459,8 @@ func Load() (Settings, error) {
 	}
 	if s.SandboxProxyURL != "" {
 		proxy, err := url.Parse(s.SandboxProxyURL)
-		if err != nil || (proxy.Scheme != "http" && proxy.Scheme != "https") || proxy.Host == "" {
-			return s, errors.New("SANDBOX_PROXY_URL must be an HTTP or HTTPS proxy URL")
+		if err != nil || !slices.Contains([]string{"http", "https", "socks5", "socks5h"}, proxy.Scheme) || proxy.Hostname() == "" {
+			return s, errors.New("SANDBOX_PROXY_URL must be an HTTP, HTTPS, SOCKS5 or SOCKS5H proxy URL with a host")
 		}
 	}
 	s.BrowserAuth.ttlSeconds = os.Getenv("BROWSER_SESSION_TTL_SECONDS")
