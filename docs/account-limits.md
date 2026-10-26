@@ -91,6 +91,9 @@ with the same proxy settings as the worker. The default HTTPS proxy uses
 Both keep localhost direct through `NO_PROXY`. Set `SANDBOX_PROXY_URL` to override
 the proxy or to an empty value to disable it. For AgentBox SOCKS5 with proxy-side
 DNS resolution, use `socks5h://sandbox-proxy.agentbox.ru:65180`.
+Verify SOCKS support in the installed harness before selecting it: Codex 0.164.0's
+HTTP client sends HTTP CONNECT to the SOCKS endpoint and fails initial requests.
+Keep the default HTTPS proxy for that version.
 The manual run on 2026-09-25 passed with the AgentBox `codex` template
 (Codex 0.157.0) and the default HTTPS proxy.
 
