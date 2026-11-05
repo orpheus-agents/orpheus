@@ -732,6 +732,9 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 		if a.Create == nil && a.RunID == uuid.Nil && !record.AllowMultipleRuns {
 			return session.Problem(409, "multiple_runs_not_allowed", "This session allows only one run. Create a new session for another run, or set allow_multiple_runs=true when creating a session that must support continuation.")
 		}
+		if a.RunID == uuid.Nil && (record.SandboxState == "unavailable" || record.SandboxState == "deleting" || record.SandboxState == "deleted") {
+			return session.Problem(409, "session_unavailable", "Session environment is unavailable. Create a new session with the required context.")
+		}
 		var run RunRecord
 		if BudgetExhausted(record) {
 			return session.Problem(409, "token_limit_exceeded", "Session token budget is exhausted.")
@@ -745,9 +748,6 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 				return session.Problem(409, "run_not_accepting_messages", "Run is not accepting messages.")
 			}
 		} else {
-			if record.SandboxState == "unavailable" {
-				return session.Problem(409, "session_unavailable", "Session environment is unavailable.")
-			}
 			active, err := ActiveRun(ctx, tx, record.ID)
 			if err != nil {
 				return err

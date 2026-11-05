@@ -347,7 +347,7 @@ components:
             additionalProperties: false
             properties:
                 allow_multiple_runs:
-                    description: Immutable session policy. If false, only the run created with the session is allowed and its sandbox is deleted after completion, failure or cancellation. If true, the sandbox is paused for subsequent runs. Recovery and messages within the current run are allowed in either mode.
+                    description: Immutable session policy. If false, only the run created with the session is allowed and its sandbox is deleted after completion, failure or cancellation. If true, the sandbox is paused for subsequent runs until its retention period expires. Recovery and messages within the current run are allowed in either mode.
                     type: boolean
                     default: false
                 namespace:
@@ -2543,7 +2543,14 @@ paths:
                 - BrowserSession: []
             summary: List Runs
         post:
-            description: Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed, regardless of the first run or sandbox state. Idempotent replay of an accepted request returns the original acceptance.
+            description: >-
+                Create a subsequent run. Sessions created with allow_multiple_runs=false
+                reject this operation with 409 multiple_runs_not_allowed. Deleting,
+                deleted or unavailable environments reject new input with 409
+                session_unavailable; create a new session with the required context.
+                If external sandbox loss is discovered after acceptance, the run fails
+                asynchronously with sandbox_lost. Idempotent replay of an accepted
+                request returns the original acceptance, regardless of sandbox state.
             operationId: create_run
             parameters:
                 - in: path

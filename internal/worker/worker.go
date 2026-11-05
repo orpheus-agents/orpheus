@@ -575,7 +575,8 @@ func run(ctx context.Context, s *store.Store, platform harness.Platform, cleanup
 	defer func() { cancel(); wg.Wait(); collector.Wait() }()
 	// Purge expired identities even after SAML is disabled, under worker ownership.
 	wg.Go(func() { cleanup(execution, db.New(s.Pool)) })
-	tasks := map[uuid.UUID]<-chan struct{}{}
+	tasks := map[uuid.UUID]workerTask{}
+	var retention sandboxCleanupPass
 	for ctx.Err() == nil {
 		probe, cancelProbe := context.WithTimeout(ctx, s.Settings.DatabasePingTimeout)
 		err := owner.Ping(probe)
@@ -585,9 +586,12 @@ func run(ctx context.Context, s *store.Store, platform harness.Platform, cleanup
 		}
 		// Reap tasks before reading reservations so a stale reservation cannot
 		// restart an executor that released its slot during the query.
-		for id, done := range tasks {
+		for id, task := range tasks {
 			select {
-			case <-done:
+			case <-task.done:
+				if task.cleanupResult != nil {
+					retention.finished(*task.cleanupResult)
+				}
 				delete(tasks, id)
 			default:
 			}
@@ -599,7 +603,7 @@ func run(ctx context.Context, s *store.Store, platform harness.Platform, cleanup
 		for _, id := range ids {
 			if _, ok := tasks[id]; !ok {
 				done := make(chan struct{})
-				tasks[id] = done
+				tasks[id] = workerTask{done: done}
 				wg.Go(func() {
 					defer close(done)
 					executor := NewExecutor(id, s, platform)
@@ -607,6 +611,9 @@ func run(ctx context.Context, s *store.Store, platform harness.Platform, cleanup
 					executor.Run(execution)
 				})
 			}
+		}
+		if err := retention.advance(execution, s, platform, tasks, &wg, time.Now().UTC()); err != nil && execution.Err() == nil {
+			slog.WarnContext(ctx, "Paused sandbox cleanup selection failed", "error_type", diagnostic.Describe(err))
 		}
 		select {
 		case <-ctx.Done():

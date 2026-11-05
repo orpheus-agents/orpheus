@@ -324,3 +324,46 @@ func TestDatabasePingTimeout(t *testing.T) {
 		})
 	}
 }
+
+func TestSandboxRetentionSettings(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://fixture")
+	defaults := DefaultSettings()
+	if defaults.SandboxPausedRetentionDays != 14 || defaults.SandboxCleanupBatchSize != 1000 {
+		t.Fatal(defaults)
+	}
+	for _, tc := range []struct {
+		name string
+		max  string
+	}{
+		{"SANDBOX_PAUSED_RETENTION_DAYS", "101"},
+		{"SANDBOX_CLEANUP_BATCH_SIZE", "2147483648"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, value := range []string{"", "0", "-1", "1.5", "no", tc.max, "99999999999999999999"} {
+				t.Setenv(tc.name, value)
+				if _, err := Load(); err == nil {
+					t.Fatalf("accepted %s=%q", tc.name, value)
+				}
+			}
+			t.Setenv(tc.name, "7")
+			got, err := Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.name == "SANDBOX_PAUSED_RETENTION_DAYS" && got.SandboxPausedRetentionDays != 7 || tc.name == "SANDBOX_CLEANUP_BATCH_SIZE" && got.SandboxCleanupBatchSize != 7 {
+				t.Fatal(got)
+			}
+		})
+	}
+}
+
+func TestSandboxRetentionBoundaryDays(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://fixture")
+	for _, days := range []int{1, 100} {
+		t.Setenv("SANDBOX_PAUSED_RETENTION_DAYS", fmt.Sprint(days))
+		got, err := Load()
+		if err != nil || got.SandboxPausedRetentionDays != days {
+			t.Fatal(got, err)
+		}
+	}
+}

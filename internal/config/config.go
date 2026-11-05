@@ -412,27 +412,29 @@ func MergedEnvironment(cipher *secret.Cipher, id uuid.UUID, token *string, cfg s
 const DefaultMaxSessionTokens int64 = 100_000_000
 
 type Settings struct {
-	BrowserAuth             BrowserAuth
-	DefaultMaxSessionTokens int64
-	DatabaseURL             string
-	ConfigFile              string
-	PublicAPIKeys           []string
-	EnvEncryptionKey        string
-	HarnessEnvAllowlist     []string
-	SandboxProxyURL         string
-	MaxConcurrentSessions   int
-	MaxToolResultBytes      int
-	MaxHookOutputBytes      int
-	MaxRequestBytes         int64
-	DatabasePingTimeout     time.Duration
-	CancelGrace             time.Duration
-	WorkerPoll              time.Duration
-	RPCTimeout              time.Duration
-	SandboxProvisionTimeout time.Duration
+	BrowserAuth                BrowserAuth
+	DefaultMaxSessionTokens    int64
+	DatabaseURL                string
+	ConfigFile                 string
+	PublicAPIKeys              []string
+	EnvEncryptionKey           string
+	HarnessEnvAllowlist        []string
+	SandboxProxyURL            string
+	MaxConcurrentSessions      int
+	MaxToolResultBytes         int
+	MaxHookOutputBytes         int
+	MaxRequestBytes            int64
+	DatabasePingTimeout        time.Duration
+	CancelGrace                time.Duration
+	WorkerPoll                 time.Duration
+	RPCTimeout                 time.Duration
+	SandboxProvisionTimeout    time.Duration
+	SandboxPausedRetentionDays int
+	SandboxCleanupBatchSize    int
 }
 
 func DefaultSettings() Settings {
-	return Settings{BrowserAuth: BrowserAuth{Mode: "api_only", SessionTTL: 12 * time.Hour}, DefaultMaxSessionTokens: DefaultMaxSessionTokens, ConfigFile: "orpheus.toml", SandboxProxyURL: "https://sandbox-proxy.agentbox.ru:65181", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, DatabasePingTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second, SandboxProvisionTimeout: 120 * time.Second}
+	return Settings{BrowserAuth: BrowserAuth{Mode: "api_only", SessionTTL: 12 * time.Hour}, DefaultMaxSessionTokens: DefaultMaxSessionTokens, ConfigFile: "orpheus.toml", SandboxProxyURL: "https://sandbox-proxy.agentbox.ru:65181", MaxConcurrentSessions: 50, MaxToolResultBytes: 524288, MaxHookOutputBytes: 524288, MaxRequestBytes: 1048576, DatabasePingTimeout: 2 * time.Second, CancelGrace: 30 * time.Second, WorkerPoll: time.Second, RPCTimeout: 30 * time.Second, SandboxProvisionTimeout: 120 * time.Second, SandboxPausedRetentionDays: 14, SandboxCleanupBatchSize: 1000}
 }
 
 // AddSandboxProxy applies the sandbox egress proxy to an agent process environment.
@@ -482,10 +484,10 @@ func Load() (Settings, error) {
 			}
 		}
 	}
-	for name, dest := range map[string]*int{"MAX_CONCURRENT_SESSIONS": &s.MaxConcurrentSessions, "MAX_TOOL_RESULT_BYTES": &s.MaxToolResultBytes, "MAX_HOOK_OUTPUT_BYTES": &s.MaxHookOutputBytes} {
+	for name, dest := range map[string]*int{"SANDBOX_PAUSED_RETENTION_DAYS": &s.SandboxPausedRetentionDays, "SANDBOX_CLEANUP_BATCH_SIZE": &s.SandboxCleanupBatchSize, "MAX_CONCURRENT_SESSIONS": &s.MaxConcurrentSessions, "MAX_TOOL_RESULT_BYTES": &s.MaxToolResultBytes, "MAX_HOOK_OUTPUT_BYTES": &s.MaxHookOutputBytes} {
 		if v, ok := os.LookupEnv(name); ok {
 			n, err := strconv.Atoi(v)
-			if err != nil || n <= 0 || (name == "MAX_HOOK_OUTPUT_BYTES" && n < 2) {
+			if err != nil || n <= 0 || (name == "SANDBOX_PAUSED_RETENTION_DAYS" && n > 100) || (name == "SANDBOX_CLEANUP_BATCH_SIZE" && n > 2147483647) || (name == "MAX_HOOK_OUTPUT_BYTES" && n < 2) {
 				return s, fmt.Errorf("invalid %s", name)
 			}
 			*dest = n
