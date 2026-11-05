@@ -18,4 +18,3 @@ external deletion is discovered after acceptance, the run fails asynchronously
 with `sandbox_lost`. Replaying an accepted idempotency key still returns the
 original acceptance. Deploy connectors that handle `deleting` and `deleted`
 reusable sessions before deploying this worker version.
-
