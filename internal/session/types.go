@@ -152,6 +152,7 @@ type TextMessage struct {
 	Metadata    json.RawMessage `json:"metadata,omitzero"`
 }
 type CreateSession struct {
+	AccessContext     *AccessContext     `json:"access_context,omitzero"`
 	Services          []string           `json:"services,omitzero"`
 	AllowMultipleRuns bool               `json:"allow_multiple_runs,omitzero"`
 	Namespace         *string            `json:"namespace,omitzero"`

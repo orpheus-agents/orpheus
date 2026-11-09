@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/orpheus-agents/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/servicecredentials"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
 )
@@ -60,6 +61,16 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 	if o.Status == "confirmed" {
 		return nil
 	}
+	var credentials servicecredentials.State
+	if kind == "start" && run.ExecutionStartedAt == nil {
+		credentials, err = e.Store.ServiceCredentials(ctx, e.ID, run.ID)
+		if err != nil {
+			return err
+		}
+		if credentials.Expired(time.Now()) {
+			return e.expireCredentials(ctx, record, run, credentials)
+		}
+	}
 	send := false
 	// Persist the original deadline and delivery attempt before external I/O.
 	// A concurrent cancellation observed here prevents any external dispatch.
@@ -74,6 +85,22 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 		if store.BudgetExhausted(*r) {
 			return store.EnforceTokenBudget(ctx, tx, r, &current)
 		}
+		if kind == "start" && current.ExecutionStartedAt == nil {
+			now := time.Now().UTC()
+			deadline := executionDeadline(now, record.Configuration.Public.Limits.RunTimeoutSeconds, credentials, e.Store.Settings)
+			current.DeadlineAt = &deadline
+			if !now.Before(deadline) {
+				current.CancelRequestedAt = &now
+				current.StopReason = new("run_timeout")
+				current.Status = session.Cancelling
+				return store.PublishRun(ctx, tx, r, &current)
+			}
+			current.ExecutionStartedAt = &now
+			current.Phase = new("agent")
+			if err := store.PublishRun(ctx, tx, r, &current); err != nil {
+				return err
+			}
+		}
 		for _, input := range batch {
 			m, err := store.GetMessage(ctx, tx, input.ID)
 			if err != nil {
@@ -81,15 +108,6 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 			}
 			m.DeliveryStatus = new("sending")
 			if err := store.PublishMessage(ctx, tx, r, &m); err != nil {
-				return err
-			}
-		}
-		if kind == "start" && current.ExecutionStartedAt == nil {
-			now := time.Now().UTC()
-			current.ExecutionStartedAt = &now
-			current.DeadlineAt = new(now.Add(time.Duration(record.Configuration.Public.Limits.RunTimeoutSeconds) * time.Second))
-			current.Phase = new("agent")
-			if err := store.PublishRun(ctx, tx, r, &current); err != nil {
 				return err
 			}
 		}

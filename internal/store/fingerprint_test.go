@@ -49,3 +49,29 @@ func TestRunFingerprintWithoutEnvironment(t *testing.T) {
 		t.Fatal("plaintext ENV entered fingerprint", sameNames, err)
 	}
 }
+
+func TestAccessScopeFingerprintCanonicalAndLossless(t *testing.T) {
+	a := Admission{Messages: []session.TextMessage{{Text: "task"}}, AccessContext: &session.AccessContext{ScopeContext: session.AccessScopeContext{"ticket": json.RawMessage(`{"id":9007199254740993,"fields":{"b":2,"a":1.0e3}}`)}}}
+	first, err := fingerprint(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(a.AccessContext.ScopeContext["ticket"]) != `{"id":9007199254740993,"fields":{"b":2,"a":1.0e3}}` {
+		t.Fatal("fingerprint mutated provider scope")
+	}
+	a.AccessContext.ScopeContext["ticket"] = json.RawMessage(`{ "fields": {"a":1000,"b":2}, "id":9007199254740993 }`)
+	second, err := fingerprint(a)
+	if err != nil || second != first {
+		t.Fatal("equivalent scope changed fingerprint", err)
+	}
+	a.AccessContext.ScopeContext["ticket"] = json.RawMessage(`{"fields":{"a":1000,"b":2},"id":9007199254740992}`)
+	third, err := fingerprint(a)
+	if err != nil || third == first {
+		t.Fatal("large JSON numbers lost identity", err)
+	}
+	a.AccessContext.AllowedInputSubjects = []session.AccessSubject{{Namespace: "users", ID: "reviewer"}}
+	fourth, err := fingerprint(a)
+	if err != nil || fourth == third {
+		t.Fatal("input authority omitted from fingerprint", err)
+	}
+}

@@ -98,3 +98,28 @@ func TestRunCipherBindsBothIDsAndScope(t *testing.T) {
 		t.Fatal("empty environment must not store ciphertext")
 	}
 }
+
+func TestServiceCipherCannotBecomeRunEnvironment(t *testing.T) {
+	c, err := New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sid, rid := uuid.New(), uuid.New()
+	token, err := c.EncryptCredentials(sid, rid, "private state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := c.DecryptCredentials(sid, rid, token)
+	if err != nil || value != "private state" {
+		t.Fatal(err)
+	}
+	forged := strings.Replace(*token, "aes-gcm-service-v1:", "aes-gcm-run-v1:", 1)
+	if _, err := c.DecryptRun(sid, rid, &forged); err == nil {
+		t.Fatal("service ciphertext accepted as run environment")
+	}
+	for _, ids := range [][2]uuid.UUID{{uuid.New(), rid}, {sid, uuid.New()}} {
+		if _, err := c.DecryptCredentials(ids[0], ids[1], token); err == nil {
+			t.Fatal("wrong scope accepted")
+		}
+	}
+}
