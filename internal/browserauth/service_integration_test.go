@@ -181,6 +181,29 @@ func TestSAMLInvalidAssertions(t *testing.T) {
 			e.FindElement(".//saml:Conditions").RemoveChild(e.FindElement(".//saml:AudienceRestriction"))
 		},
 		"issuer": func(e *etree.Element) { e.FindElement(".//saml:Assertion/saml:Issuer").SetText("wrong") },
+		"missing issuer": func(e *etree.Element) {
+			assertion := e.FindElement(".//saml:Assertion")
+			assertion.RemoveChild(assertion.FindElement("saml:Issuer"))
+		},
+		"missing subject": func(e *etree.Element) {
+			assertion := e.FindElement(".//saml:Assertion")
+			assertion.RemoveChild(assertion.FindElement("saml:Subject"))
+		},
+		"missing conditions": func(e *etree.Element) {
+			assertion := e.FindElement(".//saml:Assertion")
+			assertion.RemoveChild(assertion.FindElement("saml:Conditions"))
+		},
+		"missing subject confirmation data": func(e *etree.Element) {
+			confirmation := e.FindElement(".//saml:SubjectConfirmation")
+			confirmation.RemoveChild(confirmation.FindElement("saml:SubjectConfirmationData"))
+		},
+		"foreign namespace NameID": func(e *etree.Element) {
+			subject := e.FindElement(".//saml:Subject")
+			subject.RemoveChild(subject.FindElement("saml:NameID"))
+			nameID := subject.CreateElement("foreign:NameID")
+			nameID.CreateAttr("xmlns:foreign", "urn:example:foreign")
+			nameID.SetText("spoofed-subject")
+		},
 		"recipient": func(e *etree.Element) {
 			e.FindElement(".//saml:SubjectConfirmationData").CreateAttr("Recipient", "https://evil.test")
 		},
