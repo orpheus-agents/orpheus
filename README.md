@@ -157,3 +157,8 @@ directory. Use `migrate --dir /path/to/migrations up` or
 | `make build` | Compile the application inside the tools container |
 | `make docker-build` / `make smoke` | Build images / verify production serve, worker, migrate and shutdown |
 | `make check` | Check generation, module tidiness, Go fixes, lint, dead code, SQL, tests, race, vulnerabilities and compilation |
+
+## License
+
+Licensed under the GNU Affero General Public License, version 3 only
+(`AGPL-3.0-only`). See [LICENSE](LICENSE).
