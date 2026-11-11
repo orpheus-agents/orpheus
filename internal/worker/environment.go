@@ -235,7 +235,14 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 				return err
 			}
 		} else {
-			env, err := config.Environment(e.Store.Cipher, e.ID, record.EnvCiphertext, cfg.Public, e.Store.Profiles.EnvironmentAllowlist(e.Store.Settings.HarnessEnvAllowlist))
+			env, err := e.Store.SessionEnvironment(ctx, e.Store.Pool, *record)
+			if err != nil {
+				if !errors.Is(err, store.ErrEnvironmentUnavailable) {
+					return errors.Join(errStoreAccess, err)
+				}
+				return harness.Failure("environment_unavailable", "Harness environment is unavailable.")
+			}
+			env, err = config.Environment(env, cfg.Public, e.Store.Profiles.EnvironmentAllowlist(e.Store.Settings.HarnessEnvAllowlist))
 			if err != nil {
 				return harness.Failure("environment_unavailable", "Harness environment is unavailable.")
 			}

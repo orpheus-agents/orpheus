@@ -52,7 +52,7 @@ func TestServiceEnvironmentScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	env, err := e.hookEnvironment(record, run, "before_remove")
+	env, err := e.hookEnvironment(t.Context(), record, run, "before_remove")
 	if err != nil || env["RUN_SERVICE_ENV"] != "" || env["SESSION_SERVICE_ENV"] != "session-value" {
 		t.Fatal(env, err)
 	}

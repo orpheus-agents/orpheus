@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/secret"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/pelletier/go-toml/v2"
@@ -368,16 +367,16 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Codex: session.CodexConfiguration{Effort: profile.Codex.Effort, Summary: profile.Codex.Summary, Personality: profile.Codex.Personality, ServiceTier: profile.Codex.ServiceTier}, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs, Services: services}, Limits: in.Limits, Hooks: hooks}, Credentials: creds}
 	return out, nil
 }
-func Environment(cipher *secret.Cipher, id uuid.UUID, token *string, cfg session.Configuration, allowlist []string) (map[string]string, error) {
-	return MergedEnvironment(cipher, id, token, cfg, allowlist, nil, nil)
+func Environment(env map[string]string, cfg session.Configuration, allowlist []string) (map[string]string, error) {
+	return MergedEnvironment(env, cfg, allowlist, nil, nil)
 }
 
 // MergedEnvironment resolves selected sources after run-level overrides have
 // replaced session-level sources. An overridden reference is never read.
-func MergedEnvironment(cipher *secret.Cipher, id uuid.UUID, token *string, cfg session.Configuration, allowlist []string, overrides map[string]string, overrideFrom []string) (map[string]string, error) {
-	env, err := cipher.Decrypt(id, token)
-	if err != nil {
-		return nil, err
+func MergedEnvironment(env map[string]string, cfg session.Configuration, allowlist []string, overrides map[string]string, overrideFrom []string) (map[string]string, error) {
+	env = maps.Clone(env)
+	if env == nil {
+		env = map[string]string{}
 	}
 	for _, name := range cfg.Sandbox.EnvFrom {
 		if _, ok := overrides[name]; ok || slices.Contains(overrideFrom, name) {

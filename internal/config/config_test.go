@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/orpheus-agents/orpheus/internal/secret"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
@@ -135,20 +132,17 @@ api_key_env="OPENAI_API_KEY"
 	if _, err := Resolve(in, p, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens); err == nil {
 		t.Fatal("blank model")
 	}
-	c, _ := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
-	id := uuid.New()
-	token, _ := c.Encrypt(id, in.Sandbox.Env)
 	t.Setenv("GITHUB_TOKEN", "a")
-	env, err := Environment(c, id, token, first.Public, []string{"GITHUB_TOKEN"})
+	env, err := Environment(in.Sandbox.Env, first.Public, []string{"GITHUB_TOKEN"})
 	if err != nil || env["GITHUB_TOKEN"] != "a" {
 		t.Fatal(env, err)
 	}
 	t.Setenv("GITHUB_TOKEN", "b")
-	env, err = Environment(c, id, token, first.Public, []string{"GITHUB_TOKEN"})
+	env, err = Environment(in.Sandbox.Env, first.Public, []string{"GITHUB_TOKEN"})
 	if err != nil || env["GITHUB_TOKEN"] != "b" {
 		t.Fatal(env, err)
 	}
-	if _, err := Environment(c, id, token, first.Public, nil); err == nil {
+	if _, err := Environment(in.Sandbox.Env, first.Public, nil); err == nil {
 		t.Fatal("revoked allowlist accepted")
 	}
 }

@@ -111,8 +111,8 @@ FROM idempotency_keys
 WHERE operation = $1 AND resource = $2 AND key = $3;
 
 -- name: CreateSession :one
-INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved, namespace, external_key, allow_multiple_runs)
-VALUES($1, $2, $3, false, $4, $5, $6)
+INSERT INTO sessions AS s(id, configuration, env_ciphertext, slot_reserved, namespace, external_key, allow_multiple_runs, env_secret_id)
+VALUES($1, $2, $3, false, $4, $5, $6, $7)
 RETURNING s.*;
 
 -- name: CountReserved :one
@@ -121,8 +121,8 @@ FROM sessions
 WHERE slot_reserved;
 
 -- name: CreateRun :one
-INSERT INTO runs AS r(id, session_id, number, input_fingerprint, env_ciphertext, env_names, env_from, services)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO runs AS r(id, session_id, number, input_fingerprint, env_ciphertext, env_names, env_from, services, env_secret_id)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING r.*;
 
 -- name: InsertIdempotency :exec
