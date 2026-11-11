@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"strings"
 
 	"github.com/google/uuid"
 )
@@ -90,34 +89,4 @@ func (c *Cipher) decrypt(aad []byte, value *Value) (map[string]string, error) {
 		return nil, errors.New("invalid encrypted environment")
 	}
 	return values, nil
-}
-
-// SessionToken and RunToken preserve the legacy column format during dual writes.
-func (v *Value) SessionToken() *string { return v.token("aes-gcm-v1:") }
-func (v *Value) RunToken() *string     { return v.token("aes-gcm-run-v1:") }
-
-func (v *Value) token(prefix string) *string {
-	if v == nil {
-		return nil
-	}
-	data := append(append([]byte(nil), v.Nonce...), v.Ciphertext...)
-	return new(prefix + base64.RawURLEncoding.EncodeToString(data))
-}
-
-func ParseSession(token *string) (*Value, error) { return parse("aes-gcm-v1:", token) }
-func ParseRun(token *string) (*Value, error)     { return parse("aes-gcm-run-v1:", token) }
-
-func parse(prefix string, ciphertext *string) (*Value, error) {
-	if ciphertext == nil {
-		return nil, nil
-	}
-	token, ok := strings.CutPrefix(*ciphertext, prefix)
-	if !ok {
-		return nil, errors.New("unsupported ciphertext version")
-	}
-	data, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil || len(data) < 12+16 {
-		return nil, errors.New("invalid ciphertext")
-	}
-	return &Value{Nonce: data[:12], Ciphertext: data[12:]}, nil
 }

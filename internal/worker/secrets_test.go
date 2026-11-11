@@ -11,17 +11,10 @@ import (
 )
 
 func TestSecretSourcesReachHarnessAndHooks(t *testing.T) {
-	for _, legacy := range []bool{false, true} {
-		name := "table"
-		if legacy {
-			name = "legacy"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, expr := range []string{"NULL", "'invalid'"} {
+		t.Run(expr, func(t *testing.T) {
 			s, box, a, e := setupHooks(t, true, false, map[string]string{"TOKEN": "run-value", "TASK_ID": "42"})
-			column, expr := "env_ciphertext", "'invalid'"
-			if legacy {
-				column, expr = "env_secret_id", "NULL"
-			}
+			column := "env_ciphertext"
 			if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET "+column+"="+expr+" WHERE id=$1", a.SessionID); err != nil {
 				t.Fatal(err)
 			}

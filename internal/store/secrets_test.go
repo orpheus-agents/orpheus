@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/orpheus-agents/orpheus/internal/secret"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store/db"
 )
@@ -26,7 +25,7 @@ func secretCount(t *testing.T, s *Store, want int) {
 	}
 }
 
-func TestSecretDualWriteAndConcurrentReplay(t *testing.T) {
+func TestSecretTableOnlyWriteAndConcurrentReplay(t *testing.T) {
 	s := fixture(t)
 	req := request()
 	req.Create.Env = map[string]string{"RUN_TOKEN": "run-private"}
@@ -60,20 +59,20 @@ func TestSecretDualWriteAndConcurrentReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
+		table string
+		owner uuid.UUID
 		id    *uuid.UUID
-		token *string
-		parse func(*string) (*secret.Value, error)
-	}{{record.EnvSecretID, record.EnvCiphertext, secret.ParseSession}, {run.EnvSecretID, run.EnvCiphertext, secret.ParseRun}} {
-		if tc.id == nil || tc.token == nil {
-			t.Fatal("missing dual write")
+	}{{"sessions", record.ID, record.EnvSecretID}, {"runs", run.ID, run.EnvSecretID}} {
+		if tc.id == nil {
+			t.Fatal("missing secret reference")
+		}
+		var legacy *string
+		if err := s.Pool.QueryRow(t.Context(), "SELECT env_ciphertext FROM "+tc.table+" WHERE id=$1", tc.owner).Scan(&legacy); err != nil || legacy != nil {
+			t.Fatal("legacy column written", err)
 		}
 		row, err := db.New(s.Pool).GetSecret(t.Context(), *tc.id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		value, err := tc.parse(tc.token)
-		if err != nil || !bytes.Equal(row.Nonce, value.Nonce) || !bytes.Equal(row.Ciphertext, value.Ciphertext) {
-			t.Fatal("dual writes differ", err)
+		if err != nil || len(row.Nonce) != 12 || len(row.Ciphertext) < 16 || bytes.Contains(row.Ciphertext, []byte("private")) {
+			t.Fatal("invalid encrypted secret", err)
 		}
 		if _, err := s.Pool.Exec(t.Context(), "DELETE FROM secrets WHERE id=$1", *tc.id); err == nil {
 			t.Fatal("deleted a referenced secret")
@@ -99,7 +98,7 @@ func TestSecretEmptyAndTransactionRollback(t *testing.T) {
 		}
 		r := mustSession(t, s, a.SessionID)
 		run, err := GetRun(t.Context(), s.Pool, a.SessionID, a.RunID)
-		if err != nil || r.EnvSecretID != nil || r.EnvCiphertext != nil || run.EnvSecretID != nil || run.EnvCiphertext != nil {
+		if err != nil || r.EnvSecretID != nil || run.EnvSecretID != nil {
 			t.Fatal("empty environment stored", err)
 		}
 		secretCount(t, s, 0)
@@ -133,7 +132,7 @@ func TestSecretEmptyAndTransactionRollback(t *testing.T) {
 
 func TestSecretReadPrecedenceAndReplay(t *testing.T) {
 	for _, table := range []string{"sessions", "runs"} {
-		for _, mode := range []string{"legacy", "bad column", "bad secret", "wrong owner", "wrong scope"} {
+		for _, mode := range []string{"no reference", "dual write", "bad column", "bad secret", "wrong owner", "wrong scope"} {
 			t.Run(table+"/"+mode, func(t *testing.T) {
 				s := fixture(t)
 				req := request()
@@ -147,8 +146,14 @@ func TestSecretReadPrecedenceAndReplay(t *testing.T) {
 					id = a.RunID
 				}
 				switch mode {
-				case "legacy":
-					_, err = s.Pool.Exec(t.Context(), "UPDATE "+table+" SET env_secret_id=NULL WHERE id=$1", id)
+				case "no reference":
+					_, err = s.Pool.Exec(t.Context(), "UPDATE "+table+" SET env_secret_id=NULL,env_ciphertext='invalid' WHERE id=$1", id)
+				case "dual write":
+					prefix := "aes-gcm-v1:"
+					if table == "runs" {
+						prefix = "aes-gcm-run-v1:"
+					}
+					_, err = s.Pool.Exec(t.Context(), "UPDATE "+table+" o SET env_ciphertext=$2 || rtrim(translate(encode(x.nonce || x.ciphertext,'base64'), E'+/\\n','-_'),'=') FROM secrets x WHERE o.id=$1 AND x.id=o.env_secret_id", id, prefix)
 				case "bad column":
 					_, err = s.Pool.Exec(t.Context(), "UPDATE "+table+" SET env_ciphertext='invalid' WHERE id=$1", id)
 				case "bad secret":
@@ -183,7 +188,15 @@ func TestSecretReadPrecedenceAndReplay(t *testing.T) {
 					}
 					values, err = s.RunEnvironment(t.Context(), s.Pool, run)
 				}
-				good := mode == "legacy" || mode == "bad column"
+				if mode == "no reference" {
+					if err != nil || len(values) != 0 {
+						t.Fatal("nil reference read legacy data", err)
+					}
+					_, err = s.Accept(t.Context(), req)
+					requireCode(t, err, "idempotency_conflict")
+					return
+				}
+				good := mode == "dual write" || mode == "bad column"
 				if good {
 					want := req.Create.Configuration.Sandbox.Env
 					if table == "runs" {

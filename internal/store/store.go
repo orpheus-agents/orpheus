@@ -56,7 +56,6 @@ func UpdateSandbox(ctx context.Context, tx pgx.Tx, r *SessionRecord, change func
 
 type RunRecord struct {
 	session.Run
-	EnvCiphertext      *string    `json:"-"`
 	EnvSecretID        *uuid.UUID `json:"-"`
 	CancelAttemptedAt  *time.Time `json:"cancel_attempted_at"`
 	NativeTurnID       *string    `json:"native_turn_id"`
@@ -724,7 +723,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			if err != nil {
 				return err
 			}
-			record, err = sessionRecord(db.New(tx).CreateSession(ctx, db.CreateSessionParams{AllowMultipleRuns: a.Create.AllowMultipleRuns, Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, ID: id, Configuration: resolved, EnvCiphertext: token.SessionToken(), EnvSecretID: secretID}))
+			record, err = sessionRecord(db.New(tx).CreateSession(ctx, db.CreateSessionParams{AllowMultipleRuns: a.Create.AllowMultipleRuns, Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, ID: id, Configuration: resolved, EnvSecretID: secretID}))
 			if err != nil {
 				return err
 			}
@@ -783,7 +782,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			if envNames == nil {
 				envNames = []string{}
 			}
-			run, err = runRecord(db.New(tx).CreateRun(ctx, db.CreateRunParams{InputFingerprint: a.InputFingerprint, ID: runID, SessionID: record.ID, Number: record.NextRunNumber, EnvCiphertext: token.RunToken(), EnvSecretID: secretID, EnvNames: envNames, EnvFrom: runEnvFrom, Services: runServices}))
+			run, err = runRecord(db.New(tx).CreateRun(ctx, db.CreateRunParams{InputFingerprint: a.InputFingerprint, ID: runID, SessionID: record.ID, Number: record.NextRunNumber, EnvSecretID: secretID, EnvNames: envNames, EnvFrom: runEnvFrom, Services: runServices}))
 			if err != nil {
 				return err
 			}

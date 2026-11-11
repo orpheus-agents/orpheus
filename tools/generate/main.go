@@ -55,7 +55,7 @@ func generateTargets(check, clientOnly bool) error {
 	const sqlPath = "internal/store/db"
 	if !clientOnly {
 		// Run sqlc against copied inputs so check mode never rewrites the checkout.
-		for _, path := range []string{"migrations", "internal/store/queries"} {
+		for _, path := range []string{"migrations", "internal/store/queries", "internal/store/schema_pending"} {
 			if err := os.CopyFS(filepath.Join(dir, path), os.DirFS(path)); err != nil {
 				return err
 			}
@@ -83,6 +83,9 @@ func generateTargets(check, clientOnly bool) error {
 			code, err := os.ReadFile(filepath.Join(dir, path))
 			if err != nil {
 				return err
+			}
+			if bytes.Contains(code, []byte("env_ciphertext")) {
+				return fmt.Errorf("%s references legacy env_ciphertext", path)
 			}
 			outputs[path] = code
 		}

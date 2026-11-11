@@ -85,7 +85,7 @@ func TestSecretsMigrationRoundTripAndCatchup(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if _, err := p.Up(t.Context()); err != nil {
+		if _, err := p.UpTo(t.Context(), 26); err != nil {
 			t.Fatal(err)
 		}
 		for _, table := range []string{"sessions", "runs"} {
@@ -105,12 +105,12 @@ func TestSecretsMigrationRoundTripAndCatchup(t *testing.T) {
 			var got map[string]string
 			if table == "sessions" {
 				got, err = c.Decrypt(sid, &v)
-				if *v.SessionToken() != original {
+				if legacyToken(&v, false) != original {
 					t.Fatal("session bytes changed")
 				}
 			} else {
 				got, err = c.DecryptRun(sid, rid, &v)
-				if *v.RunToken() != original {
+				if legacyToken(&v, true) != original {
 					t.Fatal("run bytes changed")
 				}
 			}
@@ -130,7 +130,7 @@ func TestSecretsMigrationRoundTripAndCatchup(t *testing.T) {
 		if _, err := p.DownTo(t.Context(), 25); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := p.Up(t.Context()); err != nil {
+		if _, err := p.UpTo(t.Context(), 26); err != nil {
 			t.Fatal(err)
 		}
 		if err := pool.QueryRow(t.Context(), "SELECT count(*) FROM secrets").Scan(&count); err != nil || count != 2 {
@@ -151,7 +151,7 @@ func TestSecretsMigrationRoundTripAndCatchup(t *testing.T) {
 		}
 	}
 	// A writer from the preceding release may insert after the first backfill.
-	if _, err := p.Up(t.Context()); err != nil {
+	if _, err := p.UpTo(t.Context(), 26); err != nil {
 		t.Fatal(err)
 	}
 	late := uuid.New()
@@ -166,7 +166,7 @@ func TestSecretsMigrationRoundTripAndCatchup(t *testing.T) {
 	if _, err := p.DownTo(t.Context(), 25); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Up(t.Context()); err != nil {
+	if _, err := p.UpTo(t.Context(), 26); err != nil {
 		t.Fatal(err)
 	}
 	var count int
@@ -178,7 +178,7 @@ func TestSecretsMigrationRoundTripAndCatchup(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := c.Decrypt(late, &value)
-	if err != nil || !maps.Equal(got, lateEnv) || *value.SessionToken() != token {
+	if err != nil || !maps.Equal(got, lateEnv) || legacyToken(&value, false) != token {
 		t.Fatal("catchup changed payload", err)
 	}
 }
@@ -212,7 +212,7 @@ func TestSecretsMigrationRejectsInvalidFormatAtomically(t *testing.T) {
 				if _, err := pool.Exec(t.Context(), `INSERT INTO runs(id,session_id,number,env_ciphertext) VALUES($1,$2,1,$3)`, rid, sid, rt); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := p.Up(t.Context()); err == nil {
+				if _, err := p.UpTo(t.Context(), 26); err == nil {
 					t.Fatal("accepted invalid source")
 				}
 				var count int
@@ -231,4 +231,13 @@ func TestSecretsSchemaConstraints(t *testing.T) {
 			t.Fatal("invalid lengths accepted", sizes)
 		}
 	}
+}
+
+// Test-only encoder for the legacy wire format; application code has no codec.
+func legacyToken(value *secret.Value, run bool) string {
+	prefix := "aes-gcm-v1:"
+	if run {
+		prefix = "aes-gcm-run-v1:"
+	}
+	return prefix + base64.RawURLEncoding.EncodeToString(append(bytes.Clone(value.Nonce), value.Ciphertext...))
 }

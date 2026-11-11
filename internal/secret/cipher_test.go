@@ -51,19 +51,6 @@ func TestCipher(t *testing.T) {
 			if err != nil || !maps.Equal(got, want) {
 				t.Fatal(got, err)
 			}
-			var parsed *Value
-			if run {
-				parsed, err = ParseRun(a.RunToken())
-			} else {
-				parsed, err = ParseSession(a.SessionToken())
-			}
-			if err != nil || !bytes.Equal(parsed.Nonce, a.Nonce) || !bytes.Equal(parsed.Ciphertext, a.Ciphertext) {
-				t.Fatal("legacy bytes changed", err)
-			}
-			got, err = decrypt(c, parsed)
-			if err != nil || !maps.Equal(got, want) {
-				t.Fatal(got, err)
-			}
 			if _, err := c.Decrypt(uuid.New(), a); err == nil {
 				t.Fatal("accepted another session")
 			}
@@ -103,32 +90,11 @@ func TestCipher(t *testing.T) {
 		} else {
 			v, err = c.Encrypt(sid, nil)
 		}
-		if err != nil || v != nil || v.SessionToken() != nil || v.RunToken() != nil {
+		if err != nil || v != nil {
 			t.Fatal("empty environment stored")
 		}
 	}
 	if _, err := New("bad"); err == nil {
 		t.Fatal("accepted invalid key")
-	}
-}
-
-func TestLegacyCiphertextParsing(t *testing.T) {
-	for _, parse := range []func(*string) (*Value, error){ParseSession, ParseRun} {
-		value, err := parse(nil)
-		if err != nil || value != nil {
-			t.Fatal(value, err)
-		}
-		for _, token := range []string{"bad", "fernet-v1:abc", "aes-gcm-v1:abc", "aes-gcm-run-v1:abc", "aes-gcm-v1:" + strings.Repeat("A", 36), "aes-gcm-run-v1:" + strings.Repeat("A", 36)} {
-			if _, err := parse(&token); err == nil {
-				t.Fatal("accepted invalid token")
-			}
-		}
-	}
-	value := &Value{Nonce: make([]byte, 12), Ciphertext: make([]byte, 16)}
-	if _, err := ParseSession(value.RunToken()); err == nil {
-		t.Fatal("accepted wrong prefix")
-	}
-	if _, err := ParseRun(value.SessionToken()); err == nil {
-		t.Fatal("accepted wrong prefix")
 	}
 }

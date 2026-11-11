@@ -13,7 +13,7 @@ import (
 )
 
 const lastSessionRun = `-- name: LastSessionRun :one
-SELECT id, session_id, number, status, observation, created_at, execution_started_at, deadline_at, finished_at, cancel_requested_at, cancel_attempted_at, stop_reason, stop_method, error, native_turn_id, next_delivery_number, final_message_id, input_fingerprint, env_ciphertext, env_names, env_from, phase, agent_status, agent_error, input_tokens, output_tokens, total_tokens, cached_input_tokens, reasoning_output_tokens, services, env_secret_id FROM runs WHERE session_id = $1 ORDER BY number DESC LIMIT 1
+SELECT id, session_id, number, status, observation, created_at, execution_started_at, deadline_at, finished_at, cancel_requested_at, cancel_attempted_at, stop_reason, stop_method, error, native_turn_id, next_delivery_number, final_message_id, input_fingerprint, env_names, env_from, phase, agent_status, agent_error, input_tokens, output_tokens, total_tokens, cached_input_tokens, reasoning_output_tokens, services, env_secret_id FROM runs WHERE session_id = $1 ORDER BY number DESC LIMIT 1
 `
 
 func (q *Queries) LastSessionRun(ctx context.Context, sessionID uuid.UUID) (Run, error) {
@@ -38,7 +38,6 @@ func (q *Queries) LastSessionRun(ctx context.Context, sessionID uuid.UUID) (Run,
 		&i.NextDeliveryNumber,
 		&i.FinalMessageID,
 		&i.InputFingerprint,
-		&i.EnvCiphertext,
 		&i.EnvNames,
 		&i.EnvFrom,
 		&i.Phase,

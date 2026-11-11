@@ -118,7 +118,7 @@ func (q *Queries) ReconcileOperations(ctx context.Context, arg ReconcileOperatio
 }
 
 const reconcileRuns = `-- name: ReconcileRuns :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id
 FROM runs r
 WHERE session_id = $1 AND (status IN ('accepted', 'starting', 'running', 'cancelling') OR native_turn_id = ANY($2::text[]))
 ORDER BY number
@@ -157,7 +157,6 @@ func (q *Queries) ReconcileRuns(ctx context.Context, arg ReconcileRunsParams) ([
 			&i.NextDeliveryNumber,
 			&i.FinalMessageID,
 			&i.InputFingerprint,
-			&i.EnvCiphertext,
 			&i.EnvNames,
 			&i.EnvFrom,
 			&i.Phase,
