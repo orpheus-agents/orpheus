@@ -123,8 +123,8 @@ Accepted sessions and runs retain service snapshots. Catalog edits apply to new
 sessions and runs, not existing snapshots. See the [service setup guide](https://orpheus-agents.github.io/en/configuration/secrets.html).
 
 Explicit session and run environment values are encrypted in the database's
-`secrets` table. See [secret storage](docs/secret-storage.md) for the migration,
-rollout checks, and rollback behavior.
+`secrets` table. See [secret storage](docs/secret-storage.md) for integrity
+checks, upgrade requirements, and rollback.
 
 ## Development
 

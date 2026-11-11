@@ -70,7 +70,7 @@ func TestRunEnvironmentMigrations(t *testing.T) {
 		}
 	}
 	for range 2 {
-		if _, err := p.Up(t.Context()); err != nil {
+		if _, err := p.UpTo(t.Context(), 7); err != nil {
 			t.Fatal(err)
 		}
 		check(true)
