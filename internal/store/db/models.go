@@ -124,7 +124,6 @@ type Run struct {
 	NextDeliveryNumber    int               `json:"next_delivery_number"`
 	FinalMessageID        *uuid.UUID        `json:"final_message_id"`
 	InputFingerprint      *string           `json:"input_fingerprint"`
-	EnvCiphertext         *string           `json:"env_ciphertext"`
 	EnvNames              []string          `json:"env_names"`
 	EnvFrom               []string          `json:"env_from"`
 	Phase                 *string           `json:"phase"`
@@ -150,7 +149,6 @@ type Session struct {
 	ID                         uuid.UUID                     `json:"id"`
 	CreatedAt                  time.Time                     `json:"created_at"`
 	Configuration              session.ResolvedConfiguration `json:"configuration"`
-	EnvCiphertext              *string                       `json:"env_ciphertext"`
 	SandboxState               string                        `json:"sandbox_state"`
 	SandboxLastKnownState      *string                       `json:"sandbox_last_known_state"`
 	SandboxError               *session.Error                `json:"sandbox_error"`

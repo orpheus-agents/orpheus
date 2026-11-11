@@ -25,15 +25,10 @@ func createSecret(ctx context.Context, q db.DBTX, value *secret.Value) (*uuid.UU
 	return &id, nil
 }
 
-// environmentSecret only falls back for records created by legacy writers.
-// A referenced secret that cannot be read must fail, even if the column is intact.
-func environmentSecret(ctx context.Context, q db.DBTX, id *uuid.UUID, legacy *string, parse func(*string) (*secret.Value, error)) (*secret.Value, error) {
+// A nil reference means no explicit environment. Referenced secrets fail closed.
+func environmentSecret(ctx context.Context, q db.DBTX, id *uuid.UUID) (*secret.Value, error) {
 	if id == nil {
-		value, err := parse(legacy)
-		if err != nil {
-			return nil, errors.Join(ErrEnvironmentUnavailable, err)
-		}
-		return value, nil
+		return nil, nil
 	}
 	row, err := db.New(q).GetSecret(ctx, *id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -46,7 +41,7 @@ func environmentSecret(ctx context.Context, q db.DBTX, id *uuid.UUID, legacy *st
 }
 
 func (s *Store) SessionEnvironment(ctx context.Context, q db.DBTX, record SessionRecord) (map[string]string, error) {
-	value, err := environmentSecret(ctx, q, record.EnvSecretID, record.EnvCiphertext, secret.ParseSession)
+	value, err := environmentSecret(ctx, q, record.EnvSecretID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +53,7 @@ func (s *Store) SessionEnvironment(ctx context.Context, q db.DBTX, record Sessio
 }
 
 func (s *Store) RunEnvironment(ctx context.Context, q db.DBTX, record RunRecord) (map[string]string, error) {
-	value, err := environmentSecret(ctx, q, record.EnvSecretID, record.EnvCiphertext, secret.ParseRun)
+	value, err := environmentSecret(ctx, q, record.EnvSecretID)
 	if err != nil {
 		return nil, err
 	}

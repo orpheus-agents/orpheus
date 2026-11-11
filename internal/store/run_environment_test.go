@@ -41,18 +41,15 @@ func TestRunEnvironmentAdmissionAndReplay(t *testing.T) {
 	if err != nil || !slices.Equal(run.EnvNames, []string{"EMPTY", "TASK_ID", "TOKEN"}) || !slices.Equal(run.EnvFrom, []string{"MISSING_A", "MISSING_B"}) {
 		t.Fatal(run, err)
 	}
-	var ciphertext *string
-	if err := s.Pool.QueryRow(t.Context(), "SELECT env_ciphertext FROM runs WHERE id=$1", a.RunID).Scan(&ciphertext); err != nil {
+	var value secret.Value
+	var legacy *string
+	if err := s.Pool.QueryRow(t.Context(), "SELECT x.nonce,x.ciphertext,r.env_ciphertext FROM runs r JOIN secrets x ON x.id=r.env_secret_id WHERE r.id=$1", a.RunID).Scan(&value.Nonce, &value.Ciphertext, &legacy); err != nil {
 		t.Fatal(err)
 	}
-	if ciphertext == nil || strings.Contains(*ciphertext, "hidden-run-secret") || strings.Contains(*ciphertext, "run-override") {
-		t.Fatal("run environment was not encrypted")
+	if legacy != nil || strings.Contains(string(value.Ciphertext), "hidden-run-secret") || strings.Contains(string(value.Ciphertext), "run-override") {
+		t.Fatal("run environment was not stored only in the encrypted table")
 	}
-	value, err := secret.ParseRun(ciphertext)
-	if err != nil {
-		t.Fatal(err)
-	}
-	decrypted, err := s.Cipher.DecryptRun(a.SessionID, a.RunID, value)
+	decrypted, err := s.Cipher.DecryptRun(a.SessionID, a.RunID, &value)
 	if err != nil || !maps.Equal(decrypted, req.Create.Env) {
 		t.Fatal(decrypted, err)
 	}

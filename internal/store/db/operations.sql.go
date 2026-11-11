@@ -203,7 +203,7 @@ func (q *Queries) GetSessionOperation(ctx context.Context, arg GetSessionOperati
 }
 
 const lastTerminalRun = `-- name: LastTerminalRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id
 FROM runs r
 WHERE session_id = $1 AND status IN ('completed', 'failed', 'cancelled')
 ORDER BY number DESC
@@ -232,7 +232,6 @@ func (q *Queries) LastTerminalRun(ctx context.Context, sessionID uuid.UUID) (Run
 		&i.NextDeliveryNumber,
 		&i.FinalMessageID,
 		&i.InputFingerprint,
-		&i.EnvCiphertext,
 		&i.EnvNames,
 		&i.EnvFrom,
 		&i.Phase,
@@ -322,7 +321,7 @@ func (q *Queries) OpenSandboxCreate(ctx context.Context, sessionID uuid.UUID) (O
 }
 
 const previousExecutedRun = `-- name: PreviousExecutedRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id
 FROM runs r
 WHERE session_id = $1 AND number<$2 AND (execution_started_at IS NOT NULL OR error->>'code' = 'authentication_failed')
 ORDER BY number DESC
@@ -356,7 +355,6 @@ func (q *Queries) PreviousExecutedRun(ctx context.Context, arg PreviousExecutedR
 		&i.NextDeliveryNumber,
 		&i.FinalMessageID,
 		&i.InputFingerprint,
-		&i.EnvCiphertext,
 		&i.EnvNames,
 		&i.EnvFrom,
 		&i.Phase,
@@ -404,7 +402,7 @@ func (q *Queries) RestoreProvisionReservations(ctx context.Context) error {
 }
 
 const sandboxCreateOwner = `-- name: SandboxCreateOwner :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_ciphertext, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id FROM runs r JOIN operations o ON o.session_id = r.session_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id FROM runs r JOIN operations o ON o.session_id = r.session_id
 WHERE o.id = $1 AND (r.id = o.run_id OR (o.run_id IS NULL
   AND o.created_at >= r.created_at AND (r.finished_at IS NULL OR o.created_at <= r.finished_at)))
 `
@@ -437,7 +435,6 @@ func (q *Queries) SandboxCreateOwner(ctx context.Context, id uuid.UUID) ([]Run, 
 			&i.NextDeliveryNumber,
 			&i.FinalMessageID,
 			&i.InputFingerprint,
-			&i.EnvCiphertext,
 			&i.EnvNames,
 			&i.EnvFrom,
 			&i.Phase,

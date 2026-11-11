@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func TestGenerationChecksContentWithoutMutatingFiles(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, dir := range []string{"migrations", "internal/store/queries"} {
+	for _, dir := range []string{"migrations", "internal/store/queries", "internal/store/schema_pending"} {
 		if err := os.CopyFS(dir, os.DirFS(filepath.Join(root, dir))); err != nil {
 			t.Fatal(err)
 		}
@@ -99,6 +100,19 @@ func TestGenerationChecksContentWithoutMutatingFiles(t *testing.T) {
 		if _, err := os.Stat(handwritten); err != nil {
 			t.Fatal("generation removed handwritten client code")
 		}
+	}
+	// If the temporary schema is accidentally disabled, generation must refuse
+	// to reintroduce legacy columns into otherwise valid wildcard queries.
+	pendingPath := "internal/store/schema_pending/drop_env_ciphertext.sql"
+	pendingSchema := read(pendingPath)
+	if err := os.WriteFile(pendingPath, []byte("-- no drops\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := generate(false); err == nil || !strings.Contains(err.Error(), "references legacy env_ciphertext") {
+		t.Fatal("legacy SQL generation was not rejected", err)
+	}
+	if err := os.WriteFile(pendingPath, pendingSchema, 0644); err != nil {
+		t.Fatal(err)
 	}
 	queryPath := "internal/store/queries/store.sql"
 	queries := read(queryPath)

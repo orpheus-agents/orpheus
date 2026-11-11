@@ -33,7 +33,6 @@ func runRecord(v db.Run, err error) (RunRecord, error) {
 		NativeTurnID:       v.NativeTurnID,
 		NextDeliveryNumber: v.NextDeliveryNumber,
 		FinalMessageID:     v.FinalMessageID,
-		EnvCiphertext:      v.EnvCiphertext,
 		EnvSecretID:        v.EnvSecretID,
 		Phase:              v.Phase,
 		AgentStatus:        v.AgentStatus,
