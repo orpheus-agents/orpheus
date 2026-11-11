@@ -106,7 +106,7 @@ test-live: tools
 	$(COMPOSE) --profile tools run --rm --no-deps -e AGENTBOX_API_KEY -e OPENAI_API_KEY -e ORPHEUS_TEST_MODEL tools go test -tags live -count=1 -timeout=15m ./...
 
 vuln: tools
-	$(RUN) govulncheck ./...
+	$(RUN) go run ./tools/vulncheck
 	$(RUN) trivy fs --no-progress --db-repository ghcr.io/aquasecurity/trivy-db:2 --db-repository mirror.gcr.io/aquasec/trivy-db:2 --scanners vuln,misconfig --exit-code 1 --severity HIGH,CRITICAL --skip-dirs .git --skip-dirs bin .
 
 build: tools
