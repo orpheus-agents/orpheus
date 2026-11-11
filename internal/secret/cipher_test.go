@@ -1,6 +1,7 @@
 package secret
 
 import (
+	"bytes"
 	"encoding/base64"
 	"maps"
 	"strings"
@@ -15,86 +16,119 @@ func TestCipher(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := uuid.New()
-	env := map[string]string{"TOKEN": "secret-value"}
-	a, err := c.Encrypt(id, env)
-	if err != nil {
-		t.Fatal(err)
+	sid, rid := uuid.New(), uuid.New()
+	want := map[string]string{"TOKEN": "secret-value", "EMPTY": "", "UNICODE": "значение"}
+	for _, run := range []bool{false, true} {
+		t.Run(map[bool]string{false: "session", true: "run"}[run], func(t *testing.T) {
+			encrypt := func() (*Value, error) {
+				if run {
+					return c.EncryptRun(sid, rid, want)
+				}
+				return c.Encrypt(sid, want)
+			}
+			decrypt := func(cipher *Cipher, v *Value) (map[string]string, error) {
+				if run {
+					return cipher.DecryptRun(sid, rid, v)
+				}
+				return cipher.Decrypt(sid, v)
+			}
+			a, err := encrypt()
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := encrypt()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Equal(a.Nonce, b.Nonce) || bytes.Equal(a.Ciphertext, b.Ciphertext) || bytes.Contains(a.Ciphertext, []byte(want["TOKEN"])) {
+				t.Fatal("encryption lacks randomization or leaks plaintext")
+			}
+			restarted, err := New(key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := decrypt(restarted, a)
+			if err != nil || !maps.Equal(got, want) {
+				t.Fatal(got, err)
+			}
+			var parsed *Value
+			if run {
+				parsed, err = ParseRun(a.RunToken())
+			} else {
+				parsed, err = ParseSession(a.SessionToken())
+			}
+			if err != nil || !bytes.Equal(parsed.Nonce, a.Nonce) || !bytes.Equal(parsed.Ciphertext, a.Ciphertext) {
+				t.Fatal("legacy bytes changed", err)
+			}
+			got, err = decrypt(c, parsed)
+			if err != nil || !maps.Equal(got, want) {
+				t.Fatal(got, err)
+			}
+			if _, err := c.Decrypt(uuid.New(), a); err == nil {
+				t.Fatal("accepted another session")
+			}
+			for _, ids := range [][2]uuid.UUID{{uuid.New(), rid}, {sid, uuid.New()}} {
+				if _, err := c.DecryptRun(ids[0], ids[1], a); err == nil {
+					t.Fatal("accepted another run or session")
+				}
+			}
+			if run {
+				if _, err := c.Decrypt(sid, a); err == nil {
+					t.Fatal("accepted run value in session scope")
+				}
+			} else {
+				if _, err := c.DecryptRun(sid, rid, a); err == nil {
+					t.Fatal("accepted session value in run scope")
+				}
+			}
+			other, _ := New(base64.URLEncoding.EncodeToString([]byte(strings.Repeat("a", 32))))
+			if _, err := decrypt(other, a); err == nil {
+				t.Fatal("accepted wrong key")
+			}
+			a.Ciphertext[0] ^= 1
+			if _, err := decrypt(c, a); err == nil {
+				t.Fatal("accepted tampering")
+			}
+			for _, v := range []*Value{{}, {Nonce: make([]byte, 11), Ciphertext: make([]byte, 16)}, {Nonce: make([]byte, 13), Ciphertext: make([]byte, 16)}, {Nonce: make([]byte, 12), Ciphertext: make([]byte, 15)}} {
+				if _, err := decrypt(c, v); err == nil {
+					t.Fatal("accepted invalid lengths")
+				}
+			}
+		})
 	}
-	b, err := c.Encrypt(id, env)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if *a == *b || strings.Contains(*a, env["TOKEN"]) {
-		t.Fatal("encryption lacks randomization or leaks plaintext")
-	}
-	restarted, _ := New(key)
-	got, err := restarted.Decrypt(id, a)
-	if err != nil || !maps.Equal(got, env) {
-		t.Fatalf("restart: %v %v", got, err)
-	}
-	if _, err := c.Decrypt(uuid.New(), a); err == nil {
-		t.Fatal("accepted another session")
-	}
-	raw := []byte(*a)
-	raw[len(raw)/2] ^= 1
-	if _, err := c.Decrypt(id, new(string(raw))); err == nil {
-		t.Fatal("accepted tampering")
-	}
-	for _, token := range []string{"fernet-v1:abc", "aes-gcm-v1:abc", "bad"} {
-		if _, err := c.Decrypt(id, &token); err == nil {
-			t.Fatal("accepted invalid ciphertext")
+	for _, run := range []bool{false, true} {
+		var v *Value
+		if run {
+			v, err = c.EncryptRun(sid, rid, nil)
+		} else {
+			v, err = c.Encrypt(sid, nil)
 		}
-	}
-	empty, err := c.Encrypt(id, nil)
-	if err != nil || empty != nil {
-		t.Fatal("empty environment must not store ciphertext")
+		if err != nil || v != nil || v.SessionToken() != nil || v.RunToken() != nil {
+			t.Fatal("empty environment stored")
+		}
 	}
 	if _, err := New("bad"); err == nil {
 		t.Fatal("accepted invalid key")
 	}
-	other, _ := New(base64.URLEncoding.EncodeToString([]byte(strings.Repeat("a", 32))))
-	if _, err := other.Decrypt(id, a); err == nil {
-		t.Fatal("accepted wrong key")
-	}
 }
 
-func TestRunCipherBindsBothIDsAndScope(t *testing.T) {
-	c, err := New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	sid, rid := uuid.New(), uuid.New()
-	want := map[string]string{"TOKEN": "run-secret"}
-	token, err := c.EncryptRun(sid, rid, want)
-	if err != nil || token == nil || !strings.HasPrefix(*token, "aes-gcm-run-v1:") || strings.Contains(*token, want["TOKEN"]) {
-		t.Fatal(token, err)
-	}
-	restarted, err := New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := restarted.DecryptRun(sid, rid, token)
-	if err != nil || !maps.Equal(got, want) {
-		t.Fatal(got, err)
-	}
-	for _, ids := range [][2]uuid.UUID{{uuid.New(), rid}, {sid, uuid.New()}} {
-		if _, err := c.DecryptRun(ids[0], ids[1], token); err == nil {
-			t.Fatal("accepted ciphertext for another run or session")
+func TestLegacyCiphertextParsing(t *testing.T) {
+	for _, parse := range []func(*string) (*Value, error){ParseSession, ParseRun} {
+		value, err := parse(nil)
+		if err != nil || value != nil {
+			t.Fatal(value, err)
+		}
+		for _, token := range []string{"bad", "fernet-v1:abc", "aes-gcm-v1:abc", "aes-gcm-run-v1:abc", "aes-gcm-v1:" + strings.Repeat("A", 36), "aes-gcm-run-v1:" + strings.Repeat("A", 36)} {
+			if _, err := parse(&token); err == nil {
+				t.Fatal("accepted invalid token")
+			}
 		}
 	}
-	if _, err := c.Decrypt(sid, token); err == nil {
-		t.Fatal("accepted run ciphertext as session ciphertext")
+	value := &Value{Nonce: make([]byte, 12), Ciphertext: make([]byte, 16)}
+	if _, err := ParseSession(value.RunToken()); err == nil {
+		t.Fatal("accepted wrong prefix")
 	}
-	sessionToken, err := c.Encrypt(sid, want)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := c.DecryptRun(sid, rid, sessionToken); err == nil {
-		t.Fatal("accepted session ciphertext as run ciphertext")
-	}
-	empty, err := c.EncryptRun(sid, rid, nil)
-	if err != nil || empty != nil {
-		t.Fatal("empty environment must not store ciphertext")
+	if _, err := ParseRun(value.SessionToken()); err == nil {
+		t.Fatal("accepted wrong prefix")
 	}
 }

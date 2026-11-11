@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
-	"github.com/orpheus-agents/orpheus/internal/secret"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
@@ -103,28 +101,23 @@ func TestServiceEnvironmentUsesFrozenReferencesAndCurrentAllowlist(t *testing.T)
 	if err != nil || !slices.Equal(cfg.Public.Sandbox.EnvFrom, []string{"SERVICE_TOKEN"}) || len(cfg.Public.Sandbox.Services) != 1 {
 		t.Fatal(cfg, err)
 	}
-	cipher, err := secret.New("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
-	if err != nil {
-		t.Fatal(err)
-	}
-	id := uuid.New()
 	t.Setenv("SERVICE_TOKEN", "secret-value")
 	t.Setenv("ADDED_TOKEN", "must-not-appear")
 	p.Services["gitlab"] = Service{Name: "Renamed", Description: "New", EnvFrom: []string{"SERVICE_TOKEN", "ADDED_TOKEN"}}
-	env, err := Environment(cipher, id, nil, cfg.Public, p.EnvironmentAllowlist(nil))
+	env, err := Environment(nil, cfg.Public, p.EnvironmentAllowlist(nil))
 	if err != nil || len(env) != 1 || env["SERVICE_TOKEN"] != "secret-value" {
 		t.Fatal(env, err)
 	}
 	delete(p.Services, "gitlab")
-	if _, err := Environment(cipher, id, nil, cfg.Public, p.EnvironmentAllowlist(nil)); err == nil {
+	if _, err := Environment(nil, cfg.Public, p.EnvironmentAllowlist(nil)); err == nil {
 		t.Fatal("revoked reference accepted")
 	}
-	env, err = MergedEnvironment(cipher, id, nil, cfg.Public, nil, map[string]string{"SERVICE_TOKEN": "run-value"}, nil)
+	env, err = MergedEnvironment(nil, cfg.Public, nil, map[string]string{"SERVICE_TOKEN": "run-value"}, nil)
 	if err != nil || env["SERVICE_TOKEN"] != "run-value" {
 		t.Fatal("overridden reference was resolved", env, err)
 	}
 	missing := session.Configuration{Sandbox: session.SandboxConfiguration{Template: "codex", EnvFrom: []string{"ORPHEUS_TEST_MISSING_SERVICE_ENV"}}}
-	if _, err := Environment(cipher, id, nil, missing, []string{"ORPHEUS_TEST_MISSING_SERVICE_ENV"}); err == nil {
+	if _, err := Environment(nil, missing, []string{"ORPHEUS_TEST_MISSING_SERVICE_ENV"}); err == nil {
 		t.Fatal("missing reference accepted")
 	}
 	// The allowlist includes catalog names, but direct references still need selection.

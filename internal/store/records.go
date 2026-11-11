@@ -34,6 +34,7 @@ func runRecord(v db.Run, err error) (RunRecord, error) {
 		NextDeliveryNumber: v.NextDeliveryNumber,
 		FinalMessageID:     v.FinalMessageID,
 		EnvCiphertext:      v.EnvCiphertext,
+		EnvSecretID:        v.EnvSecretID,
 		Phase:              v.Phase,
 		AgentStatus:        v.AgentStatus,
 		AgentError:         v.AgentError,

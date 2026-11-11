@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/orpheus-agents/orpheus/internal/config"
+	"github.com/orpheus-agents/orpheus/internal/secret"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
@@ -48,12 +48,16 @@ func TestRunEnvironmentAdmissionAndReplay(t *testing.T) {
 	if ciphertext == nil || strings.Contains(*ciphertext, "hidden-run-secret") || strings.Contains(*ciphertext, "run-override") {
 		t.Fatal("run environment was not encrypted")
 	}
-	decrypted, err := s.Cipher.DecryptRun(a.SessionID, a.RunID, ciphertext)
+	value, err := secret.ParseRun(ciphertext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decrypted, err := s.Cipher.DecryptRun(a.SessionID, a.RunID, value)
 	if err != nil || !maps.Equal(decrypted, req.Create.Env) {
 		t.Fatal(decrypted, err)
 	}
 	// The harness still gets the session environment, even for overridden names.
-	sessionEnv, err := config.Environment(s.Cipher, a.SessionID, mustSession(t, s, a.SessionID).EnvCiphertext, mustSession(t, s, a.SessionID).Configuration.Public, s.Settings.HarnessEnvAllowlist)
+	sessionEnv, err := s.SessionEnvironment(t.Context(), s.Pool, mustSession(t, s, a.SessionID))
 	if err != nil || sessionEnv["TOKEN"] != "private" {
 		t.Fatal(sessionEnv, err)
 	}

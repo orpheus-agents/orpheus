@@ -57,6 +57,7 @@ func UpdateSandbox(ctx context.Context, tx pgx.Tx, r *SessionRecord, change func
 type RunRecord struct {
 	session.Run
 	EnvCiphertext      *string    `json:"-"`
+	EnvSecretID        *uuid.UUID `json:"-"`
 	CancelAttemptedAt  *time.Time `json:"cancel_attempted_at"`
 	NativeTurnID       *string    `json:"native_turn_id"`
 	NextDeliveryNumber int        `json:"next_delivery_number"`
@@ -667,7 +668,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 				if e != nil {
 					return e
 				}
-				env, e := s.Cipher.Decrypt(r.ID, r.EnvCiphertext)
+				env, e := s.SessionEnvironment(ctx, tx, r)
 				if e != nil {
 					return session.Problem(503, "storage_unavailable", "Stored environment cannot be decrypted.")
 				}
@@ -678,7 +679,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 				if e != nil {
 					return e
 				}
-				env, e := s.Cipher.DecryptRun(r.SessionID, r.ID, r.EnvCiphertext)
+				env, e := s.RunEnvironment(ctx, tx, r)
 				if e != nil {
 					return session.Problem(503, "storage_unavailable", "Stored run environment cannot be decrypted.")
 				}
@@ -719,7 +720,11 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			if err != nil {
 				return err
 			}
-			record, err = sessionRecord(db.New(tx).CreateSession(ctx, db.CreateSessionParams{AllowMultipleRuns: a.Create.AllowMultipleRuns, Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, ID: id, Configuration: resolved, EnvCiphertext: token}))
+			secretID, err := createSecret(ctx, tx, token)
+			if err != nil {
+				return err
+			}
+			record, err = sessionRecord(db.New(tx).CreateSession(ctx, db.CreateSessionParams{AllowMultipleRuns: a.Create.AllowMultipleRuns, Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, ID: id, Configuration: resolved, EnvCiphertext: token.SessionToken(), EnvSecretID: secretID}))
 			if err != nil {
 				return err
 			}
@@ -770,11 +775,15 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			if e != nil {
 				return e
 			}
+			secretID, err := createSecret(ctx, tx, token)
+			if err != nil {
+				return err
+			}
 			envNames := slices.Sorted(maps.Keys(a.Env))
 			if envNames == nil {
 				envNames = []string{}
 			}
-			run, err = runRecord(db.New(tx).CreateRun(ctx, db.CreateRunParams{InputFingerprint: a.InputFingerprint, ID: runID, SessionID: record.ID, Number: record.NextRunNumber, EnvCiphertext: token, EnvNames: envNames, EnvFrom: runEnvFrom, Services: runServices}))
+			run, err = runRecord(db.New(tx).CreateRun(ctx, db.CreateRunParams{InputFingerprint: a.InputFingerprint, ID: runID, SessionID: record.ID, Number: record.NextRunNumber, EnvCiphertext: token.RunToken(), EnvSecretID: secretID, EnvNames: envNames, EnvFrom: runEnvFrom, Services: runServices}))
 			if err != nil {
 				return err
 			}

@@ -97,18 +97,28 @@ func (e *Executor) ensureRunner(ctx context.Context, record store.SessionRecord)
 	return target, nil
 }
 
-func (e *Executor) hookEnvironment(record store.SessionRecord, run store.RunRecord, name string) (map[string]string, error) {
+func (e *Executor) hookEnvironment(ctx context.Context, record store.SessionRecord, run store.RunRecord, name string) (map[string]string, error) {
 	var runEnv map[string]string
 	var runEnvFrom []string
 	if name == "before_run" || name == "after_run" {
 		var err error
-		runEnv, err = e.Store.Cipher.DecryptRun(e.ID, run.ID, run.EnvCiphertext)
+		runEnv, err = e.Store.RunEnvironment(ctx, e.Store.Pool, run)
 		if err != nil {
+			if !errors.Is(err, store.ErrEnvironmentUnavailable) {
+				return nil, errors.Join(errStoreAccess, err)
+			}
 			return nil, err
 		}
 		runEnvFrom = run.EnvFrom
 	}
-	env, err := config.MergedEnvironment(e.Store.Cipher, e.ID, record.EnvCiphertext, record.Configuration.Public, e.Store.Profiles.EnvironmentAllowlist(e.Store.Settings.HarnessEnvAllowlist), runEnv, runEnvFrom)
+	env, err := e.Store.SessionEnvironment(ctx, e.Store.Pool, record)
+	if err != nil {
+		if !errors.Is(err, store.ErrEnvironmentUnavailable) {
+			return nil, errors.Join(errStoreAccess, err)
+		}
+		return nil, err
+	}
+	env, err = config.MergedEnvironment(env, record.Configuration.Public, e.Store.Profiles.EnvironmentAllowlist(e.Store.Settings.HarnessEnvAllowlist), runEnv, runEnvFrom)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +163,10 @@ func (e *Executor) failHook(ctx context.Context, run store.RunRecord, name strin
 }
 
 func (e *Executor) startHook(ctx context.Context, record store.SessionRecord, run store.RunRecord, h store.HookExecution, name string) error {
+	env, err := e.hookEnvironment(ctx, record, run, name)
+	if err != nil {
+		return e.hookEnvironmentFailure(ctx, run, name, err)
+	}
 	runner, err := e.ensureRunner(ctx, record)
 	if err != nil {
 		if failure, ok := errors.AsType[*harness.ExecutionError](err); ok {
@@ -192,14 +206,17 @@ func (e *Executor) startHook(ctx context.Context, record store.SessionRecord, ru
 	if err != nil || current == nil || current.Status != "running" {
 		return err
 	}
-	return e.launchHook(ctx, record, run, h, name, runner)
+	return e.launchHook(ctx, record, run, h, name, runner, env)
 }
 
-func (e *Executor) launchHook(ctx context.Context, record store.SessionRecord, run store.RunRecord, h store.HookExecution, name, runner string) error {
-	env, err := e.hookEnvironment(record, run, name)
-	if err != nil {
-		return e.failHook(ctx, run, name, hookProblem(name, "hook_environment_unavailable", "Hook environment is unavailable."))
+func (e *Executor) hookEnvironmentFailure(ctx context.Context, run store.RunRecord, name string, err error) error {
+	if errors.Is(err, errStoreAccess) {
+		return err
 	}
+	return e.failHook(ctx, run, name, hookProblem(name, "hook_environment_unavailable", "Hook environment is unavailable."))
+}
+
+func (e *Executor) launchHook(ctx context.Context, record store.SessionRecord, run store.RunRecord, h store.HookExecution, name, runner string, env map[string]string) error {
 	env["ORPHEUS_HOOK_OPERATION_ID"] = h.ID.String()
 	dir := hookDir(record, h.ID)
 	script := path.Join(dir, "script")
@@ -374,6 +391,10 @@ func (e *Executor) observeHook(ctx context.Context, record store.SessionRecord, 
 			if h.StartAttempts >= maxHookStartAttempts {
 				return e.failHook(ctx, run, name, hookProblem(name, "hook_launch_failed", "Hook process could not start after repeated attempts."))
 			}
+			env, err := e.hookEnvironment(ctx, record, run, name)
+			if err != nil {
+				return e.hookEnvironmentFailure(ctx, run, name, err)
+			}
 			runner, err := e.ensureRunner(ctx, record)
 			if err != nil {
 				return err
@@ -386,7 +407,7 @@ func (e *Executor) observeHook(ctx context.Context, record store.SessionRecord, 
 			}); err != nil {
 				return err
 			}
-			return e.launchHook(ctx, record, run, h, name, runner)
+			return e.launchHook(ctx, record, run, h, name, runner, env)
 		}
 		if h.StartedAt != nil && time.Since(*h.StartedAt) > 5*time.Second {
 			return e.failHook(ctx, run, name, hookProblem(name, "hook_result_unavailable", "Hook process ended before recording its start."))

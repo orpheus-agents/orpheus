@@ -136,6 +136,14 @@ type Run struct {
 	CachedInputTokens     int64             `json:"cached_input_tokens"`
 	ReasoningOutputTokens int64             `json:"reasoning_output_tokens"`
 	Services              []session.Service `json:"services"`
+	EnvSecretID           *uuid.UUID        `json:"env_secret_id"`
+}
+
+type Secret struct {
+	ID         uuid.UUID `json:"id"`
+	Nonce      []byte    `json:"nonce"`
+	Ciphertext []byte    `json:"ciphertext"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type Session struct {
@@ -167,6 +175,7 @@ type Session struct {
 	CachedInputNativeTotal     *int64                        `json:"cached_input_native_total"`
 	ReasoningOutputNativeTotal *int64                        `json:"reasoning_output_native_total"`
 	AllowMultipleRuns          bool                          `json:"allow_multiple_runs"`
+	EnvSecretID                *uuid.UUID                    `json:"env_secret_id"`
 }
 
 type SessionEvent struct {
