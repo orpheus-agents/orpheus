@@ -36,15 +36,9 @@ func TestQueriesPrepareAgainstGooseSchema(t *testing.T) {
 	if output, err := vet(); err != nil {
 		t.Fatalf("sqlc vet: %v\n%s", err, output)
 	}
-	// Goose retains the legacy columns on a fresh install; schema_pending is
-	// only a sqlc input. Queries must also prepare after their later removal.
-	for _, table := range []string{"sessions", "runs"} {
-		if _, err := pool.Exec(t.Context(), "ALTER TABLE "+table+" DROP COLUMN env_ciphertext"); err != nil {
-			t.Fatal("Goose did not preserve legacy column", err)
-		}
-	}
-	if output, err := vet(); err != nil {
-		t.Fatalf("queries still depend on legacy columns: %v\n%s", err, output)
+	var legacyColumns int
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM information_schema.columns WHERE table_schema=current_schema() AND table_name IN ('sessions','runs') AND column_name='env_ciphertext'`).Scan(&legacyColumns); err != nil || legacyColumns != 0 {
+		t.Fatal("fresh installation retained legacy columns", legacyColumns, err)
 	}
 	// Prove the configured rule actually consults PostgreSQL rather than merely
 	// accepting the SQL parsed from the migration files.

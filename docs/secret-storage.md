@@ -20,30 +20,38 @@ Missing or damaged referenced secrets fail closed. API replays report
 worker and do not consume hook launch attempts. Missing or invalid encrypted
 data fails the run or hook.
 
-The legacy `env_ciphertext` columns remain in PostgreSQL for the preceding
-release during rollout. New records leave them NULL. They are absent from the
-application models and generated queries: sqlc applies the generation-only
-`internal/store/schema_pending` directory after `migrations`. Goose reads only
-`migrations`, including on a fresh installation. The generation check rejects
+Migration 28 removes the legacy `sessions.env_ciphertext` and
+`runs.env_ciphertext` columns. sqlc and Goose both use `migrations` as their
+schema source, including on fresh installations. The generation check rejects
 any `env_ciphertext` reference in generated SQL code.
 
 Migrations 25 and 26 introduce the schema and copy existing ciphertext.
-Migration 27 catches up legacy-only rows written during the preceding rollout
-and verifies that none remain. No key is needed: the copy separates the nonce
-from the authenticated ciphertext without decrypting or re-encrypting it.
-Malformed source data or remaining legacy-only rows abort migration 27 and
-roll back its changes. Existing secret references and values stay intact.
+Migration 27 catches up legacy-only rows written during the dual-write rollout
+and verifies that none remain. Migration 28 checks that every non-NULL legacy
+copy has a reference and exactly matches its secret before dropping either
+column. Any failed check rolls back the entire migration. Neither direction
+needs the encryption key or changes the encrypted bytes.
 
-Upgrade only after every API and worker has reached the preceding dual-write
-release and its rollout checks are clean. Migration 27 runs before replacing
-those processes; they always write the secret too, so no new legacy-only rows
-can appear during this rollout.
+## Upgrade prerequisites
 
-## Rollout checks
+Upgrade to this release only after every API and worker runs v0.9.0 or later.
+Versions through v0.8.0 still reference the legacy columns and cannot run after
+migration 28. Complete the v0.9.0 rollout and reconciliation first.
 
-After replacing all API and worker processes, run these read-only queries.
+Migration 28 sets a five-second timeout for each lock wait, not for the entire
+migration. The two column drops can wait up to about ten seconds in total;
+while waiting on runs, the migration retains its exclusive lock on sessions.
+A long transaction can prevent the column removal; in that case the migration
+fails with both columns intact.
+Resolve the blocking transaction and retry the migration before continuing
+the rollout.
+
+## Checks before migration 28
+
+Run these read-only queries after the v0.9.0 rollout, before migration 28.
 Every counter must be zero. The mismatch query checks only non-NULL legacy
-copies: NULL is expected for records created by this release.
+copies: NULL is expected for table-only writes. The first two queries cannot
+run after migration 28 because the columns no longer exist.
 
 ```sql
 SELECT 'sessions' AS owner, count(*) AS legacy_only
@@ -72,22 +80,35 @@ WHERE NOT EXISTS (SELECT 1 FROM sessions s WHERE s.env_secret_id = x.id)
 Mismatches and orphan secrets must be zero. These checks compare ciphertext;
 they do not authenticate it or validate the master key.
 
+## Checks after migration 28
+
+Verify that the migration reached version 28, all API and worker processes are
+healthy, and both counters below are zero:
+
+```sql
+SELECT count(*) AS legacy_columns FROM information_schema.columns
+WHERE table_schema = current_schema()
+  AND table_name IN ('sessions', 'runs') AND column_name = 'env_ciphertext';
+
+SELECT count(*) AS orphan_secrets FROM secrets x
+WHERE NOT EXISTS (SELECT 1 FROM sessions s WHERE s.env_secret_id = x.id)
+  AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.env_secret_id = x.id);
+```
+
 ## Rollback
 
-An image rollback to the preceding dual-write release (v0.8.0) is safe without
-reverting migrations: that release reads the referenced secret first, including
-for records with a NULL legacy column. An image rollback to a release before
-v0.8.0 is unsupported because those readers ignore the secret table.
+An image rollback to v0.9.0 needs no schema rollback: that release already uses
+table-only queries. Rolling back to v0.8.0 requires reverting migration 28 first.
+Stop application writers and run `migrate down` once using this release's image,
+then start v0.8.0. The older image does not contain migration 28 and cannot
+revert it.
 
-Migration 27's Down restores missing legacy values from the secret table,
-preserving existing copies. This makes an offline schema rollback through
-migrations 26 and 25 lossless for table-only writes too. Stop application writers
-before schema rollback; Down is not the normal image rollback procedure.
-Use this release's image for the rollback commands: v0.8.0 does not contain
-migration 27 and cannot roll it back. To reach schema version 24, run
-`migrate down` three times with this release's image (27, 26, then 25), and
-only then start the older application image.
+Migration 28's Down recreates both legacy columns and fills them from `secrets`,
+including table-only writes. Each value has the original prefix and unpadded
+base64url encoding of nonce followed by ciphertext. Empty environments remain
+NULL. References, secret IDs, timestamps and encrypted bytes stay unchanged.
 
-Remove the legacy columns in a separate later release, after every process
-uses table-only queries. The later release also removes `schema_pending` because
-the real migration schema will then omit the columns.
+An image rollback to a release before v0.8.0 is unsupported without an offline
+schema rollback. To reach schema version 24, stop writers and run
+`migrate down` four times with this release's image (28, 27, 26, then 25).
+Down is not the normal image rollback procedure.

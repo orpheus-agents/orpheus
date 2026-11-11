@@ -61,7 +61,7 @@ func TestSecretsCatchupPreservesExistingAndLateWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if _, err := p.Up(t.Context()); err != nil {
+		if _, err := p.UpTo(t.Context(), 27); err != nil {
 			t.Fatal(err)
 		}
 		for _, o := range owners {
@@ -101,7 +101,7 @@ func TestSecretsCatchupPreservesExistingAndLateWrites(t *testing.T) {
 
 func TestSecretsCatchupDownPreservesTableOnlyWritesThroughSchemaRollback(t *testing.T) {
 	pool, p := secretsMigration(t)
-	if _, err := p.Up(t.Context()); err != nil {
+	if _, err := p.UpTo(t.Context(), 27); err != nil {
 		t.Fatal(err)
 	}
 	c, err := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
@@ -155,7 +155,7 @@ func TestSecretsCatchupDownPreservesTableOnlyWritesThroughSchemaRollback(t *test
 			}
 		}
 	}
-	if _, err := p.Up(t.Context()); err != nil {
+	if _, err := p.UpTo(t.Context(), 27); err != nil {
 		t.Fatal(err)
 	}
 	var count int
@@ -228,7 +228,7 @@ func TestSecretsCatchupRejectsInvalidOrUnmovedRowsAtomically(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if _, err := p.Up(t.Context()); err == nil {
+			if _, err := p.UpTo(t.Context(), 27); err == nil {
 				t.Fatal("accepted remaining legacy-only rows")
 			}
 			var count int

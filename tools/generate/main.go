@@ -55,7 +55,7 @@ func generateTargets(check, clientOnly bool) error {
 	const sqlPath = "internal/store/db"
 	if !clientOnly {
 		// Run sqlc against copied inputs so check mode never rewrites the checkout.
-		for _, path := range []string{"migrations", "internal/store/queries", "internal/store/schema_pending"} {
+		for _, path := range []string{"migrations", "internal/store/queries"} {
 			if err := os.CopyFS(filepath.Join(dir, path), os.DirFS(path)); err != nil {
 				return err
 			}

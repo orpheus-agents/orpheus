@@ -58,23 +58,15 @@ func TestSecretTableOnlyWriteAndConcurrentReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tc := range []struct {
-		table string
-		owner uuid.UUID
-		id    *uuid.UUID
-	}{{"sessions", record.ID, record.EnvSecretID}, {"runs", run.ID, run.EnvSecretID}} {
-		if tc.id == nil {
+	for _, id := range []*uuid.UUID{record.EnvSecretID, run.EnvSecretID} {
+		if id == nil {
 			t.Fatal("missing secret reference")
 		}
-		var legacy *string
-		if err := s.Pool.QueryRow(t.Context(), "SELECT env_ciphertext FROM "+tc.table+" WHERE id=$1", tc.owner).Scan(&legacy); err != nil || legacy != nil {
-			t.Fatal("legacy column written", err)
-		}
-		row, err := db.New(s.Pool).GetSecret(t.Context(), *tc.id)
+		row, err := db.New(s.Pool).GetSecret(t.Context(), *id)
 		if err != nil || len(row.Nonce) != 12 || len(row.Ciphertext) < 16 || bytes.Contains(row.Ciphertext, []byte("private")) {
 			t.Fatal("invalid encrypted secret", err)
 		}
-		if _, err := s.Pool.Exec(t.Context(), "DELETE FROM secrets WHERE id=$1", *tc.id); err == nil {
+		if _, err := s.Pool.Exec(t.Context(), "DELETE FROM secrets WHERE id=$1", *id); err == nil {
 			t.Fatal("deleted a referenced secret")
 		}
 	}
@@ -130,9 +122,9 @@ func TestSecretEmptyAndTransactionRollback(t *testing.T) {
 	})
 }
 
-func TestSecretReadPrecedenceAndReplay(t *testing.T) {
+func TestSecretReadAndReplay(t *testing.T) {
 	for _, table := range []string{"sessions", "runs"} {
-		for _, mode := range []string{"no reference", "dual write", "bad column", "bad secret", "wrong owner", "wrong scope"} {
+		for _, mode := range []string{"no reference", "table", "bad secret", "wrong owner", "wrong scope"} {
 			t.Run(table+"/"+mode, func(t *testing.T) {
 				s := fixture(t)
 				req := request()
@@ -147,15 +139,7 @@ func TestSecretReadPrecedenceAndReplay(t *testing.T) {
 				}
 				switch mode {
 				case "no reference":
-					_, err = s.Pool.Exec(t.Context(), "UPDATE "+table+" SET env_secret_id=NULL,env_ciphertext='invalid' WHERE id=$1", id)
-				case "dual write":
-					prefix := "aes-gcm-v1:"
-					if table == "runs" {
-						prefix = "aes-gcm-run-v1:"
-					}
-					_, err = s.Pool.Exec(t.Context(), "UPDATE "+table+" o SET env_ciphertext=$2 || rtrim(translate(encode(x.nonce || x.ciphertext,'base64'), E'+/\\n','-_'),'=') FROM secrets x WHERE o.id=$1 AND x.id=o.env_secret_id", id, prefix)
-				case "bad column":
-					_, err = s.Pool.Exec(t.Context(), "UPDATE "+table+" SET env_ciphertext='invalid' WHERE id=$1", id)
+					_, err = s.Pool.Exec(t.Context(), "UPDATE "+table+" SET env_secret_id=NULL WHERE id=$1", id)
 				case "bad secret":
 					_, err = s.Pool.Exec(t.Context(), "UPDATE secrets SET ciphertext=set_byte(ciphertext,0,get_byte(ciphertext,0)#1) WHERE id=(SELECT env_secret_id FROM "+table+" WHERE id=$1)", id)
 				case "wrong owner":
@@ -190,13 +174,13 @@ func TestSecretReadPrecedenceAndReplay(t *testing.T) {
 				}
 				if mode == "no reference" {
 					if err != nil || len(values) != 0 {
-						t.Fatal("nil reference read legacy data", err)
+						t.Fatal("nil reference returned environment", err)
 					}
 					_, err = s.Accept(t.Context(), req)
 					requireCode(t, err, "idempotency_conflict")
 					return
 				}
-				good := mode == "dual write" || mode == "bad column"
+				good := mode == "table"
 				if good {
 					want := req.Create.Configuration.Sandbox.Env
 					if table == "runs" {
@@ -223,7 +207,7 @@ func TestSecretReadPrecedenceAndReplay(t *testing.T) {
 
 func reqWithNewKey(req Admission) Admission { req.Key = uuid.New(); return req }
 
-func TestMissingReferencedSecretDoesNotUseColumn(t *testing.T) {
+func TestMissingReferencedSecretFailsClosed(t *testing.T) {
 	s := fixture(t)
 	req := request()
 	req.Create.Env = map[string]string{"TOKEN": "run"}
@@ -234,7 +218,7 @@ func TestMissingReferencedSecretDoesNotUseColumn(t *testing.T) {
 	record := mustSession(t, s, a.SessionID)
 	record.EnvSecretID = new(uuid.New())
 	if _, err := s.SessionEnvironment(t.Context(), s.Pool, record); err == nil {
-		t.Fatal("missing session secret used legacy column")
+		t.Fatal("missing session secret accepted")
 	}
 	run, err := GetRun(t.Context(), s.Pool, a.SessionID, a.RunID)
 	if err != nil {
@@ -242,6 +226,6 @@ func TestMissingReferencedSecretDoesNotUseColumn(t *testing.T) {
 	}
 	run.EnvSecretID = new(uuid.New())
 	if _, err := s.RunEnvironment(t.Context(), s.Pool, run); err == nil {
-		t.Fatal("missing run secret used legacy column")
+		t.Fatal("missing run secret accepted")
 	}
 }

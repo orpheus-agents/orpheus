@@ -11,29 +11,18 @@ import (
 )
 
 func TestSecretSourcesReachHarnessAndHooks(t *testing.T) {
-	for _, expr := range []string{"NULL", "'invalid'"} {
-		t.Run(expr, func(t *testing.T) {
-			s, box, a, e := setupHooks(t, true, false, map[string]string{"TOKEN": "run-value", "TASK_ID": "42"})
-			column := "env_ciphertext"
-			if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET "+column+"="+expr+" WHERE id=$1", a.SessionID); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := s.Pool.Exec(t.Context(), "UPDATE runs SET "+column+"="+expr+" WHERE id=$1", a.RunID); err != nil {
-				t.Fatal(err)
-			}
-			tickUntil(t, e, func() bool { return box.starts == 1 })
-			if box.env["TOKEN"] != "session-value" || len(box.hookEnv) != 2 || box.hookEnv[0]["TOKEN"] != "session-value" || box.hookEnv[1]["TOKEN"] != "run-value" || box.hookEnv[1]["TASK_ID"] != "42" {
-				t.Fatal("incorrect environment scope")
-			}
-			if _, ok := box.env["TASK_ID"]; ok {
-				t.Fatal("run env leaked to harness")
-			}
-			complete(box.remote)
-			tickUntil(t, e, func() bool { return len(box.hookEnv) == 3 })
-			if box.hookEnv[2]["TOKEN"] != "run-value" {
-				t.Fatal("after_run lost environment")
-			}
-		})
+	_, box, _, e := setupHooks(t, true, false, map[string]string{"TOKEN": "run-value", "TASK_ID": "42"})
+	tickUntil(t, e, func() bool { return box.starts == 1 })
+	if box.env["TOKEN"] != "session-value" || len(box.hookEnv) != 2 || box.hookEnv[0]["TOKEN"] != "session-value" || box.hookEnv[1]["TOKEN"] != "run-value" || box.hookEnv[1]["TASK_ID"] != "42" {
+		t.Fatal("incorrect environment scope")
+	}
+	if _, ok := box.env["TASK_ID"]; ok {
+		t.Fatal("run env leaked to harness")
+	}
+	complete(box.remote)
+	tickUntil(t, e, func() bool { return len(box.hookEnv) == 3 })
+	if box.hookEnv[2]["TOKEN"] != "run-value" {
+		t.Fatal("after_run lost environment")
 	}
 }
 

@@ -42,11 +42,10 @@ func TestRunEnvironmentAdmissionAndReplay(t *testing.T) {
 		t.Fatal(run, err)
 	}
 	var value secret.Value
-	var legacy *string
-	if err := s.Pool.QueryRow(t.Context(), "SELECT x.nonce,x.ciphertext,r.env_ciphertext FROM runs r JOIN secrets x ON x.id=r.env_secret_id WHERE r.id=$1", a.RunID).Scan(&value.Nonce, &value.Ciphertext, &legacy); err != nil {
+	if err := s.Pool.QueryRow(t.Context(), "SELECT x.nonce,x.ciphertext FROM runs r JOIN secrets x ON x.id=r.env_secret_id WHERE r.id=$1", a.RunID).Scan(&value.Nonce, &value.Ciphertext); err != nil {
 		t.Fatal(err)
 	}
-	if legacy != nil || strings.Contains(string(value.Ciphertext), "hidden-run-secret") || strings.Contains(string(value.Ciphertext), "run-override") {
+	if strings.Contains(string(value.Ciphertext), "hidden-run-secret") || strings.Contains(string(value.Ciphertext), "run-override") {
 		t.Fatal("run environment was not stored only in the encrypted table")
 	}
 	decrypted, err := s.Cipher.DecryptRun(a.SessionID, a.RunID, &value)
