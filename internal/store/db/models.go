@@ -184,6 +184,18 @@ type SessionEvent struct {
 	Data      json.RawMessage `json:"data"`
 }
 
+type Template struct {
+	ID                 uuid.UUID `json:"id"`
+	TemplateName       string    `json:"template_name"`
+	Tag                *string   `json:"tag"`
+	Name               string    `json:"name"`
+	AgentboxTemplateID string    `json:"agentbox_template_id"`
+	Description        *string   `json:"description"`
+	Active             bool      `json:"active"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
 type ToolCall struct {
 	ID                 uuid.UUID         `json:"id"`
 	SessionID          uuid.UUID         `json:"session_id"`

@@ -46,6 +46,7 @@ type Service struct {
 
 type Identity struct {
 	TokenHash   []byte
+	Subject     string
 	DisplayName string
 	ExpiresAt   time.Time
 }
@@ -204,7 +205,7 @@ func (s *Service) Identity(ctx context.Context, hash []byte) (*Identity, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &Identity{TokenHash: row.TokenHash, DisplayName: row.DisplayName, ExpiresAt: row.ExpiresAt}, nil
+	return &Identity{TokenHash: row.TokenHash, Subject: row.Subject, DisplayName: row.DisplayName, ExpiresAt: row.ExpiresAt}, nil
 }
 func (s *Service) Authenticate(r *http.Request) (*Identity, error) {
 	return s.Identity(r.Context(), requestHash(r, CookieName))
@@ -430,9 +431,16 @@ func validateAssertion(a *saml.Assertion, now time.Time) error {
 	}
 	return nil
 }
-func (s *Service) Logout(w http.ResponseWriter, r *http.Request) error {
+func (s *Service) ValidateOrigin(r *http.Request) error {
 	if s.config.PublicURL == "" || r.Header.Get("Origin") != s.config.PublicURL || r.Header.Get("X-Orpheus-CSRF") != "1" {
-		return session.Problem(403, "invalid_origin", "A same-origin logout request is required.")
+		return session.Problem(403, "invalid_origin", "A same-origin request with X-Orpheus-CSRF: 1 is required.")
+	}
+	return nil
+}
+
+func (s *Service) Logout(w http.ResponseWriter, r *http.Request) error {
+	if err := s.ValidateOrigin(r); err != nil {
+		return err
 	}
 	if s.Mode() == "saml" {
 		if err := db.New(s.pool).DeleteBrowserSession(r.Context(), requestHash(r, CookieName)); err != nil {

@@ -1,22 +1,26 @@
 # Browser authentication
 
-The API supports service Bearer keys and read-only browser access. It does not
+The API supports service Bearer keys and browser access. It does not
 serve a frontend. All authenticated browsers see the same sessions.
 
 | `ORPHEUS_BROWSER_AUTH` | Reads | Writes |
 | --- | --- | --- |
 | `api_only` (default) | Bearer | Bearer |
-| `saml` | SAML session cookie or Bearer | Bearer |
-| `anonymous` | No credential required | Bearer |
+| `saml` | SAML session cookie or Bearer | Template management: cookie or Bearer; execution: Bearer |
+| `anonymous` | No credential required | Template management: no credential; execution: Bearer |
 
 An explicitly supplied invalid or empty Authorization header always returns 401;
-it never falls back to cookies or anonymous access. A valid SAML cookie on a write
-returns 403 `read_only_access`. Cookies are ignored outside `saml`.
+it never falls back to cookies or anonymous access. Browser writes are enabled
+for template creation, update and deletion. They require `Origin` equal to
+`ORPHEUS_PUBLIC_URL` and `X-Orpheus-CSRF: 1`, using the same check as logout.
+A valid bearer key does not require browser headers. Other commands still require
+a bearer key; a SAML session receives 403 `read_only_access` for those operations.
+Cookies are ignored outside `saml`.
 `PUBLIC_API_KEYS=[]` disables service commands in `saml` and `anonymous`; it is
 invalid in `api_only`. Unknown browser modes fail startup of `serve`.
 Workers do not load SAML certificates or metadata.
 
-## Local read-only API
+## Local API
 
 Set `ORPHEUS_BROWSER_AUTH=anonymous`, restart `serve`, then:
 
@@ -26,6 +30,9 @@ curl http://localhost:8000/api/v1/sessions
 ```
 
 Both work without credentials. Creating sessions still requires a service key.
+For template management from a browser, set `ORPHEUS_PUBLIC_URL` to its exact
+origin, including the development server port. `localhost` and `127.0.0.1` are
+different origins; a mismatch returns 403 `invalid_origin`.
 
 ## Keycloak SAML
 

@@ -34,14 +34,6 @@ func (s *Server) GetProfiles(_ context.Context, _ api.GetProfilesRequestObject) 
 	return api.GetProfiles200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) GetTemplates(_ context.Context, _ api.GetTemplatesRequestObject) (api.GetTemplatesResponseObject, error) {
-	items := make([]api.Template, 0, len(s.Store.Profiles.Templates))
-	for _, name := range slices.Sorted(maps.Keys(s.Store.Profiles.Templates)) {
-		items = append(items, api.Template{Name: name, Description: s.Store.Profiles.Templates[name].Description})
-	}
-	return api.GetTemplates200JSONResponse{Items: items}, nil
-}
-
 func (s *Server) GetServices(_ context.Context, _ api.GetServicesRequestObject) (api.GetServicesResponseObject, error) {
 	items := make([]api.Service, 0, len(s.Store.Profiles.Services))
 	for _, code := range slices.Sorted(maps.Keys(s.Store.Profiles.Services)) {

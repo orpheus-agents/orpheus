@@ -15,6 +15,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers/legacy"
+	"github.com/orpheus-agents/orpheus/internal/agentbox"
 	"github.com/orpheus-agents/orpheus/internal/api"
 	"github.com/orpheus-agents/orpheus/internal/browserauth"
 	"github.com/orpheus-agents/orpheus/internal/session"
@@ -24,11 +25,20 @@ import (
 type responseWriter struct {
 	http.ResponseWriter
 	written bool
+	status  int
 }
 
-func (w *responseWriter) WriteHeader(code int) { w.written = true; w.ResponseWriter.WriteHeader(code) }
+func (w *responseWriter) WriteHeader(code int) {
+	if !w.written {
+		w.status = code
+		w.written = true
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
 func (w *responseWriter) Write(b []byte) (int, error) {
-	w.written = true
+	if !w.written {
+		w.WriteHeader(http.StatusOK)
+	}
 	return w.ResponseWriter.Write(b)
 }
 func (w *responseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
@@ -69,7 +79,11 @@ func Handler(s *store.Store, streams context.Context) (http.Handler, error) {
 	validationError := func(w http.ResponseWriter, _ *http.Request, err error) {
 		writeError(w, validationProblem(err))
 	}
-	strict := api.NewStrictHandlerWithOptions(&Server{Store: s, streams: streams, auth: auth}, []api.StrictMiddlewareFunc{browserRequestMiddleware}, api.StrictHTTPServerOptions{RequestErrorHandlerFunc: validationError, ResponseErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) { writeError(w, err) }})
+	verifier, err := agentbox.NewTemplateVerifier()
+	if err != nil {
+		return nil, err
+	}
+	strict := api.NewStrictHandlerWithOptions(&Server{Store: s, streams: streams, auth: auth, templates: verifier}, []api.StrictMiddlewareFunc{browserRequestMiddleware}, api.StrictHTTPServerOptions{RequestErrorHandlerFunc: validationError, ResponseErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) { writeError(w, err) }})
 	generated := api.HandlerWithOptions(strict, api.StdHTTPServerOptions{ErrorHandlerFunc: validationError})
 	return http.HandlerFunc(func(base http.ResponseWriter, r *http.Request) {
 		w := &responseWriter{ResponseWriter: base}
@@ -82,12 +96,21 @@ func Handler(s *store.Store, streams context.Context) (http.Handler, error) {
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/v1") {
+			var audit *templateAudit
 			if r.URL.Path != "/api/v1/auth/session" {
 				operation := ""
 				if route, _, routeErr := router.FindRoute(r); routeErr == nil {
 					operation = route.Operation.OperationID
 				}
+				if browserWritable(operation) {
+					audit = newTemplateAudit(operation, r)
+					r = r.WithContext(context.WithValue(r.Context(), templateAuditKey{}, audit))
+					defer func() { audit.log(r.Context(), w.status) }()
+				}
 				identity, err := authorize(r, auth, s.Settings.PublicAPIKeys, operation)
+				if audit != nil {
+					audit.identify(r, auth.Mode(), identity, err)
+				}
 				if err != nil {
 					writeError(w, err)
 					return
@@ -97,7 +120,7 @@ func Handler(s *store.Store, streams context.Context) (http.Handler, error) {
 				}
 			}
 
-			if r.Method == http.MethodPost {
+			if r.Method == http.MethodPost || r.Method == http.MethodPatch {
 				raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.Settings.MaxRequestBytes))
 				if err != nil {
 					if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
@@ -119,6 +142,9 @@ func Handler(s *store.Store, streams context.Context) (http.Handler, error) {
 					}
 				}
 				r.Body = io.NopCloser(bytes.NewReader(raw))
+				if audit != nil {
+					audit.setFields(raw)
+				}
 			}
 			route, params, err := router.FindRoute(r)
 			if err == nil {

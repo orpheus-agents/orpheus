@@ -16,12 +16,16 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/browserauth"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/templates"
 )
 
 type Server struct {
-	Store   *store.Store
-	streams context.Context
-	auth    *browserauth.Service
+	Store     *store.Store
+	streams   context.Context
+	auth      *browserauth.Service
+	templates interface {
+		Verify(context.Context, templates.Input) (string, error)
+	}
 }
 
 var _ api.StrictServerInterface = (*Server)(nil)
