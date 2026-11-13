@@ -30,18 +30,51 @@ components:
         Template:
             type: object
             additionalProperties: false
-            required: [name, description]
+            required: [id, name, template_name, tag, description, active]
             properties:
-                name: {type: string}
+                id: {type: string, format: uuid}
+                name: {type: string, description: Exact normalized reference including the optional tag.}
+                template_name: {type: string}
+                tag: {type: [string, 'null']}
                 description: {type: [string, 'null']}
+                active: {type: boolean}
         Templates:
             type: object
             additionalProperties: false
-            required: [items]
+            required: [items, next_cursor, prev_cursor]
             properties:
                 items:
                     type: array
                     items: {$ref: '#/components/schemas/Template'}
+                next_cursor: {type: [string, 'null']}
+                prev_cursor: {type: [string, 'null']}
+        CreateTemplate:
+            type: object
+            additionalProperties: false
+            required: [template_name]
+            properties:
+                template_name:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+                    pattern: '^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)?$'
+                    description: Own-project alias, optionally prefixed by its team slug. Normalized to lowercase.
+                tag:
+                    type: [string, 'null']
+                    minLength: 1
+                    maxLength: 128
+                    pattern: '^[A-Za-z0-9_.-]+$'
+                    description: Normalized to lowercase; UUID build references are rejected. Omission or null checks default but stores an untagged reference.
+                description: {type: [string, 'null'], maxLength: 4096}
+                active: {type: boolean, default: true}
+        UpdateTemplate:
+            type: object
+            x-go-type: json.RawMessage
+            additionalProperties: false
+            minProperties: 1
+            properties:
+                description: {type: [string, 'null'], maxLength: 4096}
+                active: {type: boolean}
         ServiceCodes:
             description: Unique configured service codes. Order is insignificant; an unknown code rejects the entire request.
             type: array
@@ -427,7 +460,7 @@ components:
             description: Validation paths start with body, header, query, or path. Hook execution errors identify configuration.hooks.<name>; codes never contain input values or native validator messages.
             properties:
                 code:
-                    enum: [required, invalid_type, invalid_value, unknown_field]
+                    enum: [required, invalid_type, invalid_value, unknown_field, template_not_found, template_forbidden, tag_not_found]
                     title: Code
                     type: string
                 path:
@@ -1528,27 +1561,121 @@ paths:
     /api/v1/templates:
         get:
             operationId: get_templates
-            summary: List configured templates
-            description: Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+            summary: List registered templates
+            description: Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. This catalog does not yet replace TOML validation of new sessions.
+            parameters:
+                - in: query
+                  name: active
+                  schema: {type: boolean}
+                - in: query
+                  name: name
+                  description: Exact case-sensitive reference. Incompatible with name_contains.
+                  schema: {type: string, minLength: 1}
+                - in: query
+                  name: name_contains
+                  description: Literal case-insensitive substring of the reference. Incompatible with name.
+                  schema: {type: string, minLength: 1}
+                - in: query
+                  name: limit
+                  schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+                - in: query
+                  name: cursor
+                  schema: {type: string, minLength: 1, maxLength: 8192}
             responses:
                 '200':
-                    description: Configured templates
+                    description: One page; cursor fields are null at the respective boundaries.
                     content:
                         application/json:
-                            schema:
-                                $ref: '#/components/schemas/Templates'
-                '401':
-                    description: Unauthorized
+                            schema: {$ref: '#/components/schemas/Templates'}
+                default:
+                    description: Invalid input (422), unauthorized (401), forbidden browser origin (403), missing record (404), duplicate (409), or unavailable provider/storage (503).
                     content:
                         application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                '503':
-                    description: Authentication temporarily unavailable
+                            schema: {$ref: '#/components/schemas/ErrorResponse'}
+            security:
+                - HTTPBearer: []
+                - BrowserSession: []
+        post:
+            operationId: create_template
+            summary: Register an own-project AgentBox template
+            description: Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema: {$ref: '#/components/schemas/CreateTemplate'}
+            responses:
+                '201':
+                    description: Registered template
                     content:
                         application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
+                            schema: {$ref: '#/components/schemas/Template'}
+                default:
+                    description: Invalid input (422), unauthorized (401), forbidden browser origin (403), missing record (404), duplicate (409), or unavailable provider/storage (503).
+                    content:
+                        application/json:
+                            schema: {$ref: '#/components/schemas/ErrorResponse'}
+            security:
+                - HTTPBearer: []
+                - BrowserSession: []
+    /api/v1/templates/{id}:
+        parameters:
+            - in: path
+              name: id
+              required: true
+              schema: {type: string, format: uuid}
+        get:
+            operationId: get_template
+            summary: Read a registered template
+            responses:
+                '200':
+                    description: Registered template, including inactive records
+                    content:
+                        application/json:
+                            schema: {$ref: '#/components/schemas/Template'}
+                default:
+                    description: Invalid input (422), unauthorized (401), forbidden browser origin (403), missing record (404), duplicate (409), or unavailable provider/storage (503).
+                    content:
+                        application/json:
+                            schema: {$ref: '#/components/schemas/ErrorResponse'}
+            security:
+                - HTTPBearer: []
+                - BrowserSession: []
+        patch:
+            operationId: update_template
+            summary: Update template activity or description
+            description: Name and tag are immutable. Empty or whitespace-only descriptions become null. No AgentBox lookup. Browser writes require Origin and X-Orpheus-CSRF.
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema: {$ref: '#/components/schemas/UpdateTemplate'}
+            responses:
+                '200':
+                    description: Updated template
+                    content:
+                        application/json:
+                            schema: {$ref: '#/components/schemas/Template'}
+                default:
+                    description: Invalid input (422), unauthorized (401), forbidden browser origin (403), missing record (404), duplicate (409), or unavailable provider/storage (503).
+                    content:
+                        application/json:
+                            schema: {$ref: '#/components/schemas/ErrorResponse'}
+            security:
+                - HTTPBearer: []
+                - BrowserSession: []
+        delete:
+            operationId: delete_template
+            summary: Delete an Orpheus catalog record
+            description: Does not modify AgentBox or accepted sessions. Browser writes require Origin and X-Orpheus-CSRF.
+            responses:
+                '204':
+                    description: Deleted
+                default:
+                    description: Invalid input (422), unauthorized (401), forbidden browser origin (403), missing record (404), duplicate (409), or unavailable provider/storage (503).
+                    content:
+                        application/json:
+                            schema: {$ref: '#/components/schemas/ErrorResponse'}
             security:
                 - HTTPBearer: []
                 - BrowserSession: []

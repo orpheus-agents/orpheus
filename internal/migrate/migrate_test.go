@@ -32,13 +32,13 @@ func TestUpDownUpAndConstraints(t *testing.T) {
 	if _, err := p.Up(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"secrets", "sessions", "runs", "messages", "tool_calls", "session_events", "operations", "idempotency_keys", "account_limit_observations"} {
+	for _, name := range []string{"secrets", "sessions", "runs", "messages", "tool_calls", "session_events", "operations", "idempotency_keys", "account_limit_observations", "templates"} {
 		var exists bool
 		if err := pool.QueryRow(t.Context(), "SELECT to_regclass($1) IS NOT NULL", name).Scan(&exists); err != nil || !exists {
 			t.Fatal(name, exists, err)
 		}
 	}
-	for _, name := range []string{"sessions_reserved", "runs_one_unfinished_per_session", "operations_session"} {
+	for _, name := range []string{"sessions_reserved", "runs_one_unfinished_per_session", "operations_session", "templates_page_idx", "templates_name_trgm_idx"} {
 		var exists bool
 		if err := pool.QueryRow(t.Context(), `SELECT EXISTS(SELECT 1 FROM pg_indexes WHERE schemaname=current_schema() AND indexname=$1)`, name).Scan(&exists); err != nil || !exists {
 			t.Fatal("missing index", name, err)

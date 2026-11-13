@@ -216,10 +216,13 @@ func (e ErrorPhase) Valid() bool {
 
 // Defines values for ErrorDetailCode.
 const (
-	InvalidType  ErrorDetailCode = "invalid_type"
-	InvalidValue ErrorDetailCode = "invalid_value"
-	Required     ErrorDetailCode = "required"
-	UnknownField ErrorDetailCode = "unknown_field"
+	InvalidType       ErrorDetailCode = "invalid_type"
+	InvalidValue      ErrorDetailCode = "invalid_value"
+	Required          ErrorDetailCode = "required"
+	TagNotFound       ErrorDetailCode = "tag_not_found"
+	TemplateForbidden ErrorDetailCode = "template_forbidden"
+	TemplateNotFound  ErrorDetailCode = "template_not_found"
+	UnknownField      ErrorDetailCode = "unknown_field"
 )
 
 // Valid indicates whether the value is a known member of the ErrorDetailCode enum.
@@ -230,6 +233,12 @@ func (e ErrorDetailCode) Valid() bool {
 	case InvalidValue:
 		return true
 	case Required:
+		return true
+	case TagNotFound:
+		return true
+	case TemplateForbidden:
+		return true
+	case TemplateNotFound:
 		return true
 	case UnknownField:
 		return true
@@ -1197,6 +1206,18 @@ type CreateSession struct {
 	Services *ServiceCodes `json:"services,omitempty"`
 }
 
+// CreateTemplate defines model for CreateTemplate.
+type CreateTemplate struct {
+	Active      *bool   `json:"active,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// Tag Normalized to lowercase; UUID build references are rejected. Omission or null checks default but stores an untagged reference.
+	Tag *string `json:"tag,omitempty"`
+
+	// TemplateName Own-project alias, optionally prefixed by its team slug. Normalized to lowercase.
+	TemplateName string `json:"template_name"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	Code    string        `json:"code"`
@@ -1622,13 +1643,21 @@ type StatusCounts struct {
 
 // Template defines model for Template.
 type Template struct {
-	Description *string `json:"description"`
-	Name        string  `json:"name"`
+	Active      bool               `json:"active"`
+	Description *string            `json:"description"`
+	ID          openapi_types.UUID `json:"id"`
+
+	// Name Exact normalized reference including the optional tag.
+	Name         string  `json:"name"`
+	Tag          *string `json:"tag"`
+	TemplateName string  `json:"template_name"`
 }
 
 // Templates defines model for Templates.
 type Templates struct {
-	Items []Template `json:"items"`
+	Items      []Template `json:"items"`
+	NextCursor *string    `json:"next_cursor"`
+	PrevCursor *string    `json:"prev_cursor"`
 }
 
 // TextMessage defines model for TextMessage.
@@ -1718,6 +1747,9 @@ type TruncatedResultSourceType string
 
 // TruncatedResultType defines model for TruncatedResult.Type.
 type TruncatedResultType string
+
+// UpdateTemplate defines model for UpdateTemplate.
+type UpdateTemplate = json.RawMessage
 
 // Usage Last reported token consumption; missed reports are not reconstructed from history. Cached input and reasoning output are included in input and output respectively. The breakdown is recorded only since collection began; historical usage is not reconstructed.
 type Usage struct {
@@ -1846,6 +1878,19 @@ type SendMessageParams struct {
 	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
 }
 
+// GetTemplatesParams defines parameters for GetTemplates.
+type GetTemplatesParams struct {
+	Active *bool `form:"active,omitempty" json:"active,omitempty"`
+
+	// Name Exact case-sensitive reference. Incompatible with name_contains.
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// NameContains Literal case-insensitive substring of the reference. Incompatible with name.
+	NameContains *string `form:"name_contains,omitempty" json:"name_contains,omitempty"`
+	Limit        *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor       *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // BrowserLoginParams defines parameters for BrowserLogin.
 type BrowserLoginParams struct {
 	Next *string `form:"next,omitempty" json:"next,omitempty"`
@@ -1859,6 +1904,12 @@ type CreateRunJSONRequestBody = CreateRun
 
 // SendMessageJSONRequestBody defines body for SendMessage for application/json ContentType.
 type SendMessageJSONRequestBody = SendMessage
+
+// CreateTemplateJSONRequestBody defines body for CreateTemplate for application/json ContentType.
+type CreateTemplateJSONRequestBody = CreateTemplate
+
+// UpdateTemplateJSONRequestBody defines body for UpdateTemplate for application/json ContentType.
+type UpdateTemplateJSONRequestBody = UpdateTemplate
 
 // AsErrorDetailPath0 returns the union data inside the ErrorDetail_Path_Item as a ErrorDetailPath0
 func (t ErrorDetail_Path_Item) AsErrorDetailPath0() (ErrorDetailPath0, error) {
@@ -2595,12 +2646,60 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/sessions/{sid}/runs/{rid}/messages (the `SendMessage` operationId).
 	SendMessage(ctx context.Context, sid openapi_types.UUID, rid openapi_types.UUID, params *SendMessageParams, body SendMessageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetTemplates List configured templates
+	// GetTemplates List registered templates
 	//
-	// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+	// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. This catalog does not yet replace TOML validation of new sessions.
 	//
 	// Corresponds with GET /api/v1/templates (the `GetTemplates` operationId).
-	GetTemplates(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetTemplates(ctx context.Context, params *GetTemplatesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateTemplateWithBody Register an own-project AgentBox template
+	//
+	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/templates (the `CreateTemplate` operationId).
+	CreateTemplateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateTemplate Register an own-project AgentBox template
+	//
+	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/templates (the `CreateTemplate` operationId).
+	CreateTemplate(ctx context.Context, body CreateTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteTemplate Delete an Orpheus catalog record
+	//
+	// Does not modify AgentBox or accepted sessions. Browser writes require Origin and X-Orpheus-CSRF.
+	//
+	// Corresponds with DELETE /api/v1/templates/{id} (the `DeleteTemplate` operationId).
+	DeleteTemplate(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTemplate Read a registered template
+	//
+	// Corresponds with GET /api/v1/templates/{id} (the `GetTemplate` operationId).
+	GetTemplate(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateTemplateWithBody Update template activity or description
+	//
+	// Name and tag are immutable. Empty or whitespace-only descriptions become null. No AgentBox lookup. Browser writes require Origin and X-Orpheus-CSRF.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /api/v1/templates/{id} (the `UpdateTemplate` operationId).
+	UpdateTemplateWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateTemplate Update template activity or description
+	//
+	// Name and tag are immutable. Empty or whitespace-only descriptions become null. No AgentBox lookup. Browser writes require Origin and X-Orpheus-CSRF.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /api/v1/templates/{id} (the `UpdateTemplate` operationId).
+	UpdateTemplate(ctx context.Context, id openapi_types.UUID, body UpdateTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// BrowserCallback Consume a signed SAML HTTP-POST response
 	//
@@ -2955,13 +3054,121 @@ func (c *Client) SendMessage(ctx context.Context, sid openapi_types.UUID, rid op
 	return c.Client.Do(req)
 }
 
-// GetTemplates List configured templates
+// GetTemplates List registered templates
 //
-// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. This catalog does not yet replace TOML validation of new sessions.
 //
 // Corresponds with GET /api/v1/templates (the `GetTemplates` operationId).
-func (c *Client) GetTemplates(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetTemplatesRequest(c.Server)
+func (c *Client) GetTemplates(ctx context.Context, params *GetTemplatesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTemplatesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateTemplateWithBody Register an own-project AgentBox template
+//
+// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/templates (the `CreateTemplate` operationId).
+func (c *Client) CreateTemplateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTemplateRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateTemplate Register an own-project AgentBox template
+//
+// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/templates (the `CreateTemplate` operationId).
+func (c *Client) CreateTemplate(ctx context.Context, body CreateTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTemplateRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteTemplate Delete an Orpheus catalog record
+//
+// Does not modify AgentBox or accepted sessions. Browser writes require Origin and X-Orpheus-CSRF.
+//
+// Corresponds with DELETE /api/v1/templates/{id} (the `DeleteTemplate` operationId).
+func (c *Client) DeleteTemplate(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteTemplateRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetTemplate Read a registered template
+//
+// Corresponds with GET /api/v1/templates/{id} (the `GetTemplate` operationId).
+func (c *Client) GetTemplate(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTemplateRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateTemplateWithBody Update template activity or description
+//
+// Name and tag are immutable. Empty or whitespace-only descriptions become null. No AgentBox lookup. Browser writes require Origin and X-Orpheus-CSRF.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /api/v1/templates/{id} (the `UpdateTemplate` operationId).
+func (c *Client) UpdateTemplateWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTemplateRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateTemplate Update template activity or description
+//
+// Name and tag are immutable. Empty or whitespace-only descriptions become null. No AgentBox lookup. Browser writes require Origin and X-Orpheus-CSRF.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /api/v1/templates/{id} (the `UpdateTemplate` operationId).
+func (c *Client) UpdateTemplate(ctx context.Context, id openapi_types.UUID, body UpdateTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTemplateRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4206,7 +4413,7 @@ func NewSendMessageRequestWithBody(server string, sid openapi_types.UUID, rid op
 }
 
 // NewGetTemplatesRequest constructs an http.Request for the GetTemplates method
-func NewGetTemplatesRequest(server string) (*http.Request, error) {
+func NewGetTemplatesRequest(server string, params *GetTemplatesParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -4224,10 +4431,240 @@ func NewGetTemplatesRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Active != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "active", *params.Active, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name", *params.Name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.NameContains != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name_contains", *params.NameContains, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewCreateTemplateRequest calls the generic CreateTemplate builder with application/json body
+func NewCreateTemplateRequest(server string, body CreateTemplateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateTemplateRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateTemplateRequestWithBody constructs an http.Request for the CreateTemplate method, with any body, and a specified content type
+func NewCreateTemplateRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/templates")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteTemplateRequest constructs an http.Request for the DeleteTemplate method
+func NewDeleteTemplateRequest(server string, id openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/templates/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetTemplateRequest constructs an http.Request for the GetTemplate method
+func NewGetTemplateRequest(server string, id openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/templates/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateTemplateRequest calls the generic UpdateTemplate builder with application/json body
+func NewUpdateTemplateRequest(server string, id openapi_types.UUID, body UpdateTemplateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateTemplateRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewUpdateTemplateRequestWithBody constructs an http.Request for the UpdateTemplate method, with any body, and a specified content type
+func NewUpdateTemplateRequestWithBody(server string, id openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/templates/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -4565,14 +5002,66 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/sessions/{sid}/runs/{rid}/messages (the `SendMessage` operationId).
 	SendMessageWithResponse(ctx context.Context, sid openapi_types.UUID, rid openapi_types.UUID, params *SendMessageParams, body SendMessageJSONRequestBody, reqEditors ...RequestEditorFn) (*SendMessageHTTPResponse, error)
 
-	// GetTemplatesWithResponse List configured templates
+	// GetTemplatesWithResponse List registered templates
 	//
-	// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+	// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. This catalog does not yet replace TOML validation of new sessions.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/v1/templates (the `GetTemplates` operationId).
-	GetTemplatesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTemplatesHTTPResponse, error)
+	GetTemplatesWithResponse(ctx context.Context, params *GetTemplatesParams, reqEditors ...RequestEditorFn) (*GetTemplatesHTTPResponse, error)
+
+	// CreateTemplateWithBodyWithResponse Register an own-project AgentBox template
+	//
+	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/templates (the `CreateTemplate` operationId).
+	CreateTemplateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTemplateHTTPResponse, error)
+
+	// CreateTemplateWithResponse Register an own-project AgentBox template
+	//
+	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/templates (the `CreateTemplate` operationId).
+	CreateTemplateWithResponse(ctx context.Context, body CreateTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTemplateHTTPResponse, error)
+
+	// DeleteTemplateWithResponse Delete an Orpheus catalog record
+	//
+	// Does not modify AgentBox or accepted sessions. Browser writes require Origin and X-Orpheus-CSRF.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/templates/{id} (the `DeleteTemplate` operationId).
+	DeleteTemplateWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteTemplateHTTPResponse, error)
+
+	// GetTemplateWithResponse Read a registered template
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/templates/{id} (the `GetTemplate` operationId).
+	GetTemplateWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetTemplateHTTPResponse, error)
+
+	// UpdateTemplateWithBodyWithResponse Update template activity or description
+	//
+	// Name and tag are immutable. Empty or whitespace-only descriptions become null. No AgentBox lookup. Browser writes require Origin and X-Orpheus-CSRF.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/templates/{id} (the `UpdateTemplate` operationId).
+	UpdateTemplateWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTemplateHTTPResponse, error)
+
+	// UpdateTemplateWithResponse Update template activity or description
+	//
+	// Name and tag are immutable. Empty or whitespace-only descriptions become null. No AgentBox lookup. Browser writes require Origin and X-Orpheus-CSRF.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/templates/{id} (the `UpdateTemplate` operationId).
+	UpdateTemplateWithResponse(ctx context.Context, id openapi_types.UUID, body UpdateTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTemplateHTTPResponse, error)
 
 	// BrowserCallbackWithResponse Consume a signed SAML HTTP-POST response
 	//
@@ -6102,10 +6591,8 @@ type GetTemplatesHTTPResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *Templates
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *ErrorResponse
-	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *ErrorResponse
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -6113,14 +6600,9 @@ func (r GetTemplatesHTTPResponse) GetJSON200() *Templates {
 	return r.JSON200
 }
 
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r GetTemplatesHTTPResponse) GetJSON401() *ErrorResponse {
-	return r.JSON401
-}
-
-// GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r GetTemplatesHTTPResponse) GetJSON503() *ErrorResponse {
-	return r.JSON503
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetTemplatesHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
 }
 
 // GetBody returns the raw response body bytes
@@ -6146,6 +6628,191 @@ func (r GetTemplatesHTTPResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetTemplatesHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateTemplateHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *Template
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateTemplateHTTPResponse) GetJSON201() *Template {
+	return r.JSON201
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r CreateTemplateHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateTemplateHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateTemplateHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateTemplateHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateTemplateHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteTemplateHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteTemplateHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteTemplateHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteTemplateHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteTemplateHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteTemplateHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetTemplateHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Template
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetTemplateHTTPResponse) GetJSON200() *Template {
+	return r.JSON200
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetTemplateHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetTemplateHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTemplateHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTemplateHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetTemplateHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateTemplateHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Template
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateTemplateHTTPResponse) GetJSON200() *Template {
+	return r.JSON200
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r UpdateTemplateHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateTemplateHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateTemplateHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateTemplateHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateTemplateHTTPResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -6604,19 +7271,107 @@ func (c *ClientWithResponses) SendMessageWithResponse(ctx context.Context, sid o
 	return ParseSendMessageHTTPResponse(rsp)
 }
 
-// GetTemplatesWithResponse List configured templates
+// GetTemplatesWithResponse List registered templates
 //
-// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. This catalog does not yet replace TOML validation of new sessions.
 //
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/v1/templates (the `GetTemplates` operationId).
-func (c *ClientWithResponses) GetTemplatesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTemplatesHTTPResponse, error) {
-	rsp, err := c.GetTemplates(ctx, reqEditors...)
+func (c *ClientWithResponses) GetTemplatesWithResponse(ctx context.Context, params *GetTemplatesParams, reqEditors ...RequestEditorFn) (*GetTemplatesHTTPResponse, error) {
+	rsp, err := c.GetTemplates(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseGetTemplatesHTTPResponse(rsp)
+}
+
+// CreateTemplateWithBodyWithResponse Register an own-project AgentBox template
+//
+// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/templates (the `CreateTemplate` operationId).
+func (c *ClientWithResponses) CreateTemplateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTemplateHTTPResponse, error) {
+	rsp, err := c.CreateTemplateWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTemplateHTTPResponse(rsp)
+}
+
+// CreateTemplateWithResponse Register an own-project AgentBox template
+//
+// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/templates (the `CreateTemplate` operationId).
+func (c *ClientWithResponses) CreateTemplateWithResponse(ctx context.Context, body CreateTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTemplateHTTPResponse, error) {
+	rsp, err := c.CreateTemplate(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTemplateHTTPResponse(rsp)
+}
+
+// DeleteTemplateWithResponse Delete an Orpheus catalog record
+//
+// Does not modify AgentBox or accepted sessions. Browser writes require Origin and X-Orpheus-CSRF.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/templates/{id} (the `DeleteTemplate` operationId).
+func (c *ClientWithResponses) DeleteTemplateWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteTemplateHTTPResponse, error) {
+	rsp, err := c.DeleteTemplate(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteTemplateHTTPResponse(rsp)
+}
+
+// GetTemplateWithResponse Read a registered template
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/templates/{id} (the `GetTemplate` operationId).
+func (c *ClientWithResponses) GetTemplateWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetTemplateHTTPResponse, error) {
+	rsp, err := c.GetTemplate(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTemplateHTTPResponse(rsp)
+}
+
+// UpdateTemplateWithBodyWithResponse Update template activity or description
+//
+// Name and tag are immutable. Empty or whitespace-only descriptions become null. No AgentBox lookup. Browser writes require Origin and X-Orpheus-CSRF.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/templates/{id} (the `UpdateTemplate` operationId).
+func (c *ClientWithResponses) UpdateTemplateWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTemplateHTTPResponse, error) {
+	rsp, err := c.UpdateTemplateWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTemplateHTTPResponse(rsp)
+}
+
+// UpdateTemplateWithResponse Update template activity or description
+//
+// Name and tag are immutable. Empty or whitespace-only descriptions become null. No AgentBox lookup. Browser writes require Origin and X-Orpheus-CSRF.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/templates/{id} (the `UpdateTemplate` operationId).
+func (c *ClientWithResponses) UpdateTemplateWithResponse(ctx context.Context, id openapi_types.UUID, body UpdateTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTemplateHTTPResponse, error) {
+	rsp, err := c.UpdateTemplate(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTemplateHTTPResponse(rsp)
 }
 
 // BrowserCallbackWithResponse Consume a signed SAML HTTP-POST response
@@ -7949,19 +8704,140 @@ func ParseGetTemplatesHTTPResponse(rsp *http.Response) (*GetTemplatesHTTPRespons
 		}
 		response.JSON200 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON401 = &dest
+		response.JSONDefault = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+	}
+
+	return response, nil
+}
+
+// ParseCreateTemplateHTTPResponse parses an HTTP response from a CreateTemplateWithResponse call
+func ParseCreateTemplateHTTPResponse(rsp *http.Response) (*CreateTemplateHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateTemplateHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Template
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON503 = &dest
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteTemplateHTTPResponse parses an HTTP response from a DeleteTemplateWithResponse call
+func ParseDeleteTemplateHTTPResponse(rsp *http.Response) (*DeleteTemplateHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteTemplateHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTemplateHTTPResponse parses an HTTP response from a GetTemplateWithResponse call
+func ParseGetTemplateHTTPResponse(rsp *http.Response) (*GetTemplateHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTemplateHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Template
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateTemplateHTTPResponse parses an HTTP response from a UpdateTemplateWithResponse call
+func ParseUpdateTemplateHTTPResponse(rsp *http.Response) (*UpdateTemplateHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateTemplateHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Template
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
 
 	}
 

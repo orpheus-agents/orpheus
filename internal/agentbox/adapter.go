@@ -16,7 +16,11 @@ import (
 type Platform struct{ client *sdk.Client }
 
 func New() (*Platform, error) {
-	c, err := sdk.NewClient()
+	config, err := loadProviderConfig()
+	if err != nil {
+		return nil, err
+	}
+	c, err := sdk.NewClient(sdk.WithAPIURL(config.apiURL), sdk.WithAPIKey(config.key), sdk.WithRequestTimeout(config.timeout))
 	if err != nil {
 		return nil, err
 	}

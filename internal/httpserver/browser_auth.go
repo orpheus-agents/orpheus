@@ -19,7 +19,15 @@ type browserIdentityKey struct{}
 
 func browserReadable(operation string) bool {
 	switch operation {
-	case "GetServices", "GetProfiles", "GetTemplates", "GetAccountLimits", "GetAnalyticsOverview", "ListSessions", "GetSession", "ListAllRuns", "ListRuns", "GetRun", "GetHistory", "GetEvents", "StreamEvents":
+	case "GetServices", "GetProfiles", "GetTemplates", "GetTemplate", "GetAccountLimits", "GetAnalyticsOverview", "ListSessions", "GetSession", "ListAllRuns", "ListRuns", "GetRun", "GetHistory", "GetEvents", "StreamEvents":
+		return true
+	default:
+		return false
+	}
+}
+func browserWritable(operation string) bool {
+	switch operation {
+	case "CreateTemplate", "UpdateTemplate", "DeleteTemplate":
 		return true
 	default:
 		return false
@@ -40,7 +48,10 @@ func authorize(r *http.Request, auth *browserauth.Service, keys []string, operat
 		}
 		return nil, nil
 	}
-	if auth.Mode() == "anonymous" && browserReadable(operation) {
+	if auth.Mode() == "anonymous" && (browserReadable(operation) || browserWritable(operation)) {
+		if browserWritable(operation) {
+			return nil, auth.ValidateOrigin(r)
+		}
 		return nil, nil
 	}
 	if auth.Mode() != "saml" {
@@ -53,8 +64,11 @@ func authorize(r *http.Request, auth *browserauth.Service, keys []string, operat
 	if err != nil {
 		return nil, err
 	}
-	if !browserReadable(operation) {
+	if !browserReadable(operation) && !browserWritable(operation) {
 		return nil, session.Problem(403, "read_only_access", "Browser sessions permit reading only.")
+	}
+	if browserWritable(operation) {
+		return identity, auth.ValidateOrigin(r)
 	}
 	return identity, nil
 }

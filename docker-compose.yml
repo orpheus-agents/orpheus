@@ -21,6 +21,7 @@ services:
     environment:
       DATABASE_URL: postgres://orpheus:orpheus@db:5432/orpheus
       ORPHEUS_CONFIG_FILE: /etc/orpheus/orpheus.toml
+      AGENTBOX_API_KEY: ${AGENTBOX_API_KEY:-}
     volumes:
       - .:/app
       - ./orpheus.toml:/etc/orpheus/orpheus.toml:ro

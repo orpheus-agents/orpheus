@@ -40,7 +40,7 @@ curl -fsS http://localhost:9100/ready
 
 The API is available at `http://localhost:8000`. By default, session requests require
 `Authorization: Bearer <key>` using a key from `PUBLIC_API_KEYS` in `.env`.
-For read-only browser access, see [browser authentication](docs/browser-auth.md).
+For browser access, see [browser authentication](docs/browser-auth.md).
 For the dashboard snapshot and session filters, see [dashboard analytics](docs/dashboard-analytics.md).
 For profile settings, template registration and catalog APIs, see
 [profiles and templates](docs/profiles-and-templates.md).

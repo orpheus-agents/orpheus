@@ -51,18 +51,8 @@ func TestCatalogsWithoutDatabaseOrCredentials(t *testing.T) {
 	}
 	wantProfiles := `{"items":[{"name":"a-account","description":"Research","harness":"codex","model":"model","instructions":"Public instructions","codex":{"effort":"high","summary":"auto","personality":"friendly","service_tier":"priority"}},{"name":"z-api","description":null,"harness":"codex","model":null,"instructions":"","codex":{}}]}`
 	assertCatalogJSON(t, profiles.Body, wantProfiles)
-	templates, err := c.GetTemplatesWithResponse(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if templates.StatusCode() != 200 || templates.JSON200 == nil {
-		t.Fatalf("templates: %s", templates.Body)
-	}
-	assertCatalogJSON(t, templates.Body, `{"items":[{"name":"a:v1.2.0","description":"Tagged sandbox"},{"name":"z","description":null}]}`)
-	for _, headers := range []http.Header{profiles.HTTPResponse.Header, templates.HTTPResponse.Header} {
-		if headers.Get("Cache-Control") != "no-store" {
-			t.Fatal(headers)
-		}
+	if profiles.HTTPResponse.Header.Get("Cache-Control") != "no-store" {
+		t.Fatal(profiles.HTTPResponse.Header)
 	}
 	// Anonymous reads also stay available without a database.
 	storage.Settings.BrowserAuth.Mode = "anonymous"
@@ -70,7 +60,7 @@ func TestCatalogsWithoutDatabaseOrCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/api/v1/profiles", "/api/v1/templates"} {
+	for _, path := range []string{"/api/v1/profiles"} {
 		w := httptest.NewRecorder()
 		anonymous.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		if w.Code != 200 {
@@ -80,7 +70,7 @@ func TestCatalogsWithoutDatabaseOrCredentials(t *testing.T) {
 	// API DTOs retain arrays when a catalog is empty in memory.
 	clear(storage.Profiles.Profiles)
 	clear(storage.Profiles.Templates)
-	for _, path := range []string{"/api/v1/profiles", "/api/v1/templates"} {
+	for _, path := range []string{"/api/v1/profiles"} {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+path, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -136,7 +126,7 @@ func TestCatalogDescriptionNormalization(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, path := range []string{"/api/v1/profiles", "/api/v1/templates"} {
+			for _, path := range []string{"/api/v1/profiles"} {
 				response := httptest.NewRecorder()
 				handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
 				if response.Code != http.StatusOK {
