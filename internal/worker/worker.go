@@ -512,10 +512,22 @@ func (e *Executor) tick(ctx context.Context) error {
 	if err != nil || run == nil {
 		return err
 	}
-	if run.ExecutionStartedAt != nil || run.Number > 1 {
+	if record.ThreadID == nil {
+		return harness.Failure("harness_failed", "Native thread is unavailable.")
+	}
+	dispatched, err := e.Store.ThreadHasDispatch(ctx, e.ID, *record.ThreadID)
+	if errors.Is(err, store.ErrThreadDispatchInvalid) {
+		return harness.Failure("harness_failed", "Cannot determine assignment delivery state.")
+	}
+	if err != nil {
+		return err
+	}
+	if dispatched {
 		if err := e.refresh(ctx, record); err != nil {
 			return err
 		}
+	} else {
+		e.snapshot = harness.Snapshot{}
 	}
 	record, run, err = e.read(ctx)
 	if err != nil || run == nil {

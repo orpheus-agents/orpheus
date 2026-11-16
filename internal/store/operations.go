@@ -11,6 +11,24 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/store/db"
 )
 
+var ErrThreadDispatchInvalid = errors.New("native thread dispatch cannot be determined")
+
+// ThreadHasDispatch includes uncertain sends: a missing acknowledgement must
+// never allow the caller to send the same assignment again.
+func (s *Store) ThreadHasDispatch(ctx context.Context, sid uuid.UUID, thread string) (bool, error) {
+	if thread == "" {
+		return false, ErrThreadDispatchInvalid
+	}
+	v, err := db.New(s.Pool).ThreadDispatchState(ctx, db.ThreadDispatchStateParams{SessionID: sid, ThreadID: thread})
+	if err != nil {
+		return false, err
+	}
+	if v.Invalid == nil || *v.Invalid {
+		return false, ErrThreadDispatchInvalid
+	}
+	return v.Dispatched, nil
+}
+
 func (s *Store) Operation(ctx context.Context, sid uuid.UUID, kind string, rid, mid *uuid.UUID, parameters any) (Operation, error) {
 	var out Operation
 	err := s.Mutate(ctx, sid, false, func(tx pgx.Tx, _ *SessionRecord) error {

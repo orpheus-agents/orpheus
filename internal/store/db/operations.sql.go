@@ -497,3 +497,45 @@ func (q *Queries) SaveOperation(ctx context.Context, arg SaveOperationParams) er
 	)
 	return err
 }
+
+const threadDispatchState = `-- name: ThreadDispatchState :one
+WITH starts AS (
+    SELECT o.run_id, o.status, o.parameters, r.native_turn_id
+    FROM operations o
+    LEFT JOIN runs r ON r.id = o.run_id AND r.session_id = o.session_id
+    WHERE o.session_id = $2 AND o.kind = 'start'
+)
+SELECT EXISTS (
+    SELECT 1 FROM starts
+    WHERE parameters->>'thread_id' = $1::text
+      AND (status IN ('sending', 'uncertain', 'confirmed') OR native_turn_id IS NOT NULL)
+) AS dispatched,
+EXISTS (
+    SELECT 1 FROM starts
+    WHERE (status IN ('sending', 'uncertain', 'confirmed') OR native_turn_id IS NOT NULL)
+      AND (jsonb_typeof(parameters->'thread_id') IS DISTINCT FROM 'string'
+           OR parameters->>'thread_id' = '' OR run_id IS NULL)
+) OR EXISTS (
+    SELECT 1 FROM runs r
+    WHERE r.session_id = $2 AND r.native_turn_id IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM starts o WHERE o.run_id = r.id
+          AND o.parameters->>'thread_id' = $1::text)
+) AS invalid
+`
+
+type ThreadDispatchStateParams struct {
+	ThreadID  string    `json:"thread_id"`
+	SessionID uuid.UUID `json:"session_id"`
+}
+
+type ThreadDispatchStateRow struct {
+	Dispatched bool  `json:"dispatched"`
+	Invalid    *bool `json:"invalid"`
+}
+
+func (q *Queries) ThreadDispatchState(ctx context.Context, arg ThreadDispatchStateParams) (ThreadDispatchStateRow, error) {
+	row := q.db.QueryRow(ctx, threadDispatchState, arg.ThreadID, arg.SessionID)
+	var i ThreadDispatchStateRow
+	err := row.Scan(&i.Dispatched, &i.Invalid)
+	return i, err
+}
