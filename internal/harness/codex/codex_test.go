@@ -16,6 +16,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
+
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
@@ -83,7 +85,7 @@ func newRPC(t *testing.T, respond func(map[string]json.RawMessage) any) (*RPC, *
 		stream.out <- data[min(5, len(data)):]
 	}
 	box := &testBox{stream: stream}
-	rpc := NewRPC(box, 100*time.Millisecond)
+	rpc := NewRPC(box, 100*time.Millisecond, new(diagnostic.Redactor))
 	if _, err := rpc.Launch(t.Context(), "exec codex app-server", nil, ""); err != nil {
 		t.Fatal(err)
 	}

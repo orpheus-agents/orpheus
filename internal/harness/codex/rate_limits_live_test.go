@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
+
 	sdk "github.com/abox-dev/sdk/packages/go-sdk"
 	"github.com/orpheus-agents/orpheus/internal/accountlimits"
 	"github.com/orpheus-agents/orpheus/internal/agentbox"
@@ -68,7 +70,7 @@ func TestLiveAccountLimits(t *testing.T) {
 		t.Fatal("sandbox Codex version unavailable", err)
 	}
 	t.Log("sandbox", strings.TrimSpace(string(version)))
-	driver := New(box, 30*time.Second, 524288)
+	driver := New(box, 30*time.Second, 524288, new(diagnostic.Redactor))
 	defer func() { _ = driver.Close() }()
 	home, err := driver.StateDir(ctx)
 	if err != nil {

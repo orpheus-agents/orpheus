@@ -1223,6 +1223,9 @@ type Error struct {
 	Code    string        `json:"code"`
 	Details []ErrorDetail `json:"details"`
 
+	// DiagnosticID Identifier of the internal diagnostic log for this error, when available. It does not grant access to logs.
+	DiagnosticID *openapi_types.UUID `json:"diagnostic_id,omitempty"`
+
 	// Message Human-readable error message. Harness execution failures include the original harness message and additional details when available; otherwise a generic message is returned.
 	Message string      `json:"message"`
 	Phase   *ErrorPhase `json:"phase"`

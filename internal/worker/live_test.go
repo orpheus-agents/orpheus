@@ -130,7 +130,7 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 			return os.ReadFile(filepath.Join(runnerDir, filepath.Base(remotePath)))
 		}
 		e.NewDriver = func(box harness.Sandbox) harness.Driver {
-			return &faultDriver{Driver: codex.New(box, settings.RPCTimeout, settings.MaxToolResultBytes), lost: lost}
+			return &faultDriver{Driver: codex.New(box, settings.RPCTimeout, settings.MaxToolResultBytes, e.redactor), lost: lost}
 		}
 		return e
 	}

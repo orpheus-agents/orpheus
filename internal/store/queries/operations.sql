@@ -48,6 +48,30 @@ WHERE session_id = $1 AND status IN ('completed', 'failed', 'cancelled')
 ORDER BY number DESC
 LIMIT 1;
 
+-- name: ThreadDispatchState :one
+WITH starts AS (
+    SELECT o.run_id, o.status, o.parameters, r.native_turn_id
+    FROM operations o
+    LEFT JOIN runs r ON r.id = o.run_id AND r.session_id = o.session_id
+    WHERE o.session_id = sqlc.arg(session_id) AND o.kind = 'start'
+)
+SELECT EXISTS (
+    SELECT 1 FROM starts
+    WHERE parameters->>'thread_id' = sqlc.arg(thread_id)::text
+      AND (status IN ('sending', 'uncertain', 'confirmed') OR native_turn_id IS NOT NULL)
+) AS dispatched,
+EXISTS (
+    SELECT 1 FROM starts
+    WHERE (status IN ('sending', 'uncertain', 'confirmed') OR native_turn_id IS NOT NULL)
+      AND (jsonb_typeof(parameters->'thread_id') IS DISTINCT FROM 'string'
+           OR parameters->>'thread_id' = '' OR run_id IS NULL)
+) OR EXISTS (
+    SELECT 1 FROM runs r
+    WHERE r.session_id = sqlc.arg(session_id) AND r.native_turn_id IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM starts o WHERE o.run_id = r.id
+          AND o.parameters->>'thread_id' = sqlc.arg(thread_id)::text)
+) AS invalid;
+
 -- name: PreviousExecutedRun :one
 SELECT r.*
 FROM runs r

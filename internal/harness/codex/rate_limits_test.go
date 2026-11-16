@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
+
 	"github.com/orpheus-agents/orpheus/internal/accountlimits"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 )
@@ -26,7 +28,7 @@ func TestRateLimitReadAndNotificationIsolation(t *testing.T) {
 		}
 		return map[string]any{"id": req["id"], "result": map[string]any{}}
 	})
-	d := New(box, time.Second, 1024)
+	d := New(box, time.Second, 1024, new(diagnostic.Redactor))
 	d.rpc = rpc
 	rpc.receive(t.Context(), []byte(`{"method":"thread/tokenUsage/updated","params":{"turnId":"t"}}`))
 	for range 500 {
@@ -86,7 +88,7 @@ func TestRateLimitReadErrors(t *testing.T) {
 				maps.Copy(response, tc.result.(map[string]any))
 				return response
 			})
-			d := New(box, time.Second, 1024)
+			d := New(box, time.Second, 1024, new(diagnostic.Redactor))
 			d.rpc = rpc
 			_, err := d.ReadAccountLimits(t.Context())
 			if !errors.Is(err, tc.want) {
@@ -102,7 +104,7 @@ func TestRateLimitReadCloseRace(t *testing.T) {
 		started <- struct{}{}
 		return nil
 	})
-	d := New(box, time.Second, 1024)
+	d := New(box, time.Second, 1024, new(diagnostic.Redactor))
 	d.rpc = rpc
 	done := make(chan error, 1)
 	go func() { _, err := d.ReadAccountLimits(t.Context()); done <- err }()

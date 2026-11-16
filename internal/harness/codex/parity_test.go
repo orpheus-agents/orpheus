@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
+
 	"time"
 
 	"github.com/orpheus-agents/orpheus/internal/harness"
@@ -128,7 +130,7 @@ func TestNativePreparationAndAccountModes(t *testing.T) {
 				}
 				return map[string]any{"id": req["id"], "result": result}
 			})
-			d := New(box, time.Second, 1024)
+			d := New(box, time.Second, 1024, new(diagnostic.Redactor))
 			d.rpc = rpc
 			source := session.Credentials{Mode: mode, APIKeyEnv: "FIXTURE_KEY"}
 			box.run = func(_ context.Context, command string) ([]byte, error) {
@@ -142,7 +144,7 @@ func TestNativePreparationAndAccountModes(t *testing.T) {
 				t.Fatal(home, box.files, err)
 			}
 			launchBox := &testBox{stream: &testStream{out: make(chan []byte), errout: make(chan []byte)}}
-			launcher := New(launchBox, time.Second, 1024)
+			launcher := New(launchBox, time.Second, 1024, new(diagnostic.Redactor))
 			defer func() { _ = launcher.Close() }()
 			if _, err := launcher.Launch(t.Context(), map[string]string{"TOKEN": "value"}, "/workspace", source); err != nil {
 				t.Fatal(err)
@@ -217,7 +219,7 @@ func TestRecoverResolvesCodexHomeOnlyForMissingHistoryPath(t *testing.T) {
 		}
 		return exec.CommandContext(ctx, "sh", "-c", command).Output()
 	}
-	d := New(box, time.Second, 524288)
+	d := New(box, time.Second, 524288, new(diagnostic.Redactor))
 	if got, err := d.Recover(t.Context(), &thread.ID, nil, nil); err != nil || len(got.Turns) == 0 || resolved != 1 {
 		t.Fatal("missing-path recovery", got, resolved, err)
 	}
@@ -246,7 +248,7 @@ func TestContextCreateResumeAndLoss(t *testing.T) {
 		}
 		return map[string]any{"id": req["id"], "result": map[string]any{"thread": map[string]string{"id": "thread", "path": "/history"}}}
 	})
-	d := New(box, time.Second, 1024)
+	d := New(box, time.Second, 1024, new(diagnostic.Redactor))
 	d.rpc = rpc
 	agent := session.AgentConfiguration{Model: "model", Instructions: "instructions"}
 	created, err := d.OpenContext(t.Context(), agent, "/workspace", nil)
@@ -284,7 +286,7 @@ func TestContextWithoutInstructionsAndTurnEffort(t *testing.T) {
 		}
 		return map[string]any{"id": req["id"], "result": result}
 	})
-	d := New(box, time.Second, 1024)
+	d := New(box, time.Second, 1024, new(diagnostic.Redactor))
 	d.rpc = rpc
 	agent := session.AgentConfiguration{Model: "model", Codex: session.CodexConfiguration{Effort: "high"}}
 	if _, err := d.OpenContext(t.Context(), agent, "/workspace", nil); err != nil {
@@ -349,7 +351,7 @@ func TestCodexOptionsOnStartResumeAndTurn(t *testing.T) {
 				}
 				return map[string]any{"id": req["id"], "result": map[string]any{"thread": map[string]string{"id": "thread"}, "turn": map[string]string{"id": "turn"}}}
 			})
-			d := New(box, time.Second, 1024)
+			d := New(box, time.Second, 1024, new(diagnostic.Redactor))
 			d.rpc = rpc
 			agent := session.AgentConfiguration{Model: "model", Codex: tc.options}
 			for _, id := range []*string{nil, new("thread")} {

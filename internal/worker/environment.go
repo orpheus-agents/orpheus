@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -110,6 +111,7 @@ func launchMatches(processes []harness.Process, id uuid.UUID) []harness.Process 
 }
 func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecord, run *store.RunRecord) error {
 	cfg := record.Configuration
+	e.redactor.Add(os.Getenv("AGENTBOX_API_KEY"), os.Getenv(cfg.Credentials.APIKeyEnv))
 	repair := false
 	if cfg.Credentials.Mode == "account" && run.ExecutionStartedAt == nil {
 		var err error
@@ -228,6 +230,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 				return harness.ErrUncertain
 			}
 			pid = matches[0].PID
+			e.rememberProcessEnvironment(matches[0])
 			if err := driver.Attach(ctx, pid); err != nil {
 				return err
 			}
@@ -274,6 +277,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 			return err
 		}
 	} else {
+		e.rememberProcessEnvironment(*process)
 		if err := driver.Attach(ctx, process.PID); err != nil {
 			return err
 		}
@@ -350,6 +354,14 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 	e.unregisterLimits = unregisterLimits
 	adopted = true
 	return nil
+}
+
+func (e *Executor) rememberProcessEnvironment(process harness.Process) {
+	values := make([]string, 0, len(process.Env))
+	for _, value := range process.Env {
+		values = append(values, value)
+	}
+	e.redactor.Add(values...)
 }
 func (e *Executor) recoverDead(ctx context.Context, record store.SessionRecord, run store.RunRecord, driver harness.Driver) error {
 	snapshot, err := driver.Recover(ctx, record.ThreadID, record.HistoryPath, record.HarnessHome)

@@ -44,6 +44,8 @@ type remote struct {
 	pauseError, deleteError, initializeError, prepareError                                 error
 	createError, startError, steerError, contextError, snapshotError, leaseError           error
 	logins                                                                                 []bool
+	rejectEmptyHistory                                                                     bool
+	rpcOrder                                                                               []string
 	pauseHook                                                                              func()
 	killed                                                                                 []int
 	env                                                                                    map[string]string
@@ -185,6 +187,7 @@ func (d *fakeDriver) HasUpdates() bool { return true }
 func (d *fakeDriver) Committed()       { d.r.usage = nil }
 func (d *fakeDriver) Start(_ context.Context, _ session.AgentConfiguration, _ string, texts []string) (string, error) {
 	r := d.r
+	r.rpcOrder = append(r.rpcOrder, "start")
 	r.starts++
 	if r.startError != nil {
 		return "", r.startError
@@ -225,6 +228,10 @@ func (d *fakeDriver) Interrupt(_ context.Context, _ string, tid string) error {
 	return nil
 }
 func (d *fakeDriver) Snapshot(context.Context, string, *string, int64) (harness.Snapshot, error) {
+	d.r.rpcOrder = append(d.r.rpcOrder, "snapshot")
+	if d.r.rejectEmptyHistory && len(d.r.turns) == 0 {
+		return harness.Snapshot{}, harness.ErrRejected
+	}
 	if d.r.snapshotError != nil {
 		return harness.Snapshot{}, d.r.snapshotError
 	}

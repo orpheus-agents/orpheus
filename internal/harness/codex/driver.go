@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/orpheus-agents/orpheus/internal/accountlimits"
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
@@ -33,8 +34,8 @@ type Driver struct {
 	usage           []harness.UsageReport
 }
 
-func New(s harness.Sandbox, timeout time.Duration, limit int) *Driver {
-	return &Driver{rpc: NewRPC(s, timeout), limit: limit, completed: map[string]bool{}, outputs: map[string]Output{}, orders: map[string]int64{}, commands: map[string]json.RawMessage{}, journalIDs: map[string]bool{}, recovered: map[string]NativeTurn{}}
+func New(s harness.Sandbox, timeout time.Duration, limit int, redactor *diagnostic.Redactor) *Driver {
+	return &Driver{rpc: NewRPC(s, timeout, redactor), limit: limit, completed: map[string]bool{}, outputs: map[string]Output{}, orders: map[string]int64{}, commands: map[string]json.RawMessage{}, journalIDs: map[string]bool{}, recovered: map[string]NativeTurn{}}
 }
 
 var _ harness.Driver = (*Driver)(nil)
@@ -78,6 +79,7 @@ func (d *Driver) Initialize(ctx context.Context, source session.Credentials, log
 		if key == "" {
 			return harness.Failure("credentials_unavailable", "Provider API key is unavailable.")
 		}
+		d.rpc.redactor.Add(key)
 		if err := d.rpc.Call(ctx, "account/login/start", map[string]string{"type": "apiKey", "apiKey": key}, nil); err != nil {
 			return err
 		}
@@ -150,7 +152,7 @@ func (d *Driver) OpenContext(ctx context.Context, agent session.AgentConfigurati
 		params["threadId"] = *id
 		if err := d.rpc.Call(ctx, "thread/resume", params, nil); err != nil {
 			if _, ok := errors.AsType[*RPCError](err); ok {
-				return harness.Context{}, harness.Failure("context_lost", "Harness context cannot be restored.")
+				return harness.Context{}, harness.FailureCause("context_lost", "Harness context cannot be restored.", err)
 			}
 			return harness.Context{}, err
 		}
@@ -218,7 +220,7 @@ func (d *Driver) Start(ctx context.Context, agent session.AgentConfiguration, th
 		if len(texts) > 1 && errors.Is(err, harness.ErrRejected) {
 			// The earlier items were already injected. Retire this context so a
 			// later run cannot see input from a rejected assignment.
-			return "", harness.Failure("context_lost", "Harness rejected the batched assignment after context injection.")
+			return "", harness.FailureCause("context_lost", "Harness rejected the batched assignment after context injection.", err)
 		}
 		return "", err
 	}
@@ -301,7 +303,7 @@ func (d *Driver) snapshot(ctx context.Context, thread string, path *string, offs
 				return d.historySnapshot(ctx, thread, path)
 			}
 			if e, ok := errors.AsType[*RPCError](err); ok && strings.Contains(strings.ToLower(e.NativeMessage), "not found") {
-				return harness.Snapshot{}, harness.Failure("context_lost", "Harness context is unavailable.")
+				return harness.Snapshot{}, harness.FailureCause("context_lost", "Harness context is unavailable.", err)
 			}
 			return harness.Snapshot{}, err
 		}

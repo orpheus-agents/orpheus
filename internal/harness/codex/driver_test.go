@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
+
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
@@ -89,7 +91,7 @@ func fixtureDriver(t *testing.T, thread *Thread) (*Driver, *testBox, *int) {
 		reads++
 		return map[string]any{"id": req["id"], "result": map[string]any{"thread": thread}}
 	})
-	d := New(box, time.Second, 524288)
+	d := New(box, time.Second, 524288, new(diagnostic.Redactor))
 	d.rpc = rpc
 	return d, box, &reads
 }
