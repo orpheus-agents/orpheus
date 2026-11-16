@@ -124,7 +124,7 @@ func TestKeycloakRoundTrip(t *testing.T) {
 	}
 	_, storage := testServer(t)
 	storage.Settings.BrowserAuth = f.Config
-	handler, err := Handler(storage, t.Context())
+	handler, err := Handler(storage, t.Context(), NewHTTPMetrics())
 	if err != nil {
 		t.Fatal(err)
 	}

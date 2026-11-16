@@ -12,7 +12,7 @@ import (
 
 func TestSystemHandler(t *testing.T) {
 	var ready atomic.Bool
-	handler := SystemHandler(&ready, func(context.Context) (store.LimitReport, error) {
+	handler := SystemHandler(&ready, NewHTTPMetrics(), func(context.Context) (store.LimitReport, error) {
 		t.Error("probe queried storage")
 		return store.LimitReport{}, nil
 	})
@@ -36,7 +36,7 @@ func TestSystemHandler(t *testing.T) {
 	for _, tc := range []struct {
 		method, path string
 		status       int
-	}{{"POST", "/metrics/service", 405}, {"GET", "/metrics", 404}, {"POST", "/ready", 405}, {"POST", "/health", 405}, {"GET", "/health/extra", 404}, {"GET", "/api/v1/sessions", 404}, {"GET", "/openapi.json", 404}, {"GET", "/auth/login", 404}} {
+	}{{"POST", "/metrics/service", 405}, {"GET", "/metrics", 200}, {"POST", "/metrics", 405}, {"GET", "/metrics/extra", 404}, {"POST", "/ready", 405}, {"POST", "/health", 405}, {"GET", "/health/extra", 404}, {"GET", "/api/v1/sessions", 404}, {"GET", "/openapi.json", 404}, {"GET", "/auth/login", 404}} {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, httptest.NewRequest(tc.method, tc.path, nil))
 		if response.Code != tc.status {

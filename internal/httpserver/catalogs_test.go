@@ -28,7 +28,7 @@ func TestCatalogsWithoutDatabaseOrCredentials(t *testing.T) {
 		CredentialStores: map[string]session.CredentialStore{"private": {Bucket: "PRIVATE_BUCKET"}},
 	}}
 	storage.Settings.PublicAPIKeys = []string{"key"}
-	handler, err := Handler(storage, t.Context())
+	handler, err := Handler(storage, t.Context(), NewHTTPMetrics())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestCatalogsWithoutDatabaseOrCredentials(t *testing.T) {
 	}
 	// Anonymous reads also stay available without a database.
 	storage.Settings.BrowserAuth.Mode = "anonymous"
-	anonymous, err := Handler(storage, t.Context())
+	anonymous, err := Handler(storage, t.Context(), NewHTTPMetrics())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestCatalogDescriptionNormalization(t *testing.T) {
 			}
 			storage := &store.Store{Settings: config.DefaultSettings(), Profiles: profiles}
 			storage.Settings.BrowserAuth.Mode = "anonymous"
-			handler, err := Handler(storage, t.Context())
+			handler, err := Handler(storage, t.Context(), NewHTTPMetrics())
 			if err != nil {
 				t.Fatal(err)
 			}

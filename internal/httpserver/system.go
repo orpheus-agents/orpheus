@@ -9,10 +9,10 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/store"
 )
 
-// SystemHandler exposes process probes and database-backed service metrics.
+// SystemHandler exposes process probes, instance metrics and service metrics.
 // Probes do not consult external dependencies.
 // The serving lifecycle owns ready; this handler is never mounted on the API.
-func SystemHandler(ready *atomic.Bool, readLimits func(context.Context) (store.LimitReport, error)) http.Handler {
+func SystemHandler(ready *atomic.Bool, metrics *HTTPMetrics, readLimits func(context.Context) (store.LimitReport, error)) http.Handler {
 	mux := http.NewServeMux()
 	probe := func(w http.ResponseWriter, available bool) {
 		w.Header().Set("Content-Type", "application/json")
@@ -30,6 +30,7 @@ func SystemHandler(ready *atomic.Bool, readLimits func(context.Context) (store.L
 	mux.HandleFunc("GET /ready", func(w http.ResponseWriter, _ *http.Request) {
 		probe(w, ready.Load())
 	})
+	mux.Handle("GET /metrics", metrics.handler())
 	mux.Handle("GET /metrics/service", serviceMetricsHandler(readLimits))
 	return mux
 }

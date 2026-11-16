@@ -122,7 +122,7 @@ func TestTemplateBrowserWrites(t *testing.T) {
 	for _, mode := range []string{"anonymous", "saml", "api_only"} {
 		storage.Settings.BrowserAuth = fixture.Config
 		storage.Settings.BrowserAuth.Mode = mode
-		handler, err := Handler(storage, t.Context())
+		handler, err := Handler(storage, t.Context(), NewHTTPMetrics())
 		if err != nil {
 			t.Fatal(err)
 		}

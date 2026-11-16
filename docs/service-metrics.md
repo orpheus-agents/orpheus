@@ -1,10 +1,63 @@
-# Service metrics
+# Metrics
 
-`orpheus serve` exposes `GET /metrics/service` on its internal system listener
-(`ORPHEUS_SYSTEM_HOST` / `ORPHEUS_SYSTEM_PORT`, default port 9100). It requires no
+`orpheus serve` exposes `GET /metrics` and `GET /metrics/service` on its system listener
+(`ORPHEUS_SYSTEM_HOST` / `ORPHEUS_SYSTEM_PORT`, default port 9100). Both require no
 authentication. Keep this port private; the public API listener does not serve
 metrics. `/health` and `/ready` remain process probes independent of the database.
 
+Both endpoints support Prometheus text and OpenMetrics content negotiation and
+send `Cache-Control: no-store`. Each has its own registry, with no default Go,
+process or scrape counters.
+
+## API request rates
+
+`GET /metrics` exposes the local counter
+`orpheus_http_requests_total{method, route, status}`. It reads only process memory
+and stays available when the database is unavailable.
+
+Requests are counted once after their HTTP handler returns, including errors
+from authentication, validation and routing. The counter covers the entire public
+listener: API, browser authentication, SAML metadata, OpenAPI and unknown paths.
+SSE counts once when its handler finishes, not when it connects or emits events.
+Handlers terminated by a panic are not counted. Requests rejected by the HTTP
+server before reaching the handler are outside this counter. System requests,
+including health probes and metrics scrapes, are excluded.
+
+`route` is the OpenAPI path template, such as `/api/v1/sessions/{sid}`, or
+`/openapi.json` for its GET handler. Requests without a matching method and route
+use `unmatched`. Labels never contain raw URLs, query strings or session/user IDs.
+`method` uses the standard HTTP methods; other methods become `OTHER`.
+`status` is the numeric HTTP response code. Each observed label combination
+starts a series; a new process has no request series until it handles traffic.
+Counters reset when the process restarts.
+
+Scrape `/metrics` directly from **every API pod**. A load-balanced Service address
+would sample a random replica and produce an invalid counter series. For the
+shared Go PodScrape, name the system container port `metrics` and set
+`app.kubernetes.io/component: golang` and `app.kubernetes.io/name` on the API Pod
+template. Keep this port private. The worker does not expose this endpoint.
+
+Compute the rate for each series before summing, so counter resets are handled
+per replica. These examples average over five minutes; replace the namespace and
+application selectors with those of one installation (include cluster if needed):
+
+```promql
+sum(rate(orpheus_http_requests_total{
+  app_kubernetes_io_name="orpheus", namespace="<namespace>"
+}[5m]))
+```
+
+Per HTTP method, route and response status:
+
+```promql
+sum by (method, route, status) (rate(orpheus_http_requests_total{
+  app_kubernetes_io_name="orpheus", namespace="<namespace>"
+}[5m]))
+```
+
+## Account quotas
+
+`GET /metrics/service` returns database-backed service metrics.
 Each scrape reads one database snapshot through `Store.AccountLimits`, just like
 `GET /api/v1/accounts/limits`. It never contacts Codex, reads credentials or wakes
 a sandbox. Two API replicas read the same database; collect these metrics once
@@ -36,11 +89,11 @@ time. A successful scrape does not refresh provider data. Removed accounts,
 windows and values disappear on the next successful scrape. API-key-only
 installations successfully return no account metric series.
 
-## Kubernetes collection
+### Kubernetes collection
 
 Expose the system listener through an internal ClusterIP Service and configure
 your scraper to read `/metrics/service` once per installation. If the container
-port is named `system`, use `targetPort: system` on the Service's metrics port.
+port is named `metrics`, use `targetPort: metrics` on the Service's metrics port.
 Keep the port private; do not publish it through an HTTPRoute/Ingress. Configure
 service discovery labels, scrape interval and timeout in your monitoring setup.
 
@@ -51,7 +104,7 @@ Check the target with `up`. Replace the example `job` and
 up{job="service-metrics", app_kubernetes_io_name="orpheus"}
 ```
 
-## Low-quota alert
+### Low-quota alert
 
 Example for one installation, to be added to its monitoring configuration.
 Replace `job` and `app_kubernetes_io_name` with your target selectors in both
