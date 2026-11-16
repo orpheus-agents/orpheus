@@ -466,7 +466,7 @@ components:
             description: Validation paths start with body, header, query, or path. Hook execution errors identify configuration.hooks.<name>; codes never contain input values or native validator messages.
             properties:
                 code:
-                    enum: [required, invalid_type, invalid_value, unknown_field, template_not_found, template_forbidden, tag_not_found]
+                    enum: [required, invalid_type, invalid_value, unknown_field, template_not_found, template_inactive, template_forbidden, tag_not_found]
                     title: Code
                     type: string
                 path:
@@ -1137,6 +1137,7 @@ components:
                     title: Env From
                     type: array
                 template:
+                    description: Exact active catalog name, including any team slug and tag. Missing or inactive records return 422 unknown_template with detail code template_not_found or template_inactive. Accepted sessions and idempotent replays keep their stored name regardless of subsequent catalog changes.
                     minLength: 1
                     title: Template
                     type: string
@@ -1568,7 +1569,7 @@ paths:
         get:
             operationId: get_templates
             summary: List registered templates
-            description: Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. This catalog does not yet replace TOML validation of new sessions.
+            description: Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. New sessions require an exact active name from this catalog. Changes do not affect accepted sessions or idempotent replays.
             parameters:
                 - in: query
                   name: active
@@ -1604,7 +1605,7 @@ paths:
         post:
             operationId: create_template
             summary: Register an own-project AgentBox template
-            description: Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+            description: Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Active records become available to new sessions immediately, without restarting API or worker.
             requestBody:
                 required: true
                 content:

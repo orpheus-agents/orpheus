@@ -37,9 +37,6 @@ type CodexProfile struct {
 	Personality string `toml:"personality"`
 	ServiceTier string `toml:"service_tier"`
 }
-type Template struct {
-	Description *string `toml:"description"`
-}
 type Profile struct {
 	Description  *string      `toml:"description"`
 	Harness      string       `toml:"harness"`
@@ -50,7 +47,6 @@ type Profile struct {
 }
 type Profiles struct {
 	Services         map[string]Service                 `toml:"services"`
-	Templates        map[string]Template                `toml:"templates"`
 	Profiles         map[string]Profile                 `toml:"profiles"`
 	CredentialStores map[string]session.CredentialStore `toml:"credential_stores"`
 }
@@ -59,9 +55,8 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 	// Presence matters: an omitted default and an explicitly empty value are
 	// different, as are forbidden fields in either authentication variant.
 	var source struct {
-		Services  map[string]Service  `toml:"services"`
-		Templates map[string]Template `toml:"templates"`
-		Profiles  map[string]struct {
+		Services map[string]Service `toml:"services"`
+		Profiles map[string]struct {
 			Description *string `toml:"description"`
 			Harness     string  `toml:"harness"`
 			Model       *string `toml:"model"`
@@ -94,17 +89,6 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 	if len(source.Profiles) == 0 {
 		return p, errors.New("at least one named profile is required")
 	}
-	if len(source.Templates) == 0 {
-		return p, errors.New("at least one named template is required")
-	}
-	for name, template := range source.Templates {
-		if name == "" || strings.TrimSpace(name) != name {
-			return p, errors.New("invalid template name")
-		}
-		template.Description = normalizedDescription(template.Description)
-		source.Templates[name] = template
-	}
-	p.Templates = source.Templates
 	if err := validateServices(source.Services); err != nil {
 		return p, err
 	}
@@ -316,11 +300,6 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if !ok {
 		problem := invalid("Unknown agent profile.", "configuration", "agent", "profile")
 		problem.Problem.Code = "unknown_profile"
-		return out, problem
-	}
-	if _, ok := p.Templates[in.Sandbox.Template]; !ok {
-		problem := invalid("Unknown sandbox template.", "configuration", "sandbox", "template")
-		problem.Problem.Code = "unknown_template"
 		return out, problem
 	}
 	for _, name := range refs {

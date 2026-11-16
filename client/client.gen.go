@@ -221,6 +221,7 @@ const (
 	Required          ErrorDetailCode = "required"
 	TagNotFound       ErrorDetailCode = "tag_not_found"
 	TemplateForbidden ErrorDetailCode = "template_forbidden"
+	TemplateInactive  ErrorDetailCode = "template_inactive"
 	TemplateNotFound  ErrorDetailCode = "template_not_found"
 	UnknownField      ErrorDetailCode = "unknown_field"
 )
@@ -237,6 +238,8 @@ func (e ErrorDetailCode) Valid() bool {
 	case TagNotFound:
 		return true
 	case TemplateForbidden:
+		return true
+	case TemplateInactive:
 		return true
 	case TemplateNotFound:
 		return true
@@ -1551,7 +1554,9 @@ type SandboxInput struct {
 
 	// Services Services available to the agent and session hooks, expanded together with env_from.
 	Services *ServiceCodes `json:"services,omitempty"`
-	Template string        `json:"template"`
+
+	// Template Exact active catalog name, including any team slug and tag. Missing or inactive records return 422 unknown_template with detail code template_not_found or template_inactive. Accepted sessions and idempotent replays keep their stored name regardless of subsequent catalog changes.
+	Template string `json:"template"`
 }
 
 // SandboxState defines model for SandboxState.
@@ -2651,14 +2656,14 @@ type ClientInterface interface {
 
 	// GetTemplates List registered templates
 	//
-	// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. This catalog does not yet replace TOML validation of new sessions.
+	// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. New sessions require an exact active name from this catalog. Changes do not affect accepted sessions or idempotent replays.
 	//
 	// Corresponds with GET /api/v1/templates (the `GetTemplates` operationId).
 	GetTemplates(ctx context.Context, params *GetTemplatesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateTemplateWithBody Register an own-project AgentBox template
 	//
-	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Active records become available to new sessions immediately, without restarting API or worker.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -2667,7 +2672,7 @@ type ClientInterface interface {
 
 	// CreateTemplate Register an own-project AgentBox template
 	//
-	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Active records become available to new sessions immediately, without restarting API or worker.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -3059,7 +3064,7 @@ func (c *Client) SendMessage(ctx context.Context, sid openapi_types.UUID, rid op
 
 // GetTemplates List registered templates
 //
-// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. This catalog does not yet replace TOML validation of new sessions.
+// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. New sessions require an exact active name from this catalog. Changes do not affect accepted sessions or idempotent replays.
 //
 // Corresponds with GET /api/v1/templates (the `GetTemplates` operationId).
 func (c *Client) GetTemplates(ctx context.Context, params *GetTemplatesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -3076,7 +3081,7 @@ func (c *Client) GetTemplates(ctx context.Context, params *GetTemplatesParams, r
 
 // CreateTemplateWithBody Register an own-project AgentBox template
 //
-// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Active records become available to new sessions immediately, without restarting API or worker.
 //
 // Takes any type of body and a specified content type.
 //
@@ -3095,7 +3100,7 @@ func (c *Client) CreateTemplateWithBody(ctx context.Context, contentType string,
 
 // CreateTemplate Register an own-project AgentBox template
 //
-// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Active records become available to new sessions immediately, without restarting API or worker.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -5007,7 +5012,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetTemplatesWithResponse List registered templates
 	//
-	// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. This catalog does not yet replace TOML validation of new sessions.
+	// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. New sessions require an exact active name from this catalog. Changes do not affect accepted sessions or idempotent replays.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -5016,7 +5021,7 @@ type ClientWithResponsesInterface interface {
 
 	// CreateTemplateWithBodyWithResponse Register an own-project AgentBox template
 	//
-	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Active records become available to new sessions immediately, without restarting API or worker.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -5025,7 +5030,7 @@ type ClientWithResponsesInterface interface {
 
 	// CreateTemplateWithResponse Register an own-project AgentBox template
 	//
-	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+	// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Active records become available to new sessions immediately, without restarting API or worker.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -7276,7 +7281,7 @@ func (c *ClientWithResponses) SendMessageWithResponse(ctx context.Context, sid o
 
 // GetTemplatesWithResponse List registered templates
 //
-// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. This catalog does not yet replace TOML validation of new sessions.
+// Database catalog ordered by (name, id). Filters are bound to opaque forward/backward cursors; no provider calls. New sessions require an exact active name from this catalog. Changes do not affect accepted sessions or idempotent replays.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -7291,7 +7296,7 @@ func (c *ClientWithResponses) GetTemplatesWithResponse(ctx context.Context, para
 
 // CreateTemplateWithBodyWithResponse Register an own-project AgentBox template
 //
-// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Active records become available to new sessions immediately, without restarting API or worker.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -7306,7 +7311,7 @@ func (c *ClientWithResponses) CreateTemplateWithBodyWithResponse(ctx context.Con
 
 // CreateTemplateWithResponse Register an own-project AgentBox template
 //
-// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Session admission remains governed by TOML.
+// Requires successful alias and tag lookups. Browser writes require the configured Origin and X-Orpheus-CSRF header set to 1. Active records become available to new sessions immediately, without restarting API or worker.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //

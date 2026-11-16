@@ -714,6 +714,9 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			if err != nil {
 				return err
 			}
+			if err := validateTemplateForAdmission(ctx, tx, resolved.Public.Sandbox.Template); err != nil {
+				return err
+			}
 			id := uuid.New()
 			token, err := s.Cipher.Encrypt(id, a.Create.Configuration.Sandbox.Env)
 			if err != nil {

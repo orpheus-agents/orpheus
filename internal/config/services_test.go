@@ -10,8 +10,7 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
-const serviceProfiles = `[templates.codex]
-[profiles.default]
+const serviceProfiles = `[profiles.default]
 harness = "codex"
 model = "model"
 [profiles.default.auth]

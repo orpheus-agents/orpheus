@@ -82,6 +82,17 @@ func (q *Queries) GetTemplate(ctx context.Context, id uuid.UUID) (Template, erro
 	return i, err
 }
 
+const getTemplateForAdmission = `-- name: GetTemplateForAdmission :one
+SELECT active FROM templates WHERE name = $1 FOR SHARE
+`
+
+func (q *Queries) GetTemplateForAdmission(ctx context.Context, name string) (bool, error) {
+	row := q.db.QueryRow(ctx, getTemplateForAdmission, name)
+	var active bool
+	err := row.Scan(&active)
+	return active, err
+}
+
 const listTemplates = `-- name: ListTemplates :many
 SELECT id, template_name, tag, name, agentbox_template_id, description, active, created_at, updated_at FROM templates
 WHERE ($1::boolean IS NULL OR active = $1)

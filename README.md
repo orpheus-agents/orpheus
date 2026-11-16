@@ -23,16 +23,6 @@ cp orpheus.toml.dist orpheus.toml
 
 Set `AGENTBOX_API_KEY` and `OPENAI_API_KEY` in `.env`.
 Add `model = "your-model"` under `[profiles.default]` in `orpheus.toml`.
-The copied configuration already registers `orpheus-codex`. To allow another
-AgentBox template, add its exact name to `orpheus.toml`, for example:
-
-```toml
-[templates."orpheus-codex:v1.2.0"]
-description = "Pinned sandbox"
-```
-
-At least one template is required; each key is its exact AgentBox name, including any tag.
-
 ```sh
 make start
 curl -fsS http://localhost:9100/ready
@@ -40,6 +30,8 @@ curl -fsS http://localhost:9100/ready
 
 The API is available at `http://localhost:8000`. By default, session requests require
 `Authorization: Bearer <key>` using a key from `PUBLIC_API_KEYS` in `.env`.
+Before creating sessions, register an active AgentBox template through the
+[template API](docs/profiles-and-templates.md#database-template-catalog) or Orpheus Web.
 For browser access, see [browser authentication](docs/browser-auth.md).
 For the dashboard snapshot and session filters, see [dashboard analytics](docs/dashboard-analytics.md).
 For profile settings, template registration and catalog APIs, see

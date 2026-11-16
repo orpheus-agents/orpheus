@@ -25,7 +25,6 @@ func TestCatalogsWithoutDatabaseOrCredentials(t *testing.T) {
 				Codex: config.CodexProfile{Effort: "high", Summary: "auto", Personality: "friendly", ServiceTier: "priority"},
 				Auth:  config.Auth{Mode: "account", AccountID: "PRIVATE_ACCOUNT", Store: "private", Key: "PRIVATE_AUTH_PATH"}},
 		},
-		Templates:        map[string]config.Template{"z": {}, "a:v1.2.0": {Description: new("Tagged sandbox")}},
 		CredentialStores: map[string]session.CredentialStore{"private": {Bucket: "PRIVATE_BUCKET"}},
 	}}
 	storage.Settings.PublicAPIKeys = []string{"key"}
@@ -69,7 +68,6 @@ func TestCatalogsWithoutDatabaseOrCredentials(t *testing.T) {
 	}
 	// API DTOs retain arrays when a catalog is empty in memory.
 	clear(storage.Profiles.Profiles)
-	clear(storage.Profiles.Templates)
 	for _, path := range []string{"/api/v1/profiles"} {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+path, nil)
 		if err != nil {
@@ -114,7 +112,7 @@ func TestCatalogDescriptionNormalization(t *testing.T) {
 		{"text", "description = '  Research profile  '", new("  Research profile  ")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			source := "[templates.codex]\n" + tc.field + "\n[profiles.default]\n" + tc.field +
+			source := "[profiles.default]\n" + tc.field +
 				"\nharness = 'codex'\n[profiles.default.auth]\nmode = 'api_key'\napi_key_env = 'KEY'\n"
 			profiles, err := config.ReadProfiles(strings.NewReader(source))
 			if err != nil {

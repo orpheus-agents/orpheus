@@ -130,10 +130,11 @@ func setupHooks(t *testing.T, autoResult, failAfter bool, initialRunEnv ...map[s
 func setupHooksSession(t *testing.T, multiple, autoResult, failAfter bool, initialRunEnv ...map[string]string) (*store.Store, *hookRemote, session.Acceptance, *Executor) {
 	t.Helper()
 	pool := testutil.Database(t)
+	testutil.RegisterTemplate(t, pool, "codex")
 	cipher, _ := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
 	settings := config.DefaultSettings()
 	settings.DatabaseURL = pool.Config().ConnString()
-	s := &store.Store{Pool: pool, Settings: settings, Cipher: cipher, Profiles: config.Profiles{Templates: map[string]config.Template{"codex": {}}, Profiles: map[string]config.Profile{"p": {Harness: "codex", Model: new("model"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}}
+	s := &store.Store{Pool: pool, Settings: settings, Cipher: cipher, Profiles: config.Profiles{Profiles: map[string]config.Profile{"p": {Harness: "codex", Model: new("model"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}}
 	hooks := &session.HooksInput{BeforeRemove: new("#!/bin/sh\n# before_remove\n"), AfterCreate: new("#!/bin/sh\n# after_create\n"), BeforeRun: new("#!/bin/sh\n# before_run\n"), AfterRun: new("#!/bin/sh\n# after_run\n")}
 	sandbox := session.SandboxInput{Template: "codex"}
 	var runEnv map[string]string
