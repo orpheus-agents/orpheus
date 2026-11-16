@@ -3,10 +3,12 @@ package worker
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
@@ -93,6 +95,7 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 				return err
 			}
 		}
+		run = current
 		send = true
 		return nil
 	})
@@ -111,6 +114,8 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 		return operationResult{}, e.driver.Steer(ctx, *record.ThreadID, *run.NativeTurnID, message.Text)
 	})
 	if deliveryErr != nil {
+		deliveryErr = e.bindFailure(deliveryErr, record, &run)
+		fields := diagnostic.Capture(deliveryErr)
 		problem := (*session.Error)(nil)
 		status := "uncertain"
 		confirmed := errors.Is(deliveryErr, harness.ErrRejected)
@@ -127,6 +132,7 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 					problem.Message = "Harness rejected the assignment."
 				}
 			}
+			problem.DiagnosticID = &fields.ID
 		}
 		if err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, r *store.SessionRecord) error {
 			for _, input := range batch {
@@ -142,11 +148,15 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 			}
 			return nil
 		}); err != nil {
-			return err
+			return diagnostic.With(err, fields)
 		}
 		if confirmed {
 			if kind == "start" {
-				return harness.Failure(problem.Code, problem.Message)
+				return harness.FailureCause(problem.Code, problem.Message, deliveryErr)
+			}
+			fields.PublicCode = problem.Code
+			if ctx.Err() == nil {
+				diagnostic.Log(ctx, slog.LevelError, fields)
 			}
 			return nil
 		}

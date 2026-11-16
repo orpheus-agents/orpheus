@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/agentbox"
 	"github.com/orpheus-agents/orpheus/internal/config"
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/secret"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
@@ -70,6 +71,11 @@ func TestLiveCodexTokenBudget(t *testing.T) {
 	defer e.Disconnect()
 	for ctx.Err() == nil {
 		if err := e.Tick(ctx); err != nil {
+			fields := diagnostic.Capture(err)
+			t.Logf("tick failure: kind=%s rpc_method=%s phase=%s error_type=%s", fields.Kind, fields.RPCMethod, fields.Phase, diagnostic.Describe(err))
+			if fields.RPCCode != nil {
+				t.Logf("RPC code: %d", *fields.RPCCode)
+			}
 			t.Fatal(err)
 		}
 		run, err := s.Run(ctx, a.SessionID, a.RunID)

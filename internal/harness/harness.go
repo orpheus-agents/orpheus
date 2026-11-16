@@ -19,10 +19,17 @@ var ErrNotFound = errors.New("sandbox or resource not found")
 var ErrRejected = errors.New("external operation was rejected")
 var ErrEnvironmentRejected = fmt.Errorf("sandbox environment: %w", ErrRejected)
 
-type ExecutionError struct{ Code, Message string }
+type ExecutionError struct {
+	Code, Message string
+	Cause         error
+}
 
 func (e *ExecutionError) Error() string  { return e.Code }
-func Failure(code, message string) error { return &ExecutionError{code, message} }
+func (e *ExecutionError) Unwrap() error  { return e.Cause }
+func Failure(code, message string) error { return &ExecutionError{Code: code, Message: message} }
+func FailureCause(code, message string, cause error) error {
+	return &ExecutionError{Code: code, Message: message, Cause: cause}
+}
 
 type Item struct {
 	NativeID, Type   string

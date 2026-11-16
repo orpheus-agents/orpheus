@@ -102,12 +102,12 @@ func (s *sandbox) Run(ctx context.Context, command string) ([]byte, error) {
 }
 func (s *sandbox) Start(ctx context.Context, command string, env map[string]string, cwd string) (harness.Stream, int, error) {
 	return openStream(ctx, 60*time.Second, func(ctx context.Context) (*sdk.CommandHandle, error) {
-		return s.s.Commands.Start(ctx, "/bin/sh", &sdk.CommandOptions{User: sandboxUser, Args: []string{"-c", command}, Env: env, Cwd: cwd, Stdin: true, Streaming: &sdk.CommandStreamingOptions{StdoutChannel: true}})
+		return s.s.Commands.Start(ctx, "/bin/sh", &sdk.CommandOptions{User: sandboxUser, Args: []string{"-c", command}, Env: env, Cwd: cwd, Stdin: true, Streaming: &sdk.CommandStreamingOptions{StdoutChannel: true, StderrChannel: true}})
 	})
 }
 func (s *sandbox) Attach(ctx context.Context, pid int) (harness.Stream, error) {
 	h, _, err := openStream(ctx, 60*time.Second, func(ctx context.Context) (*sdk.CommandHandle, error) {
-		return s.s.Commands.ConnectWithOptions(ctx, uint32(pid), "", &sdk.CommandConnectOptions{Streaming: &sdk.CommandStreamingOptions{StdoutChannel: true}})
+		return s.s.Commands.ConnectWithOptions(ctx, uint32(pid), "", &sdk.CommandConnectOptions{Streaming: &sdk.CommandStreamingOptions{StdoutChannel: true, StderrChannel: true}})
 	})
 	return h, err
 }

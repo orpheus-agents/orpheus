@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/agentbox"
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/harness/codex"
 	"github.com/orpheus-agents/orpheus/internal/session"
@@ -61,7 +62,7 @@ func TestLiveAccountFiles(t *testing.T) {
 			t.Error("sandbox cleanup failed")
 		}
 	})
-	driver := codex.New(box, 30*time.Second, 524288)
+	driver := codex.New(box, 30*time.Second, 524288, new(diagnostic.Redactor))
 	defer func() { _ = driver.Close() }()
 	home, err := driver.StateDir(ctx)
 	if err != nil {

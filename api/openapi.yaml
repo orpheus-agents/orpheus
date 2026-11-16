@@ -430,6 +430,12 @@ components:
                 code:
                     title: Code
                     type: string
+                diagnostic_id:
+                    description: Identifier of the internal diagnostic log for this error, when available. It does not grant access to logs.
+                    anyOf:
+                        - type: string
+                          format: uuid
+                        - type: "null"
                 details:
                     items:
                         $ref: '#/components/schemas/ErrorDetail'

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 )
 
@@ -63,19 +64,26 @@ type RPC struct {
 	limitsChanged   chan struct{}
 	authInvalidated bool
 	disconnected    bool
+	redactor        *diagnostic.Redactor
+	stderr          *diagnostic.Stderr
 }
 
-func NewRPC(s harness.Sandbox, timeout time.Duration) *RPC {
-	return &RPC{sandbox: s, timeout: timeout, pending: map[string]chan rpcMessage{}, limitsChanged: make(chan struct{}, 1)}
+func NewRPC(s harness.Sandbox, timeout time.Duration, redactor *diagnostic.Redactor) *RPC {
+	return &RPC{sandbox: s, timeout: timeout, pending: map[string]chan rpcMessage{}, limitsChanged: make(chan struct{}, 1), redactor: redactor}
 }
 func (r *RPC) Launch(ctx context.Context, command string, env map[string]string, cwd string) (int, error) {
+	values := make([]string, 0, len(env))
+	for _, value := range env {
+		values = append(values, value)
+	}
+	r.redactor.Add(values...)
 	streamCtx, cancel := context.WithCancel(ctx)
 	stream, pid, err := r.sandbox.Start(streamCtx, command, env, cwd)
 	if err != nil {
 		cancel()
 		return 0, err
 	}
-	r.begin(streamCtx, cancel, stream)
+	r.begin(streamCtx, cancel, stream, false)
 	return pid, nil
 }
 func (r *RPC) Attach(ctx context.Context, pid int) error {
@@ -85,13 +93,14 @@ func (r *RPC) Attach(ctx context.Context, pid int) error {
 		cancel()
 		return err
 	}
-	r.begin(streamCtx, cancel, stream)
+	r.begin(streamCtx, cancel, stream, true)
 	return nil
 }
-func (r *RPC) begin(ctx context.Context, cancel context.CancelFunc, stream harness.Stream) {
+func (r *RPC) begin(ctx context.Context, cancel context.CancelFunc, stream harness.Stream, attached bool) {
 	r.stream = stream
 	r.cancel = cancel
 	r.done = make(chan struct{})
+	r.stderr = diagnostic.NewStderr(r.redactor, attached)
 	go r.read(ctx)
 }
 func (r *RPC) read(ctx context.Context) {
@@ -109,9 +118,12 @@ func (r *RPC) read(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case _, ok := <-stderr:
+		case chunk, ok := <-stderr:
 			if !ok {
+				r.stderr.End()
 				stderr = nil
+			} else {
+				r.stderr.Append(chunk)
 			}
 		case chunk, ok := <-stdout:
 			if !ok {
@@ -262,16 +274,51 @@ func (r *RPC) write(ctx context.Context, v any) error {
 	_, err = r.stream.Write(ctx, raw)
 	return err
 }
-func (r *RPC) Call(ctx context.Context, method string, params any, dest any) error {
+func (r *RPC) Call(ctx context.Context, method string, params any, dest any) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 	id := uuid.NewString()
+	started, tail := time.Now(), r.stderr
+	kind := "transport_error"
+	defer func() {
+		if err == nil {
+			return
+		}
+		if kind == "transport_error" {
+			switch {
+			case errors.Is(err, context.DeadlineExceeded):
+				kind = "timeout"
+			case errors.Is(err, context.Canceled):
+				kind = "cancelled"
+			}
+		}
+		fields := diagnostic.Fields{RPCID: id, RPCMethod: method, Kind: kind, DurationMS: new(time.Since(started).Milliseconds())}
+		if native, ok := errors.AsType[*RPCError](err); ok {
+			fields.RPCCode = &native.Code
+			if len(native.NativeMessage) > diagnostic.MaxInputBytes {
+				fields.TextOmitted = append(fields.TextOmitted, "native_message_oversize")
+			} else if clean, allowed := r.redactor.Clean(native.NativeMessage); allowed {
+				clean, fields.NativeMessageTruncated = diagnostic.Truncate(clean, diagnostic.MaxMessageBytes)
+				fields.NativeMessage = &clean
+			} else {
+				fields.TextOmitted = append(fields.TextOmitted, "redaction_limit")
+			}
+		}
+		if tail == nil {
+			fields.TextOmitted = append(fields.TextOmitted, "stderr_unavailable")
+		} else {
+			var omitted []string
+			fields.StderrTail, fields.StderrTruncated, omitted = tail.Snapshot()
+			fields.TextOmitted = append(fields.TextOmitted, omitted...)
+		}
+		err = diagnostic.With(err, fields)
+	}()
 	ch := make(chan rpcMessage, 1)
 	r.mu.Lock()
 	r.pending[id] = ch
 	r.mu.Unlock()
 	defer func() { r.mu.Lock(); delete(r.pending, id); r.mu.Unlock() }()
-	err := r.write(ctx, struct {
+	err = r.write(ctx, struct {
 		ID     string `json:"id"`
 		Method string `json:"method"`
 		Params any    `json:"params"`
@@ -280,30 +327,41 @@ func (r *RPC) Call(ctx context.Context, method string, params any, dest any) err
 		if errors.Is(err, harness.ErrRejected) {
 			return err
 		}
-		return harness.ErrUncertain
+		return errors.Join(harness.ErrUncertain, err)
 	}
+	var reply rpcMessage
 	select {
 	case <-ctx.Done():
-		return harness.ErrUncertain
+		return errors.Join(harness.ErrUncertain, ctx.Err())
 	case <-r.done:
-		return harness.ErrUncertain
-	case reply := <-ch:
-		if reply.localError != nil {
-			return errors.Join(harness.ErrUncertain, reply.localError)
+		// A response read before EOF remains authoritative.
+		select {
+		case reply = <-ch:
+		default:
+			kind = "stream_closed"
+			return harness.ErrUncertain
 		}
-		if reply.Error != nil {
-			return reply.Error
-		}
-		if dest != nil {
-			if len(reply.Result) == 0 {
-				return harness.ErrUncertain
-			}
-			if err := json.Unmarshal(reply.Result, dest); err != nil {
-				return harness.ErrUncertain
-			}
-		}
-		return nil
+	case reply = <-ch:
 	}
+	if reply.localError != nil {
+		kind = "response_too_large"
+		return errors.Join(harness.ErrUncertain, reply.localError)
+	}
+	if reply.Error != nil {
+		kind = "rpc_rejected"
+		return reply.Error
+	}
+	if dest != nil {
+		if len(reply.Result) == 0 {
+			kind = "invalid_response"
+			return harness.ErrUncertain
+		}
+		if err := json.Unmarshal(reply.Result, dest); err != nil {
+			kind = "invalid_response"
+			return harness.ErrUncertain
+		}
+	}
+	return nil
 }
 func (r *RPC) Initialize(ctx context.Context) error {
 	err := r.Call(ctx, "initialize", map[string]any{"clientInfo": map[string]string{"name": "orpheus", "version": "0.1.0"}}, nil)

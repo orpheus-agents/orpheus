@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
@@ -63,9 +64,10 @@ type Account struct {
 	watch       harness.Watch
 	watchCancel context.CancelFunc
 	watchDone   chan struct{}
+	redactor    *diagnostic.Redactor
 }
 
-func New(ctx context.Context, sandbox harness.Sandbox, home string, source session.Credentials) (*Account, error) {
+func New(ctx context.Context, sandbox harness.Sandbox, home string, source session.Credentials, redactor *diagnostic.Redactor) (*Account, error) {
 	if source.Store == nil {
 		return nil, errors.New("credential store is required")
 	}
@@ -77,12 +79,27 @@ func New(ctx context.Context, sandbox harness.Sandbox, home string, source sessi
 		o.BaseEndpoint = source.Store.EndpointURL
 		o.UsePathStyle = source.Store.EndpointURL != nil
 	})
-	return NewWithStore(sandbox, home, &s3Store{client: client, bucket: source.Store.Bucket, key: source.Key}), nil
+	account := NewWithStore(sandbox, home, &s3Store{client: client, bucket: source.Store.Bucket, key: source.Key})
+	account.redactor = redactor
+	return account, nil
 }
 func NewWithStore(sandbox harness.Sandbox, home string, source BlobStore) *Account {
-	a := &Account{sandbox: sandbox, home: home, source: source}
+	a := &Account{sandbox: sandbox, home: home, source: source, redactor: new(diagnostic.Redactor)}
 	a.dirty.Store(true)
 	return a
+}
+
+func (a *Account) remember(raw []byte) {
+	var value struct {
+		Tokens struct {
+			Access  string `json:"access_token"`
+			Refresh string `json:"refresh_token"`
+			ID      string `json:"id_token"`
+		} `json:"tokens"`
+	}
+	if json.Unmarshal(raw, &value) == nil {
+		a.redactor.Add(value.Tokens.Access, value.Tokens.Refresh, value.Tokens.ID)
+	}
 }
 func (a *Account) Seed(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -95,6 +112,7 @@ func (a *Account) Seed(ctx context.Context) error {
 		err = errors.New("credential object ETag is unavailable")
 	}
 	if err == nil {
+		a.remember(blob.Raw)
 		err = a.sandbox.Write(ctx, a.home+"/auth.json", blob.Raw)
 	}
 	if err == nil {
@@ -184,6 +202,7 @@ func (a *Account) sync(ctx context.Context) error {
 			return closeErr
 		}
 		if err := Validate(raw); err == nil {
+			a.remember(raw)
 			break
 		} else if attempt == 2 {
 			return err

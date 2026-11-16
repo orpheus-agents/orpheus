@@ -1,4 +1,4 @@
-// Package diagnostic reports error identity without native messages or secrets.
+// Package diagnostic selects, redacts and bounds execution failure diagnostics.
 package diagnostic
 
 import (

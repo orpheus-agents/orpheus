@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/orpheus-agents/orpheus/internal/diagnostic"
+
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
@@ -31,7 +33,7 @@ func TestHistoryFallbackDiscoversMissingPath(t *testing.T) {
 		reads++
 		return map[string]any{"id": req["id"], "result": map[string]any{"thread": Thread{ID: thread.ID, Path: &path}}}
 	})
-	d := New(box, time.Second, 524288)
+	d := New(box, time.Second, 524288, new(diagnostic.Redactor))
 	d.rpc = rpc
 	d.historyOnly = true
 	for range 2 {

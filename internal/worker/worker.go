@@ -48,14 +48,18 @@ type Executor struct {
 	runnerReady      bool
 	hookTermSent     uuid.UUID
 	clock            func() time.Time
+	redactor         *diagnostic.Redactor
 }
 
 func NewExecutor(id uuid.UUID, s *store.Store, p harness.Platform) *Executor {
-	return &Executor{ID: id, Store: s, Platform: p, NewDriver: func(box harness.Sandbox) harness.Driver {
-		return codex.New(box, s.Settings.RPCTimeout, s.Settings.MaxToolResultBytes)
-	}, RunnerBinary: os.ReadFile, NewAccount: func(ctx context.Context, box harness.Sandbox, home string, source session.Credentials) (credentials.Sync, error) {
-		return credentials.New(ctx, box, home, source)
-	}, settleRetryDelay: 5 * time.Second}
+	e := &Executor{ID: id, Store: s, Platform: p, RunnerBinary: os.ReadFile, settleRetryDelay: 5 * time.Second, redactor: new(diagnostic.Redactor)}
+	e.NewDriver = func(box harness.Sandbox) harness.Driver {
+		return codex.New(box, s.Settings.RPCTimeout, s.Settings.MaxToolResultBytes, e.redactor)
+	}
+	e.NewAccount = func(ctx context.Context, box harness.Sandbox, home string, source session.Credentials) (credentials.Sync, error) {
+		return credentials.New(ctx, box, home, source, e.redactor)
+	}
+	return e
 }
 func (e *Executor) read(ctx context.Context) (store.SessionRecord, *store.RunRecord, error) {
 	r, run, err := e.Store.Read(ctx, e.ID)
@@ -149,7 +153,14 @@ func (e *Executor) opStatus(ctx context.Context, id uuid.UUID, status string, re
 	return e.Store.SetOperation(ctx, e.ID, id, status, result)
 }
 
-func (e *Executor) invoke(ctx context.Context, o store.Operation, call func() (operationResult, error)) (operationResult, error) {
+func (e *Executor) invoke(ctx context.Context, o store.Operation, call func() (operationResult, error)) (result operationResult, err error) {
+	defer func() {
+		if err != nil {
+			fields := diagnostic.Capture(err)
+			fields.OperationID = &o.ID
+			err = diagnostic.With(err, fields)
+		}
+	}()
 	if o.Status == "confirmed" {
 		return decodeResult(o)
 	}
@@ -159,22 +170,22 @@ func (e *Executor) invoke(ctx context.Context, o store.Operation, call func() (o
 	if err := e.opStatus(ctx, o.ID, "sending", nil); err != nil {
 		return operationResult{}, err
 	}
-	result, err := call()
+	result, err = call()
 	if err != nil {
 		_, executionFailure := errors.AsType[*harness.ExecutionError](err)
 		if errors.Is(err, harness.ErrRejected) || errors.Is(err, harness.ErrNotFound) || executionFailure {
 			if saveErr := e.opStatus(ctx, o.ID, "failed", nil); saveErr != nil {
-				return result, saveErr
+				return result, diagnostic.With(saveErr, diagnostic.Capture(err))
 			}
 			if errors.Is(err, harness.ErrEnvironmentRejected) {
-				return result, harness.Failure("environment_unavailable", "Sandbox operation was rejected.")
+				return result, harness.FailureCause("environment_unavailable", "Sandbox operation was rejected.", err)
 			}
 			return result, err
 		}
 		if saveErr := e.opStatus(ctx, o.ID, "uncertain", nil); saveErr != nil {
-			return result, saveErr
+			return result, diagnostic.With(saveErr, diagnostic.Capture(err))
 		}
-		return result, harness.ErrUncertain
+		return result, errors.Join(harness.ErrUncertain, err)
 	}
 	if err := e.opStatus(ctx, o.ID, "confirmed", result); err != nil {
 		return result, err
@@ -182,25 +193,44 @@ func (e *Executor) invoke(ctx context.Context, o store.Operation, call func() (o
 	return result, nil
 }
 func (e *Executor) failure(ctx context.Context, f *harness.ExecutionError) error {
+	fields := diagnostic.Capture(f)
+	if fields.SessionID == uuid.Nil {
+		record, run, err := e.read(ctx)
+		if err != nil {
+			return err
+		}
+		fields = diagnostic.Capture(e.bindFailure(f, record, run))
+	}
+	fields.PublicCode = f.Code
+	if ctx.Err() == nil {
+		diagnostic.Log(ctx, slog.LevelError, fields)
+	}
 	unavailable := f.Code == "sandbox_lost" || f.Code == "context_lost"
-	return e.Store.Mutate(ctx, e.ID, unavailable, func(tx pgx.Tx, r *store.SessionRecord) error {
+	err := e.Store.Mutate(ctx, e.ID, unavailable, func(tx pgx.Tx, r *store.SessionRecord) error {
+		var run *store.RunRecord
+		if fields.RunID != nil {
+			current, err := store.GetRun(ctx, tx, e.ID, *fields.RunID)
+			if err != nil {
+				return err
+			}
+			if current.Status.Terminal() {
+				return nil
+			}
+			run = &current
+		}
 		// Admission must see termination and loss of the environment atomically.
 		// Otherwise a new run can enter between Finish and the unavailable state.
 		if unavailable {
 			if err := store.UpdateSandbox(ctx, tx, r, func(r *store.SessionRecord) {
 				r.SandboxState = "unavailable"
 				r.SandboxLastKnownState = new("unavailable")
-				r.SandboxError = &session.Error{Code: f.Code, Message: f.Message, Phase: new("recovery"), Details: []session.Detail{}}
+				r.SandboxError = &session.Error{Code: f.Code, Message: f.Message, Phase: new("recovery"), Details: []session.Detail{}, DiagnosticID: &fields.ID}
 				if f.Code == "sandbox_lost" {
 					r.SlotReserved = false
 				}
 			}); err != nil {
 				return err
 			}
-		}
-		run, err := store.ActiveRun(ctx, tx, e.ID)
-		if err != nil {
-			return err
 		}
 		if run == nil {
 			return nil
@@ -212,7 +242,7 @@ func (e *Executor) failure(ctx context.Context, f *harness.ExecutionError) error
 		if run.Phase != nil && *run.Phase == "after_run" {
 			phase = "finalization"
 		}
-		problem := &session.Error{Code: f.Code, Message: f.Message, Phase: &phase, Details: []session.Detail{}}
+		problem := &session.Error{Code: f.Code, Message: f.Message, Phase: &phase, Details: []session.Detail{}, DiagnosticID: &fields.ID}
 		if run.ExecutionStartedAt != nil && run.AgentStatus == nil && r.Configuration.Public.Hooks.AfterRun != nil &&
 			f.Code != "sandbox_lost" && f.Code != "environment_unavailable" {
 			return store.AgentFinished(ctx, tx, r, run, session.Failed, problem, nil)
@@ -237,6 +267,7 @@ func (e *Executor) failure(ctx context.Context, f *harness.ExecutionError) error
 		}
 		return store.Finish(ctx, tx, r, run, session.Failed, problem, nil)
 	})
+	return diagnostic.With(err, fields)
 }
 func (e *Executor) Disconnect() {
 	if e.unregisterLimits != nil {
@@ -254,6 +285,7 @@ func (e *Executor) Disconnect() {
 	e.sandbox = nil
 	e.runnerReady = false
 	e.hookTermSent = uuid.Nil
+	e.redactor = new(diagnostic.Redactor)
 }
 func (e *Executor) Run(ctx context.Context) {
 	defer e.Disconnect()
@@ -261,17 +293,20 @@ func (e *Executor) Run(ctx context.Context) {
 		err := e.Tick(ctx)
 		if err != nil {
 			if f, ok := errors.AsType[*harness.ExecutionError](err); ok {
-				err = e.failure(ctx, f)
+				if saveErr := e.failure(ctx, f); saveErr != nil && ctx.Err() == nil {
+					slog.WarnContext(ctx, "Execution failure could not be saved", "session_id", e.ID, "diagnostic_id", diagnostic.Capture(saveErr).ID, "error_type", diagnostic.Describe(saveErr))
+				}
 			} else if !errors.Is(err, errStoreAccess) {
+				if ctx.Err() == nil {
+					diagnostic.Log(ctx, slog.LevelWarn, diagnostic.Capture(err))
+				}
 				observation := "reconnecting"
 				if errors.Is(err, harness.ErrUncertain) {
 					observation = "uncertain"
 				}
 				_ = e.observation(ctx, observation)
 				e.Disconnect()
-				slog.WarnContext(ctx, "Session observation interrupted", "session_id", e.ID, "error_type", diagnostic.Describe(err))
-			}
-			if err != nil && ctx.Err() == nil {
+			} else if ctx.Err() == nil {
 				slog.WarnContext(ctx, "Session tick failed", "session_id", e.ID, "error_type", diagnostic.Describe(err))
 			}
 		}
@@ -294,32 +329,31 @@ func (e *Executor) Tick(ctx context.Context) error {
 	if err == nil {
 		return nil
 	}
+	if _, ok := errors.AsType[*harness.ExecutionError](err); ok {
+		return err
+	}
 	if errors.Is(err, harness.ErrNotFound) {
 		r, _, readErr := e.read(ctx)
 		if readErr != nil {
 			return readErr
 		}
 		if r.SandboxID == nil {
-			return harness.Failure("environment_unavailable", "Sandbox template is unavailable.")
+			return harness.FailureCause("environment_unavailable", "Sandbox template is unavailable.", err)
 		}
 		_, infoErr := e.Platform.Info(ctx, *r.SandboxID)
 		if errors.Is(infoErr, harness.ErrNotFound) {
-			return e.failure(ctx, &harness.ExecutionError{Code: "sandbox_lost", Message: "Sandbox is no longer available."})
+			return harness.FailureCause("sandbox_lost", "Sandbox is no longer available.", err)
 		}
 		return err
 	}
 	if errors.Is(err, harness.ErrRejected) {
-		_, run, readErr := e.read(ctx)
-		if readErr != nil {
-			return readErr
-		}
-		if run != nil && run.ExecutionStartedAt != nil {
+		if fields := diagnostic.Capture(err); fields.Phase == "execution" || fields.Phase == "finalization" {
 			return err
 		}
 		if errors.Is(err, harness.ErrEnvironmentRejected) {
-			return harness.Failure("environment_unavailable", "Sandbox environment was rejected.")
+			return harness.FailureCause("environment_unavailable", "Sandbox environment was rejected.", err)
 		}
-		return harness.Failure("harness_failed", "Harness rejected initialization.")
+		return harness.FailureCause("harness_failed", "Harness rejected initialization.", err)
 	}
 	return err
 }
@@ -348,8 +382,9 @@ func (e *Executor) finalizeRun(ctx context.Context, record store.SessionRecord, 
 	})
 }
 
-func (e *Executor) tick(ctx context.Context) error {
+func (e *Executor) tick(ctx context.Context) (err error) {
 	record, run, err := e.read(ctx)
+	defer func() { err = e.bindFailure(err, record, run) }()
 	if err != nil {
 		return err
 	}

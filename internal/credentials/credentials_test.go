@@ -88,6 +88,24 @@ func TestValidate(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCredentialRotationKeepsOldAndNewSecretsRedacted(t *testing.T) {
+	box := &fakeBox{}
+	source := &fakeStore{raw: []byte(authA)}
+	a := NewWithStore(box, "/home", source)
+	t.Cleanup(func() { _ = a.Close() })
+	if err := a.Seed(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	box.raw = authB
+	a.Sync(t.Context(), true)
+	for _, secret := range []string{"a", "b", "r", "i"} {
+		clean, ok := a.redactor.Clean(secret)
+		if !ok || clean != "[REDACTED]" {
+			t.Fatalf("credential was not registered: %q", clean)
+		}
+	}
+}
 func TestSeedSyncPartialAndRetry(t *testing.T) {
 	box := &fakeBox{}
 	source := &fakeStore{raw: []byte(authA)}

@@ -33,10 +33,11 @@ func (s Status) Valid() bool {
 func (s Status) Terminal() bool { return s == Completed || s == Failed || s == Cancelled }
 
 type Error struct {
-	Code    string   `json:"code"`
-	Message string   `json:"message"`
-	Phase   *string  `json:"phase"`
-	Details []Detail `json:"details"`
+	DiagnosticID *uuid.UUID `json:"diagnostic_id,omitempty"`
+	Code         string     `json:"code"`
+	Message      string     `json:"message"`
+	Phase        *string    `json:"phase"`
+	Details      []Detail   `json:"details"`
 }
 
 type Detail struct {
