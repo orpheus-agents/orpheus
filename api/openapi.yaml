@@ -203,7 +203,6 @@ components:
                   minLength: 1
             active:
               type: boolean
-              default: true
           x-go-type: json.RawMessage
           minProperties: 1
         LLMAccount:
