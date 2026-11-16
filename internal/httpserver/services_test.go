@@ -16,7 +16,7 @@ func TestServicesCatalog(t *testing.T) {
 	}}}
 	s.Settings.PublicAPIKeys = []string{"key"}
 	s.Settings.BrowserAuth.Mode = "anonymous"
-	handler, err := Handler(s, t.Context())
+	handler, err := Handler(s, t.Context(), NewHTTPMetrics())
 	if err != nil {
 		t.Fatal(err)
 	}

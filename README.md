@@ -37,8 +37,8 @@ For the dashboard snapshot and session filters, see [dashboard analytics](docs/d
 For profile settings, template registration and catalog APIs, see
 [profiles and templates](docs/profiles-and-templates.md).
 For provider quota snapshots by account, see [account limits](docs/account-limits.md).
-For database-backed Prometheus metrics on the internal system listener, see
-[service metrics](docs/service-metrics.md).
+For API request rates and account quotas on the internal system listener, see
+[metrics](docs/service-metrics.md).
 Run `make stop` to stop the project; database data is preserved.
 
 Run and hook deadlines are independent of the sandbox timeout. The worker creates

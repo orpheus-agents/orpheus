@@ -38,7 +38,7 @@ func TestBrowserAccessMatrix(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			storage.Settings.BrowserAuth = fixture.Config
 			storage.Settings.BrowserAuth.Mode = mode
-			handler, err := Handler(storage, t.Context())
+			handler, err := Handler(storage, t.Context(), NewHTTPMetrics())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -102,7 +102,7 @@ func TestSAMLThroughHTTPHandler(t *testing.T) {
 	_, storage := testServer(t)
 	fixture := testutil.NewSAML(t, "https://orpheus.example.test")
 	storage.Settings.BrowserAuth = fixture.Config
-	handler, err := Handler(storage, t.Context())
+	handler, err := Handler(storage, t.Context(), NewHTTPMetrics())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestAnonymousWithoutServiceKeys(t *testing.T) {
 	_, storage := testServer(t)
 	storage.Settings.BrowserAuth.Mode = "anonymous"
 	storage.Settings.PublicAPIKeys = nil
-	handler, err := Handler(storage, t.Context())
+	handler, err := Handler(storage, t.Context(), NewHTTPMetrics())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestCookieSSEClosesAtExpiry(t *testing.T) {
 	}
 	f := testutil.NewSAML(t, "https://orpheus.example.test")
 	storage.Settings.BrowserAuth = f.Config
-	handler, err := Handler(storage, t.Context())
+	handler, err := Handler(storage, t.Context(), NewHTTPMetrics())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +302,7 @@ func TestExpiredIDPMetadataKeepsBearerAndCookieAPIAvailable(t *testing.T) {
 		t.Fatal(err)
 	}
 	storage.Settings.BrowserAuth = f.Config
-	handler, err := Handler(storage, t.Context())
+	handler, err := Handler(storage, t.Context(), NewHTTPMetrics())
 	if err != nil {
 		t.Fatal("expired metadata prevents serve", err)
 	}

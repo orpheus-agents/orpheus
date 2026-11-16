@@ -90,7 +90,9 @@ for base, path, expected in (
     (api, "/health", 404),
     (api, "/ready", 404),
     (api, "/metrics/service", 404),
+    (api, "/metrics", 404),
     (api, "/api/v1/sessions", 200),
+    (system, "/metrics", 200),
 ):
     request = urllib.request.Request(base + path, headers={"Authorization": "Bearer smoke"})
     try:
@@ -102,9 +104,14 @@ for base, path, expected in (
         if path == "/metrics/service" and expected == 200:
             assert response.headers["Content-Type"].startswith("text/plain")
             assert response.read() == b"", "API-key-only config must have no account series"
+        elif path == "/metrics" and expected == 200:
+            assert response.headers["Content-Type"].startswith("text/plain")
+            body = response.read().decode()
+            assert 'orpheus_http_requests_total{method="GET",route="/api/v1/sessions",status="200"} 1' in body, body
+            assert "orpheus_account_" not in body, body
         elif expected == 200:
             json.load(response)
-print("System probes, service metrics and authenticated API work on separate ports.")
+print("System probes, instance/service metrics and authenticated API work on separate ports.")
 PY
 docker stop -t 15 "$api_name" "$worker_name" >/dev/null
 [ "$(docker inspect -f '{{.State.ExitCode}}' "$api_name")" = 0 ]

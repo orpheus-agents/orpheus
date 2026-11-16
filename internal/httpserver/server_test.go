@@ -19,6 +19,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers/legacy"
 	"github.com/jackc/pgx/v5"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/api"
@@ -36,7 +37,7 @@ func testServer(t *testing.T) (*httptest.Server, *store.Store) {
 	s := &store.Store{Pool: testutil.Database(t), Cipher: c, Settings: config.DefaultSettings(), Profiles: config.Profiles{Profiles: map[string]config.Profile{"default": {Harness: "codex", Model: new("fixture"), Instructions: "profile instruction", Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
 	testutil.RegisterTemplate(t, s.Pool, "codex")
 	s.Settings.PublicAPIKeys = []string{"key"}
-	handler, err := Handler(s, t.Context())
+	handler, err := Handler(s, t.Context(), NewHTTPMetrics())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +310,8 @@ func TestShutdownClosesSSEAndDrainsOrdinaryRequest(t *testing.T) {
 	}
 	streams, stopStreams := context.WithCancel(t.Context())
 	defer stopStreams()
-	handler, err := Handler(s, streams)
+	metrics := NewHTTPMetrics()
+	handler, err := Handler(s, streams, metrics)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,6 +340,9 @@ func TestShutdownClosesSSEAndDrainsOrdinaryRequest(t *testing.T) {
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK || res.Header.Get("Content-Type") != "text/event-stream" {
 		t.Fatal(res.Status)
+	}
+	if err := promtest.GatherAndCompare(metrics.registry, strings.NewReader("")); err != nil {
+		t.Fatal("open SSE was counted", err)
 	}
 	streamDone := make(chan error, 1)
 	go func() { _, err := io.Copy(io.Discard, res.Body); streamDone <- err }()
@@ -371,6 +376,10 @@ func TestShutdownClosesSSEAndDrainsOrdinaryRequest(t *testing.T) {
 	}
 	if err := <-done; err != nil {
 		t.Error("shutdown failed", err)
+	}
+	want := requestMetricsHelp + `orpheus_http_requests_total{method="GET",route="/api/v1/sessions/{sid}/events/stream",status="200"} 1` + "\n"
+	if err := promtest.GatherAndCompare(metrics.registry, strings.NewReader(want)); err != nil {
+		t.Fatal("closed SSE count", err)
 	}
 }
 

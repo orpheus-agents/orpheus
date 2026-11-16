@@ -29,7 +29,7 @@ type responseWriter struct {
 }
 
 func (w *responseWriter) WriteHeader(code int) {
-	if !w.written {
+	if !w.written && (code >= 200 || code == http.StatusSwitchingProtocols) {
 		w.status = code
 		w.written = true
 	}
@@ -62,7 +62,7 @@ func writeError(w http.ResponseWriter, err error) {
 		Error session.Error `json:"error"`
 	}{problem.Problem})
 }
-func Handler(s *store.Store, streams context.Context) (http.Handler, error) {
+func Handler(s *store.Store, streams context.Context, metrics *HTTPMetrics) (http.Handler, error) {
 	auth, err := browserauth.New(s.Settings.BrowserAuth, s.Pool)
 	if err != nil {
 		return nil, err
@@ -87,85 +87,97 @@ func Handler(s *store.Store, streams context.Context) (http.Handler, error) {
 	generated := api.HandlerWithOptions(strict, api.StdHTTPServerOptions{ErrorHandlerFunc: validationError})
 	return http.HandlerFunc(func(base http.ResponseWriter, r *http.Request) {
 		w := &responseWriter{ResponseWriter: base}
-		if strings.HasPrefix(r.URL.Path, "/api/v1") || strings.HasPrefix(r.URL.Path, "/auth/") || r.URL.Path == "/saml/metadata" {
-			w.Header().Set("Cache-Control", "no-store")
+		route, params, routeErr := router.FindRoute(r)
+		routeName := "unmatched"
+		if routeErr == nil {
+			routeName = route.Path
 		}
 		if r.URL.Path == "/openapi.json" && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(spec)
-			return
+			routeName = "/openapi.json"
 		}
-		if strings.HasPrefix(r.URL.Path, "/api/v1") {
-			var audit *templateAudit
-			if r.URL.Path != "/api/v1/auth/session" {
-				operation := ""
-				if route, _, routeErr := router.FindRoute(r); routeErr == nil {
-					operation = route.Operation.OperationID
-				}
-				if browserWritable(operation) {
-					audit = newTemplateAudit(operation, r)
-					r = r.WithContext(context.WithValue(r.Context(), templateAuditKey{}, audit))
-					defer func() { audit.log(r.Context(), w.status) }()
-				}
-				identity, err := authorize(r, auth, s.Settings.PublicAPIKeys, operation)
-				if audit != nil {
-					audit.identify(r, auth.Mode(), identity, err)
-				}
-				if err != nil {
-					writeError(w, err)
-					return
-				}
-				if identity != nil {
-					r = r.WithContext(context.WithValue(r.Context(), browserIdentityKey{}, identity))
-				}
+		// Keep early returns inside the boundary. Count only after it returns,
+		// including after an SSE stream closes; panics retain net/http behavior.
+		func() {
+			if strings.HasPrefix(r.URL.Path, "/api/v1") || strings.HasPrefix(r.URL.Path, "/auth/") || r.URL.Path == "/saml/metadata" {
+				w.Header().Set("Cache-Control", "no-store")
 			}
+			if r.URL.Path == "/openapi.json" && r.Method == http.MethodGet {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(spec)
+				return
+			}
+			if strings.HasPrefix(r.URL.Path, "/api/v1") {
+				var audit *templateAudit
+				if r.URL.Path != "/api/v1/auth/session" {
+					operation := ""
+					if routeErr == nil {
+						operation = route.Operation.OperationID
+					}
+					if browserWritable(operation) {
+						audit = newTemplateAudit(operation, r)
+						r = r.WithContext(context.WithValue(r.Context(), templateAuditKey{}, audit))
+						defer func() { audit.log(r.Context(), w.status) }()
+					}
+					identity, err := authorize(r, auth, s.Settings.PublicAPIKeys, operation)
+					if audit != nil {
+						audit.identify(r, auth.Mode(), identity, err)
+					}
+					if err != nil {
+						writeError(w, err)
+						return
+					}
+					if identity != nil {
+						r = r.WithContext(context.WithValue(r.Context(), browserIdentityKey{}, identity))
+					}
+				}
 
-			if r.Method == http.MethodPost || r.Method == http.MethodPatch {
-				raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.Settings.MaxRequestBytes))
-				if err != nil {
-					if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-						writeError(w, session.Problem(413, "request_too_large", "Request body is too large."))
-					} else {
-						writeError(w, session.Problem(400, "invalid_json", "Invalid request body."))
-					}
-					return
-				}
-				if len(raw) > 0 {
-					media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-					if err != nil || media != "application/json" {
-						writeError(w, session.Problem(415, "unsupported_media_type", "Invalid request body."))
+				if r.Method == http.MethodPost || r.Method == http.MethodPatch {
+					raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.Settings.MaxRequestBytes))
+					if err != nil {
+						if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+							writeError(w, session.Problem(413, "request_too_large", "Request body is too large."))
+						} else {
+							writeError(w, session.Problem(400, "invalid_json", "Invalid request body."))
+						}
 						return
 					}
-					if strings.HasSuffix(r.URL.Path, "/cancel") || validateJSON(raw) != nil {
-						writeError(w, session.Problem(400, "invalid_json", "Invalid request body."))
-						return
+					if len(raw) > 0 {
+						media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+						if err != nil || media != "application/json" {
+							writeError(w, session.Problem(415, "unsupported_media_type", "Invalid request body."))
+							return
+						}
+						if strings.HasSuffix(r.URL.Path, "/cancel") || validateJSON(raw) != nil {
+							writeError(w, session.Problem(400, "invalid_json", "Invalid request body."))
+							return
+						}
+					}
+					r.Body = io.NopCloser(bytes.NewReader(raw))
+					if audit != nil {
+						audit.setFields(raw)
 					}
 				}
-				r.Body = io.NopCloser(bytes.NewReader(raw))
-				if audit != nil {
-					audit.setFields(raw)
+				if routeErr == nil {
+					query := r.URL.Query()
+					for _, parameter := range route.Operation.Parameters {
+						p := parameter.Value
+						if p != nil && p.In == "query" && len(query[p.Name]) > 1 {
+							problem := session.Problem(422, "validation_error", "Query parameters must occur once.")
+							problem.Problem.Details = []session.Detail{{Path: []any{"query", p.Name}, Code: "invalid_value"}}
+							writeError(w, problem)
+							return
+						}
+					}
+					input := &openapi3filter.RequestValidationInput{Request: r, PathParams: params, Route: route, Options: &openapi3filter.Options{AuthenticationFunc: openapi3filter.NoopAuthenticationFunc, SkipSettingDefaults: true}}
+					if err := openapi3filter.ValidateRequest(r.Context(), input); err != nil {
+						validationError(w, r, err)
+						return
+					}
 				}
 			}
-			route, params, err := router.FindRoute(r)
-			if err == nil {
-				query := r.URL.Query()
-				for _, parameter := range route.Operation.Parameters {
-					p := parameter.Value
-					if p != nil && p.In == "query" && len(query[p.Name]) > 1 {
-						problem := session.Problem(422, "validation_error", "Query parameters must occur once.")
-						problem.Problem.Details = []session.Detail{{Path: []any{"query", p.Name}, Code: "invalid_value"}}
-						writeError(w, problem)
-						return
-					}
-				}
-				input := &openapi3filter.RequestValidationInput{Request: r, PathParams: params, Route: route, Options: &openapi3filter.Options{AuthenticationFunc: openapi3filter.NoopAuthenticationFunc, SkipSettingDefaults: true}}
-				if err := openapi3filter.ValidateRequest(r.Context(), input); err != nil {
-					validationError(w, r, err)
-					return
-				}
-			}
-		}
-		generated.ServeHTTP(w, r)
+			generated.ServeHTTP(w, r)
+		}()
+		metrics.observe(r.Method, routeName, w.status)
 	}), nil
 }
 

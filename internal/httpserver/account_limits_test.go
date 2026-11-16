@@ -44,7 +44,7 @@ key="auth.json"
 		t.Fatal(err)
 	}
 	storage.Profiles = p
-	metrics := SystemHandler(new(atomic.Bool), storage.AccountLimits)
+	metrics := SystemHandler(new(atomic.Bool), NewHTTPMetrics(), storage.AccountLimits)
 	scrape := func(want string) {
 		t.Helper()
 		w := httptest.NewRecorder()
@@ -130,7 +130,7 @@ func TestAccountLimitsStorageFailure(t *testing.T) {
 		t.Fatal(status, string(body))
 	}
 	w := httptest.NewRecorder()
-	SystemHandler(new(atomic.Bool), storage.AccountLimits).ServeHTTP(w, httptest.NewRequest("GET", "/metrics/service", nil))
+	SystemHandler(new(atomic.Bool), NewHTTPMetrics(), storage.AccountLimits).ServeHTTP(w, httptest.NewRequest("GET", "/metrics/service", nil))
 	if w.Code != 503 || strings.Contains(w.Body.String(), "orpheus_account_") {
 		t.Fatal(w.Code, w.Body.String())
 	}

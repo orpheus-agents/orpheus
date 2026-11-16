@@ -75,7 +75,7 @@ func TestServiceMetricsRefreshAndNegotiation(t *testing.T) {
 	var ready atomic.Bool
 	calls := 0
 	report := store.LimitReport{Items: []store.LimitItem{{AccountID: "team", State: "fresh", ResetCreditsAvailable: new(int64(2)), Buckets: []accountlimits.Bucket{{LimitID: "codex", Primary: &accountlimits.Window{RemainingPercent: 7}}}}}}
-	handler := SystemHandler(&ready, func(context.Context) (store.LimitReport, error) { calls++; return report, nil })
+	handler := SystemHandler(&ready, NewHTTPMetrics(), func(context.Context) (store.LimitReport, error) { calls++; return report, nil })
 	scrape := func(accept string) *httptest.ResponseRecorder {
 		t.Helper()
 		r := httptest.NewRequest("GET", "/metrics/service", nil)
