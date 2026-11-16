@@ -11,7 +11,8 @@ serve a frontend. All authenticated browsers see the same sessions.
 
 An explicitly supplied invalid or empty Authorization header always returns 401;
 it never falls back to cookies or anonymous access. Browser writes are enabled
-for template creation, update and deletion. They require `Origin` equal to
+for account, profile and template creation, update and deletion, including
+credential replacement. They require `Origin` equal to
 `ORPHEUS_PUBLIC_URL` and `X-Orpheus-CSRF: 1`, using the same check as logout.
 A valid bearer key does not require browser headers. Other commands still require
 a bearer key; a SAML session receives 403 `read_only_access` for those operations.
@@ -30,7 +31,7 @@ curl http://localhost:8000/api/v1/sessions
 ```
 
 Both work without credentials. Creating sessions still requires a service key.
-For template management from a browser, set `ORPHEUS_PUBLIC_URL` to its exact
+For catalog management from a browser, set `ORPHEUS_PUBLIC_URL` to its exact
 origin, including the development server port. `localhost` and `127.0.0.1` are
 different origins; a mismatch returns 403 `invalid_origin`.
 

@@ -20,7 +20,7 @@ func TestCatalogValidationAndExistingSessions(t *testing.T) {
 	}
 	for _, tc := range []struct{ body, code, field, detail string }{
 		{strings.Replace(externalBody, "\"template\":\"codex\"", "\"template\":\"missing\"", 1), "unknown_template", "sandbox", "template_not_found"},
-		{strings.Replace(externalBody, "\"profile\":\"default\"", "\"profile\":\"missing\"", 1), "unknown_profile", "agent", "invalid_value"},
+		{strings.Replace(externalBody, "\"profile\":\"default\"", "\"profile\":\"missing\"", 1), "unknown_profile", "agent", "profile_not_found"},
 	} {
 		raw := externalRequest(t, server, "POST", "/api/v1/sessions", tc.body, uuid.NewString(), 422)
 		var response struct{ Error session.Error }
@@ -39,7 +39,9 @@ func TestCatalogValidationAndExistingSessions(t *testing.T) {
 	key := uuid.NewString()
 	first := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", "/api/v1/sessions", externalBody, key, 202))
 	// Catalog removal does not affect replay or continuation of accepted sessions.
-	delete(storage.Profiles.Profiles, "default")
+	if _, err := storage.Pool.Exec(t.Context(), "DELETE FROM model_profiles"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := storage.Pool.Exec(t.Context(), "DELETE FROM templates"); err != nil {
 		t.Fatal(err)
 	}

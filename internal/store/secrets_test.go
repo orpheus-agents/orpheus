@@ -16,11 +16,11 @@ import (
 func secretCount(t *testing.T, s *Store, want int) {
 	t.Helper()
 	var count int
-	if err := s.Pool.QueryRow(t.Context(), "SELECT count(*) FROM secrets").Scan(&count); err != nil || count != want {
+	if err := s.Pool.QueryRow(t.Context(), `SELECT count(*) FROM secrets x WHERE NOT EXISTS(SELECT 1 FROM llm_accounts a WHERE a.api_key_secret_id=x.id)`).Scan(&count); err != nil || count != want {
 		t.Fatalf("secrets: got %d, want %d: %v", count, want, err)
 	}
 	var orphans int
-	if err := s.Pool.QueryRow(t.Context(), `SELECT count(*) FROM secrets x WHERE NOT EXISTS(SELECT 1 FROM sessions s WHERE s.env_secret_id=x.id) AND NOT EXISTS(SELECT 1 FROM runs r WHERE r.env_secret_id=x.id)`).Scan(&orphans); err != nil || orphans != 0 {
+	if err := s.Pool.QueryRow(t.Context(), `SELECT count(*) FROM secrets x WHERE NOT EXISTS(SELECT 1 FROM sessions s WHERE s.env_secret_id=x.id) AND NOT EXISTS(SELECT 1 FROM runs r WHERE r.env_secret_id=x.id) AND NOT EXISTS(SELECT 1 FROM llm_accounts a WHERE a.api_key_secret_id=x.id)`).Scan(&orphans); err != nil || orphans != 0 {
 		t.Fatal("orphan secrets", orphans, err)
 	}
 }

@@ -7,20 +7,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/orpheus-agents/orpheus/internal/llm"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
-const serviceProfiles = `[profiles.default]
-harness = "codex"
-model = "model"
-[profiles.default.auth]
-mode = "api_key"
-api_key_env = "OPENAI_API_KEY"
-`
+const serviceProfiles = ""
 
 func TestServiceConfiguration(t *testing.T) {
 	const service = "[services.gitlab]\nname = ' GitLab '\ndescription = ' Repositories '\nenv_from = ['TOKEN_B', 'TOKEN_A']\n"
-	p, err := ReadProfiles(strings.NewReader(serviceProfiles + service))
+	p, err := ReadDeployment(strings.NewReader(serviceProfiles + service))
 	if err != nil || p.Services["gitlab"].Name != "GitLab" || p.Services["gitlab"].Description != "Repositories" || !slices.Equal(p.Services["gitlab"].EnvFrom, []string{"TOKEN_A", "TOKEN_B"}) {
 		t.Fatal(p.Services, err)
 	}
@@ -35,20 +30,20 @@ func TestServiceConfiguration(t *testing.T) {
 		strings.Replace(service, "'TOKEN_B'", "'BAD-NAME'", 1),
 		service + "extra = true\n",
 	} {
-		if _, err := ReadProfiles(strings.NewReader(serviceProfiles + invalid)); err == nil {
+		if _, err := ReadDeployment(strings.NewReader(serviceProfiles + invalid)); err == nil {
 			t.Fatalf("accepted invalid service: %s", invalid)
 		}
 	}
-	if _, err := ReadProfiles(strings.NewReader(serviceProfiles + service + strings.Replace(service, "services.gitlab", "services.other", 1))); err != nil {
+	if _, err := ReadDeployment(strings.NewReader(serviceProfiles + service + strings.Replace(service, "services.gitlab", "services.other", 1))); err != nil {
 		t.Fatal("overlapping services rejected", err)
 	}
-	if p, err := ReadProfiles(strings.NewReader(serviceProfiles)); err != nil || len(p.Services) != 0 {
+	if p, err := ReadDeployment(strings.NewReader(serviceProfiles)); err != nil || len(p.Services) != 0 {
 		t.Fatal(p, err)
 	}
 }
 
 func TestResolveServices(t *testing.T) {
-	p := Profiles{Services: map[string]Service{
+	p := Deployment{Services: map[string]Service{
 		"a": {Name: "A", Description: "First", EnvFrom: []string{"SHARED", "TOKEN_A"}},
 		"b": {Name: "B", Description: "Second", EnvFrom: []string{"TOKEN_B", "SHARED"}},
 	}}
@@ -91,12 +86,12 @@ func TestResolveServices(t *testing.T) {
 }
 
 func TestServiceEnvironmentUsesFrozenReferencesAndCurrentAllowlist(t *testing.T) {
-	p, err := ReadProfiles(strings.NewReader(serviceProfiles + "[services.gitlab]\nname='GitLab'\ndescription='Repositories'\nenv_from=['SERVICE_TOKEN']"))
+	p, err := ReadDeployment(strings.NewReader(serviceProfiles + "[services.gitlab]\nname='GitLab'\ndescription='Repositories'\nenv_from=['SERVICE_TOKEN']"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	in := session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex", Services: []string{"gitlab"}}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
-	cfg, err := Resolve(in, p, nil, DefaultMaxSessionTokens)
+	cfg, err := Resolve(in, llm.ProfileInput{Name: "default", Model: "model"}, "codex", p, nil, DefaultMaxSessionTokens)
 	if err != nil || !slices.Equal(cfg.Public.Sandbox.EnvFrom, []string{"SERVICE_TOKEN"}) || len(cfg.Public.Sandbox.Services) != 1 {
 		t.Fatal(cfg, err)
 	}
@@ -123,7 +118,7 @@ func TestServiceEnvironmentUsesFrozenReferencesAndCurrentAllowlist(t *testing.T)
 	in.Sandbox.Services = nil
 	in.Sandbox.EnvFrom = []string{"SERVICE_TOKEN"}
 	p.Services["gitlab"] = Service{EnvFrom: []string{"SERVICE_TOKEN"}}
-	if _, err := Resolve(in, p, nil, DefaultMaxSessionTokens); err != nil {
+	if _, err := Resolve(in, llm.ProfileInput{Name: "default", Model: "model"}, "codex", p, nil, DefaultMaxSessionTokens); err != nil {
 		t.Fatal("direct catalog reference rejected", err)
 	}
 }

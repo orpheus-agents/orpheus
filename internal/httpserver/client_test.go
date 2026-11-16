@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/client"
-	"github.com/orpheus-agents/orpheus/internal/config"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
 )
@@ -20,12 +19,9 @@ import (
 // so a spec that generates compilable but incompatible wire types fails CI.
 func TestGeneratedClientAgainstServer(t *testing.T) {
 	server, s := testServer(t)
-	profile := s.Profiles.Profiles["default"]
-	profile.Codex.Effort = "high"
-	profile.Codex.Summary = "auto"
-	profile.Codex.Personality = "friendly"
-	profile.Codex.ServiceTier = "default"
-	s.Profiles.Profiles["default"] = profile
+	if _, err := s.Pool.Exec(t.Context(), `UPDATE model_profiles SET codex='{"effort":"high","summary":"auto","personality":"friendly","service_tier":"default"}' WHERE name='default'`); err != nil {
+		t.Fatal(err)
+	}
 	c, err := client.NewClientWithResponses(server.URL, client.WithHTTPClient(server.Client()), client.WithRequestEditorFn(func(_ context.Context, r *http.Request) error {
 		r.Header.Set("Authorization", "Bearer key")
 		return nil
@@ -47,9 +43,10 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 		t.Fatalf("create: %d %s", created.StatusCode(), created.Body)
 	}
 	a := *created.JSON202
-	// The worker must retain the accepted options even after deployment profiles change.
-	profile.Codex = config.CodexProfile{}
-	s.Profiles.Profiles["default"] = profile
+	// The worker must retain the accepted options even after catalog profiles change.
+	if _, err := s.Pool.Exec(t.Context(), `UPDATE model_profiles SET codex='{}' WHERE name='default'`); err != nil {
+		t.Fatal(err)
+	}
 	record, err := store.GetSession(t.Context(), s.Pool, a.SessionID, false)
 	wantCodex := session.CodexConfiguration{Effort: "high", Summary: "auto", Personality: "friendly", ServiceTier: "default"}
 	if err != nil || record.Configuration.Public.Agent.Codex != wantCodex {

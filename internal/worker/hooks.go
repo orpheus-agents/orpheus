@@ -118,7 +118,7 @@ func (e *Executor) hookEnvironment(ctx context.Context, record store.SessionReco
 		}
 		return nil, err
 	}
-	env, err = config.MergedEnvironment(env, record.Configuration.Public, e.Store.Profiles.EnvironmentAllowlist(e.Store.Settings.HarnessEnvAllowlist), runEnv, runEnvFrom)
+	env, err = config.MergedEnvironment(env, record.Configuration.Public, e.Store.Deployment.EnvironmentAllowlist(e.Store.Settings.HarnessEnvAllowlist), runEnv, runEnvFrom)
 	if err != nil {
 		return nil, err
 	}

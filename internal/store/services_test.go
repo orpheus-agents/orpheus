@@ -16,7 +16,7 @@ import (
 
 func TestServiceAdmissionSnapshotsAndReplay(t *testing.T) {
 	s := fixture(t)
-	s.Profiles.Services = map[string]config.Service{
+	s.Deployment.Services = map[string]config.Service{
 		"a": {Name: "First", Description: "First service", EnvFrom: []string{"A", "SHARED"}},
 		"b": {Name: "Second", Description: "Second service", EnvFrom: []string{"B", "SHARED"}},
 	}
@@ -64,8 +64,8 @@ func TestServiceAdmissionSnapshotsAndReplay(t *testing.T) {
 	get()
 	req.Create.Services = []string{"a", "b"}
 	req.Create.Configuration.Sandbox.Services = []string{"a", "b"}
-	s.Profiles.Services["a"] = config.Service{Name: "Changed", EnvFrom: []string{"NEW"}}
-	delete(s.Profiles.Services, "b")
+	s.Deployment.Services["a"] = config.Service{Name: "Changed", EnvFrom: []string{"NEW"}}
+	delete(s.Deployment.Services, "b")
 	// Simulate a fresh process with a different catalog and the same storage.
 	restarted := *s
 	again, err := restarted.Accept(t.Context(), req)
@@ -110,7 +110,7 @@ func TestServiceAdmissionSnapshotsAndReplay(t *testing.T) {
 	if err != nil || len(nextRun.Services) != 1 || nextRun.Services[0].Name != "Changed" || !slices.Equal(nextRun.EnvFrom, []string{"NEW"}) {
 		t.Fatal(nextRun, err)
 	}
-	clear(s.Profiles.Services)
+	clear(s.Deployment.Services)
 	if got, err := s.Accept(t.Context(), nextReq); err != nil || got != next {
 		t.Fatal(got, err)
 	}

@@ -11,7 +11,7 @@ import (
 )
 
 func TestBrowserAuthMigrationUpDown(t *testing.T) {
-	pool := testutil.Database(t)
+	pool := testutil.DatabaseAt(t, 29)
 	sqlDB := stdlib.OpenDB(*pool.Config().ConnConfig)
 	defer func() { _ = sqlDB.Close() }()
 	provider, err := migrate.Provider(sqlDB, "../../migrations")
@@ -33,7 +33,7 @@ func TestBrowserAuthMigrationUpDown(t *testing.T) {
 			t.Fatal(name, err)
 		}
 	}
-	if _, err := provider.Up(t.Context()); err != nil {
+	if _, err := provider.UpTo(t.Context(), 29); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(t.Context(), "INSERT INTO browser_sessions(token_hash,subject,display_name,expires_at) VALUES ('short','s','d',now())"); err == nil {

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -71,15 +70,18 @@ func (d *Driver) Launch(ctx context.Context, env map[string]string, cwd string, 
 }
 func (d *Driver) Attach(ctx context.Context, pid int) error { return d.rpc.Attach(ctx, pid) }
 func (d *Driver) Initialize(ctx context.Context, source session.Credentials, login bool) error {
+	d.rpc.redactor.Add(source.APIKey)
+	if err := d.rememberAuth(ctx, !login); err != nil {
+		return err
+	}
 	if err := d.rpc.Initialize(ctx); err != nil {
 		return err
 	}
 	if login && source.Mode == "api_key" {
-		key := os.Getenv(source.APIKeyEnv)
+		key := source.APIKey
 		if key == "" {
 			return harness.Failure("credentials_unavailable", "Provider API key is unavailable.")
 		}
-		d.rpc.redactor.Add(key)
 		if err := d.rpc.Call(ctx, "account/login/start", map[string]string{"type": "apiKey", "apiKey": key}, nil); err != nil {
 			return err
 		}

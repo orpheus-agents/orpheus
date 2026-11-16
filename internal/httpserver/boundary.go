@@ -113,7 +113,7 @@ func Handler(s *store.Store, streams context.Context, metrics *HTTPMetrics) (htt
 					if routeErr == nil {
 						operation = route.Operation.OperationID
 					}
-					if browserWritable(operation) {
+					if operation == "CreateTemplate" || operation == "UpdateTemplate" || operation == "DeleteTemplate" {
 						audit = newTemplateAudit(operation, r)
 						r = r.WithContext(context.WithValue(r.Context(), templateAuditKey{}, audit))
 						defer func() { audit.log(r.Context(), w.status) }()
@@ -131,7 +131,7 @@ func Handler(s *store.Store, streams context.Context, metrics *HTTPMetrics) (htt
 					}
 				}
 
-				if r.Method == http.MethodPost || r.Method == http.MethodPatch {
+				if r.Method == http.MethodPost || r.Method == http.MethodPatch || r.Method == http.MethodPut {
 					raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.Settings.MaxRequestBytes))
 					if err != nil {
 						if _, ok := errors.AsType[*http.MaxBytesError](err); ok {

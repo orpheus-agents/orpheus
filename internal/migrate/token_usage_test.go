@@ -13,7 +13,7 @@ import (
 )
 
 func TestTokenUsageMigrations(t *testing.T) {
-	pool := testutil.Database(t)
+	pool := testutil.DatabaseAt(t, 29)
 	db := stdlib.OpenDB(*pool.Config().ConnConfig)
 	defer func() { _ = db.Close() }()
 	p, err := migrate.Provider(db, "../../migrations")
@@ -35,7 +35,7 @@ func TestTokenUsageMigrations(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if _, err := p.Up(t.Context()); err != nil {
+		if _, err := p.UpTo(t.Context(), 29); err != nil {
 			t.Fatal(err)
 		}
 		var limit, total int64

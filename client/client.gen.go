@@ -216,8 +216,11 @@ func (e ErrorPhase) Valid() bool {
 
 // Defines values for ErrorDetailCode.
 const (
+	AccountInactive   ErrorDetailCode = "account_inactive"
 	InvalidType       ErrorDetailCode = "invalid_type"
 	InvalidValue      ErrorDetailCode = "invalid_value"
+	ProfileInactive   ErrorDetailCode = "profile_inactive"
+	ProfileNotFound   ErrorDetailCode = "profile_not_found"
 	Required          ErrorDetailCode = "required"
 	TagNotFound       ErrorDetailCode = "tag_not_found"
 	TemplateForbidden ErrorDetailCode = "template_forbidden"
@@ -229,9 +232,15 @@ const (
 // Valid indicates whether the value is a known member of the ErrorDetailCode enum.
 func (e ErrorDetailCode) Valid() bool {
 	switch e {
+	case AccountInactive:
+		return true
 	case InvalidType:
 		return true
 	case InvalidValue:
+		return true
+	case ProfileInactive:
+		return true
+	case ProfileNotFound:
 		return true
 	case Required:
 		return true
@@ -358,6 +367,72 @@ func (e JSONResultType) Valid() bool {
 	}
 }
 
+// Defines values for LLMAccountAuthMode.
+const (
+	LLMAccountAuthModeAPIKey  LLMAccountAuthMode = "api_key"
+	LLMAccountAuthModeAccount LLMAccountAuthMode = "account"
+)
+
+// Valid indicates whether the value is a known member of the LLMAccountAuthMode enum.
+func (e LLMAccountAuthMode) Valid() bool {
+	switch e {
+	case LLMAccountAuthModeAPIKey:
+		return true
+	case LLMAccountAuthModeAccount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMAccountHarness.
+const (
+	LLMAccountHarnessCodex LLMAccountHarness = "codex"
+)
+
+// Valid indicates whether the value is a known member of the LLMAccountHarness enum.
+func (e LLMAccountHarness) Valid() bool {
+	switch e {
+	case LLMAccountHarnessCodex:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMAccountDetailsAuthMode.
+const (
+	LLMAccountDetailsAuthModeAPIKey  LLMAccountDetailsAuthMode = "api_key"
+	LLMAccountDetailsAuthModeAccount LLMAccountDetailsAuthMode = "account"
+)
+
+// Valid indicates whether the value is a known member of the LLMAccountDetailsAuthMode enum.
+func (e LLMAccountDetailsAuthMode) Valid() bool {
+	switch e {
+	case LLMAccountDetailsAuthModeAPIKey:
+		return true
+	case LLMAccountDetailsAuthModeAccount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMAccountDetailsHarness.
+const (
+	LLMAccountDetailsHarnessCodex LLMAccountDetailsHarness = "codex"
+)
+
+// Valid indicates whether the value is a known member of the LLMAccountDetailsHarness enum.
+func (e LLMAccountDetailsHarness) Valid() bool {
+	switch e {
+	case LLMAccountDetailsHarnessCodex:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MessageDeliveryStatus.
 const (
 	MessageDeliveryStatusDelivered MessageDeliveryStatus = "delivered"
@@ -453,13 +528,13 @@ func (e MessageItemType) Valid() bool {
 
 // Defines values for ProfileHarness.
 const (
-	Codex ProfileHarness = "codex"
+	ProfileHarnessCodex ProfileHarness = "codex"
 )
 
 // Valid indicates whether the value is a known member of the ProfileHarness enum.
 func (e ProfileHarness) Valid() bool {
 	switch e {
-	case Codex:
+	case ProfileHarnessCodex:
 		return true
 	default:
 		return false
@@ -1110,6 +1185,9 @@ type AnalyticsOverview struct {
 // AnalyticsOverviewBucket defines model for AnalyticsOverview.Bucket.
 type AnalyticsOverviewBucket string
 
+// AuthFile defines model for AuthFile.
+type AuthFile = json.RawMessage
+
 // BrowserAuthSession defines model for BrowserAuthSession.
 type BrowserAuthSession struct {
 	Authenticated bool                   `json:"authenticated"`
@@ -1161,6 +1239,20 @@ type ConfigurationInput struct {
 	Hooks   *HooksInput  `json:"hooks,omitempty"`
 	Limits  *LimitsInput `json:"limits,omitempty"`
 	Sandbox SandboxInput `json:"sandbox"`
+}
+
+// CreateLLMAccount defines model for CreateLLMAccount.
+type CreateLLMAccount = json.RawMessage
+
+// CreateProfile defines model for CreateProfile.
+type CreateProfile struct {
+	AccountID    openapi_types.UUID `json:"account_id"`
+	Active       *bool              `json:"active,omitempty"`
+	Codex        *CodexProfile      `json:"codex,omitempty"`
+	Description  *string            `json:"description,omitempty"`
+	Instructions *string            `json:"instructions,omitempty"`
+	Model        string             `json:"model"`
+	Name         string             `json:"name"`
 }
 
 // CreateRun defines model for CreateRun.
@@ -1219,6 +1311,11 @@ type CreateTemplate struct {
 
 	// TemplateName Own-project alias, optionally prefixed by its team slug. Normalized to lowercase.
 	TemplateName string `json:"template_name"`
+}
+
+// CredentialStores defines model for CredentialStores.
+type CredentialStores struct {
+	Items []string `json:"items"`
 }
 
 // Error defines model for Error.
@@ -1356,6 +1453,48 @@ type JSONResult struct {
 // JSONResultType defines model for JSONResult.Type.
 type JSONResultType string
 
+// LLMAccount defines model for LLMAccount.
+type LLMAccount struct {
+	Active          bool               `json:"active"`
+	AuthMode        LLMAccountAuthMode `json:"auth_mode"`
+	CredentialStore *string            `json:"credential_store"`
+	Harness         LLMAccountHarness  `json:"harness"`
+	ID              openapi_types.UUID `json:"id"`
+	Name            string             `json:"name"`
+	Profiles        []string           `json:"profiles"`
+}
+
+// LLMAccountAuthMode defines model for LLMAccount.AuthMode.
+type LLMAccountAuthMode string
+
+// LLMAccountHarness defines model for LLMAccount.Harness.
+type LLMAccountHarness string
+
+// LLMAccountDetails defines model for LLMAccountDetails.
+type LLMAccountDetails struct {
+	Active          bool                      `json:"active"`
+	APIKeyMask      *string                   `json:"api_key_mask"`
+	AuthMode        LLMAccountDetailsAuthMode `json:"auth_mode"`
+	CredentialStore *string                   `json:"credential_store"`
+	Harness         LLMAccountDetailsHarness  `json:"harness"`
+	ID              openapi_types.UUID        `json:"id"`
+	Name            string                    `json:"name"`
+	Profiles        []string                  `json:"profiles"`
+}
+
+// LLMAccountDetailsAuthMode defines model for LLMAccountDetails.AuthMode.
+type LLMAccountDetailsAuthMode string
+
+// LLMAccountDetailsHarness defines model for LLMAccountDetails.Harness.
+type LLMAccountDetailsHarness string
+
+// LLMAccounts defines model for LLMAccounts.
+type LLMAccounts struct {
+	Items      []LLMAccount `json:"items"`
+	NextCursor *string      `json:"next_cursor"`
+	PrevCursor *string      `json:"prev_cursor"`
+}
+
 // Limits defines model for Limits.
 type Limits struct {
 	// MaxSessionTokens Session-wide input and output token budget. Omission uses DEFAULT_MAX_SESSION_TOKENS (100000000 by default); explicit null is invalid.
@@ -1433,12 +1572,18 @@ type Position struct {
 
 // Profile defines model for Profile.
 type Profile struct {
-	Codex        CodexProfile   `json:"codex"`
-	Description  *string        `json:"description"`
-	Harness      ProfileHarness `json:"harness"`
-	Instructions string         `json:"instructions"`
-	Model        *string        `json:"model"`
-	Name         string         `json:"name"`
+	AccountActive bool               `json:"account_active"`
+	AccountID     openapi_types.UUID `json:"account_id"`
+	AccountName   string             `json:"account_name"`
+	Active        bool               `json:"active"`
+	Available     bool               `json:"available"`
+	Codex         CodexProfile       `json:"codex"`
+	Description   *string            `json:"description"`
+	Harness       ProfileHarness     `json:"harness"`
+	ID            openapi_types.UUID `json:"id"`
+	Instructions  string             `json:"instructions"`
+	Model         string             `json:"model"`
+	Name          string             `json:"name"`
 }
 
 // ProfileHarness defines model for Profile.Harness.
@@ -1446,7 +1591,14 @@ type ProfileHarness string
 
 // Profiles defines model for Profiles.
 type Profiles struct {
-	Items []Profile `json:"items"`
+	Items      []Profile `json:"items"`
+	NextCursor *string   `json:"next_cursor"`
+	PrevCursor *string   `json:"prev_cursor"`
+}
+
+// ReplaceAPIKey defines model for ReplaceAPIKey.
+type ReplaceAPIKey struct {
+	APIKey *string `json:"api_key,omitempty"`
 }
 
 // Run defines model for Run.
@@ -1756,6 +1908,12 @@ type TruncatedResultSourceType string
 // TruncatedResultType defines model for TruncatedResult.Type.
 type TruncatedResultType string
 
+// UpdateLLMAccount defines model for UpdateLLMAccount.
+type UpdateLLMAccount = json.RawMessage
+
+// UpdateProfile defines model for UpdateProfile.
+type UpdateProfile = json.RawMessage
+
 // UpdateTemplate defines model for UpdateTemplate.
 type UpdateTemplate = json.RawMessage
 
@@ -1766,6 +1924,12 @@ type Usage struct {
 	OutputTokens          int64 `json:"output_tokens"`
 	ReasoningOutputTokens int64 `json:"reasoning_output_tokens"`
 	TotalTokens           int64 `json:"total_tokens"`
+}
+
+// GetAccountLimitsParams defines parameters for GetAccountLimits.
+type GetAccountLimitsParams struct {
+	// AccountIds Comma-separated account UUIDs. Omit to read all account-file identities.
+	AccountIds *[]openapi_types.UUID `form:"account_ids,omitempty" json:"account_ids,omitempty"`
 }
 
 // GetAnalyticsOverviewParams defines parameters for GetAnalyticsOverview.
@@ -1794,6 +1958,40 @@ type GetAnalyticsOverviewParamsWindow string
 
 // GetAnalyticsOverviewParamsBucket defines parameters for GetAnalyticsOverview.
 type GetAnalyticsOverviewParamsBucket string
+
+// GetLlmAccountsParams defines parameters for GetLlmAccounts.
+type GetLlmAccountsParams struct {
+	Active *bool `form:"active,omitempty" json:"active,omitempty"`
+
+	// Name Exact case-sensitive name. Incompatible with name_contains.
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// NameContains Literal case-insensitive substring. Incompatible with name.
+	NameContains *string `form:"name_contains,omitempty" json:"name_contains,omitempty"`
+	Limit        *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor       *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ReplaceAuthFileParams defines parameters for ReplaceAuthFile.
+type ReplaceAuthFileParams struct {
+	IfMatch string `json:"If-Match"`
+}
+
+// GetProfilesParams defines parameters for GetProfiles.
+type GetProfilesParams struct {
+	Active *bool `form:"active,omitempty" json:"active,omitempty"`
+
+	// Name Exact case-sensitive name. Incompatible with name_contains.
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// NameContains Literal case-insensitive substring. Incompatible with name.
+	NameContains *string `form:"name_contains,omitempty" json:"name_contains,omitempty"`
+	Limit        *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor       *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Available Profile and account activity combined.
+	Available *bool `form:"available,omitempty" json:"available,omitempty"`
+}
 
 // ListAllRunsParams defines parameters for ListAllRuns.
 type ListAllRunsParams struct {
@@ -1903,6 +2101,24 @@ type GetTemplatesParams struct {
 type BrowserLoginParams struct {
 	Next *string `form:"next,omitempty" json:"next,omitempty"`
 }
+
+// CreateLlmAccountJSONRequestBody defines body for CreateLlmAccount for application/json ContentType.
+type CreateLlmAccountJSONRequestBody = CreateLLMAccount
+
+// UpdateLlmAccountJSONRequestBody defines body for UpdateLlmAccount for application/json ContentType.
+type UpdateLlmAccountJSONRequestBody = UpdateLLMAccount
+
+// ReplaceAPIKeyJSONRequestBody defines body for ReplaceAPIKey for application/json ContentType.
+type ReplaceAPIKeyJSONRequestBody = ReplaceAPIKey
+
+// ReplaceAuthFileJSONRequestBody defines body for ReplaceAuthFile for application/json ContentType.
+type ReplaceAuthFileJSONRequestBody = AuthFile
+
+// CreateProfileJSONRequestBody defines body for CreateProfile for application/json ContentType.
+type CreateProfileJSONRequestBody = CreateProfile
+
+// UpdateProfileJSONRequestBody defines body for UpdateProfile for application/json ContentType.
+type UpdateProfileJSONRequestBody = UpdateProfile
 
 // CreateSessionJSONRequestBody defines body for CreateSession for application/json ContentType.
 type CreateSessionJSONRequestBody = CreateSession
@@ -2528,12 +2744,12 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
-	// GetAccountLimits Current provider limits by configured account
+	// GetAccountLimits Current provider limits by account
 	//
 	// Read-only snapshot from worker observations. Does not contact the provider or refresh credentials. Responses use Cache-Control no-store.
 	//
 	// Corresponds with GET /api/v1/accounts/limits (the `GetAccountLimits` operationId).
-	GetAccountLimits(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetAccountLimits(ctx context.Context, params *GetAccountLimitsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAnalyticsOverview Dashboard analytics snapshot
 	//
@@ -2549,12 +2765,133 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/auth/session (the `AuthSession` operationId).
 	AuthSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetProfiles List configured profiles
+	// GetCredentialStores List configured credential store names
 	//
-	// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+	// Corresponds with GET /api/v1/credential-stores (the `GetCredentialStores` operationId).
+	GetCredentialStores(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLlmAccounts List llm-accounts
+	//
+	// Database catalog ordered by (name, id), with filters bound to forward/backward cursors. Changes apply to new sessions; accepted sessions retain their account and execution snapshot.
+	//
+	// Corresponds with GET /api/v1/llm-accounts (the `GetLlmAccounts` operationId).
+	GetLlmAccounts(ctx context.Context, params *GetLlmAccountsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateLlmAccountWithBody Create llm account
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/llm-accounts (the `CreateLlmAccount` operationId).
+	CreateLlmAccountWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateLlmAccount Create llm account
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/llm-accounts (the `CreateLlmAccount` operationId).
+	CreateLlmAccount(ctx context.Context, body CreateLlmAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteLlmAccount Delete llm account
+	//
+	// Corresponds with DELETE /api/v1/llm-accounts/{id} (the `DeleteLlmAccount` operationId).
+	DeleteLlmAccount(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLlmAccount Read llm account
+	//
+	// Corresponds with GET /api/v1/llm-accounts/{id} (the `GetLlmAccount` operationId).
+	GetLlmAccount(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateLlmAccountWithBody Update llm account
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /api/v1/llm-accounts/{id} (the `UpdateLlmAccount` operationId).
+	UpdateLlmAccountWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateLlmAccount Update llm account
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /api/v1/llm-accounts/{id} (the `UpdateLlmAccount` operationId).
+	UpdateLlmAccount(ctx context.Context, id openapi_types.UUID, body UpdateLlmAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceAPIKeyWithBody Replace an account API key
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/llm-accounts/{id}/api-key (the `ReplaceAPIKey` operationId).
+	ReplaceAPIKeyWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceAPIKey Replace an account API key
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/llm-accounts/{id}/api-key (the `ReplaceAPIKey` operationId).
+	ReplaceAPIKey(ctx context.Context, id openapi_types.UUID, body ReplaceAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAuthFile Read the account authorization file
+	//
+	// Corresponds with GET /api/v1/llm-accounts/{id}/auth-file (the `GetAuthFile` operationId).
+	GetAuthFile(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceAuthFileWithBody Conditionally replace the account authorization file
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/llm-accounts/{id}/auth-file (the `ReplaceAuthFile` operationId).
+	ReplaceAuthFileWithBody(ctx context.Context, id openapi_types.UUID, params *ReplaceAuthFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceAuthFile Conditionally replace the account authorization file
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/llm-accounts/{id}/auth-file (the `ReplaceAuthFile` operationId).
+	ReplaceAuthFile(ctx context.Context, id openapi_types.UUID, params *ReplaceAuthFileParams, body ReplaceAuthFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProfiles List profiles
+	//
+	// Database catalog ordered by (name, id), with filters bound to forward/backward cursors. Changes apply to new sessions; accepted sessions retain their account and execution snapshot.
 	//
 	// Corresponds with GET /api/v1/profiles (the `GetProfiles` operationId).
-	GetProfiles(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetProfiles(ctx context.Context, params *GetProfilesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateProfileWithBody Create profile
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/profiles (the `CreateProfile` operationId).
+	CreateProfileWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateProfile Create profile
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/profiles (the `CreateProfile` operationId).
+	CreateProfile(ctx context.Context, body CreateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteProfile Delete profile
+	//
+	// Corresponds with DELETE /api/v1/profiles/{id} (the `DeleteProfile` operationId).
+	DeleteProfile(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProfile Read profile
+	//
+	// Corresponds with GET /api/v1/profiles/{id} (the `GetProfile` operationId).
+	GetProfile(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateProfileWithBody Update profile
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /api/v1/profiles/{id} (the `UpdateProfile` operationId).
+	UpdateProfileWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateProfile Update profile
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /api/v1/profiles/{id} (the `UpdateProfile` operationId).
+	UpdateProfile(ctx context.Context, id openapi_types.UUID, body UpdateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListAllRuns List All Runs
 	//
@@ -2736,13 +3073,13 @@ type ClientInterface interface {
 	SamlMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-// GetAccountLimits Current provider limits by configured account
+// GetAccountLimits Current provider limits by account
 //
 // Read-only snapshot from worker observations. Does not contact the provider or refresh credentials. Responses use Cache-Control no-store.
 //
 // Corresponds with GET /api/v1/accounts/limits (the `GetAccountLimits` operationId).
-func (c *Client) GetAccountLimits(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetAccountLimitsRequest(c.Server)
+func (c *Client) GetAccountLimits(ctx context.Context, params *GetAccountLimitsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAccountLimitsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2787,13 +3124,324 @@ func (c *Client) AuthSession(ctx context.Context, reqEditors ...RequestEditorFn)
 	return c.Client.Do(req)
 }
 
-// GetProfiles List configured profiles
+// GetCredentialStores List configured credential store names
 //
-// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+// Corresponds with GET /api/v1/credential-stores (the `GetCredentialStores` operationId).
+func (c *Client) GetCredentialStores(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCredentialStoresRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetLlmAccounts List llm-accounts
+//
+// Database catalog ordered by (name, id), with filters bound to forward/backward cursors. Changes apply to new sessions; accepted sessions retain their account and execution snapshot.
+//
+// Corresponds with GET /api/v1/llm-accounts (the `GetLlmAccounts` operationId).
+func (c *Client) GetLlmAccounts(ctx context.Context, params *GetLlmAccountsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLlmAccountsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateLlmAccountWithBody Create llm account
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/llm-accounts (the `CreateLlmAccount` operationId).
+func (c *Client) CreateLlmAccountWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateLlmAccountRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateLlmAccount Create llm account
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/llm-accounts (the `CreateLlmAccount` operationId).
+func (c *Client) CreateLlmAccount(ctx context.Context, body CreateLlmAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateLlmAccountRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteLlmAccount Delete llm account
+//
+// Corresponds with DELETE /api/v1/llm-accounts/{id} (the `DeleteLlmAccount` operationId).
+func (c *Client) DeleteLlmAccount(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteLlmAccountRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetLlmAccount Read llm account
+//
+// Corresponds with GET /api/v1/llm-accounts/{id} (the `GetLlmAccount` operationId).
+func (c *Client) GetLlmAccount(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLlmAccountRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateLlmAccountWithBody Update llm account
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /api/v1/llm-accounts/{id} (the `UpdateLlmAccount` operationId).
+func (c *Client) UpdateLlmAccountWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLlmAccountRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateLlmAccount Update llm account
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /api/v1/llm-accounts/{id} (the `UpdateLlmAccount` operationId).
+func (c *Client) UpdateLlmAccount(ctx context.Context, id openapi_types.UUID, body UpdateLlmAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLlmAccountRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReplaceAPIKeyWithBody Replace an account API key
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/llm-accounts/{id}/api-key (the `ReplaceAPIKey` operationId).
+func (c *Client) ReplaceAPIKeyWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceAPIKeyRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReplaceAPIKey Replace an account API key
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/llm-accounts/{id}/api-key (the `ReplaceAPIKey` operationId).
+func (c *Client) ReplaceAPIKey(ctx context.Context, id openapi_types.UUID, body ReplaceAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceAPIKeyRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetAuthFile Read the account authorization file
+//
+// Corresponds with GET /api/v1/llm-accounts/{id}/auth-file (the `GetAuthFile` operationId).
+func (c *Client) GetAuthFile(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAuthFileRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReplaceAuthFileWithBody Conditionally replace the account authorization file
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/llm-accounts/{id}/auth-file (the `ReplaceAuthFile` operationId).
+func (c *Client) ReplaceAuthFileWithBody(ctx context.Context, id openapi_types.UUID, params *ReplaceAuthFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceAuthFileRequestWithBody(c.Server, id, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReplaceAuthFile Conditionally replace the account authorization file
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/llm-accounts/{id}/auth-file (the `ReplaceAuthFile` operationId).
+func (c *Client) ReplaceAuthFile(ctx context.Context, id openapi_types.UUID, params *ReplaceAuthFileParams, body ReplaceAuthFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceAuthFileRequest(c.Server, id, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetProfiles List profiles
+//
+// Database catalog ordered by (name, id), with filters bound to forward/backward cursors. Changes apply to new sessions; accepted sessions retain their account and execution snapshot.
 //
 // Corresponds with GET /api/v1/profiles (the `GetProfiles` operationId).
-func (c *Client) GetProfiles(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetProfilesRequest(c.Server)
+func (c *Client) GetProfiles(ctx context.Context, params *GetProfilesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProfilesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateProfileWithBody Create profile
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/profiles (the `CreateProfile` operationId).
+func (c *Client) CreateProfileWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateProfileRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateProfile Create profile
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/profiles (the `CreateProfile` operationId).
+func (c *Client) CreateProfile(ctx context.Context, body CreateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateProfileRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteProfile Delete profile
+//
+// Corresponds with DELETE /api/v1/profiles/{id} (the `DeleteProfile` operationId).
+func (c *Client) DeleteProfile(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteProfileRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetProfile Read profile
+//
+// Corresponds with GET /api/v1/profiles/{id} (the `GetProfile` operationId).
+func (c *Client) GetProfile(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProfileRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateProfileWithBody Update profile
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /api/v1/profiles/{id} (the `UpdateProfile` operationId).
+func (c *Client) UpdateProfileWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateProfileRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateProfile Update profile
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /api/v1/profiles/{id} (the `UpdateProfile` operationId).
+func (c *Client) UpdateProfile(ctx context.Context, id openapi_types.UUID, body UpdateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateProfileRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3254,7 +3902,7 @@ func (c *Client) SamlMetadata(ctx context.Context, reqEditors ...RequestEditorFn
 }
 
 // NewGetAccountLimitsRequest constructs an http.Request for the GetAccountLimits method
-func NewGetAccountLimitsRequest(server string) (*http.Request, error) {
+func NewGetAccountLimitsRequest(server string, params *GetAccountLimitsParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -3270,6 +3918,33 @@ func NewGetAccountLimitsRequest(server string) (*http.Request, error) {
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.AccountIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "account_ids", *params.AccountIds, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -3421,8 +4096,433 @@ func NewAuthSessionRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetCredentialStoresRequest constructs an http.Request for the GetCredentialStores method
+func NewGetCredentialStoresRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/credential-stores")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetLlmAccountsRequest constructs an http.Request for the GetLlmAccounts method
+func NewGetLlmAccountsRequest(server string, params *GetLlmAccountsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/llm-accounts")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Active != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "active", *params.Active, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name", *params.Name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.NameContains != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name_contains", *params.NameContains, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateLlmAccountRequest calls the generic CreateLlmAccount builder with application/json body
+func NewCreateLlmAccountRequest(server string, body CreateLlmAccountJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateLlmAccountRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateLlmAccountRequestWithBody constructs an http.Request for the CreateLlmAccount method, with any body, and a specified content type
+func NewCreateLlmAccountRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/llm-accounts")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteLlmAccountRequest constructs an http.Request for the DeleteLlmAccount method
+func NewDeleteLlmAccountRequest(server string, id openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/llm-accounts/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetLlmAccountRequest constructs an http.Request for the GetLlmAccount method
+func NewGetLlmAccountRequest(server string, id openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/llm-accounts/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateLlmAccountRequest calls the generic UpdateLlmAccount builder with application/json body
+func NewUpdateLlmAccountRequest(server string, id openapi_types.UUID, body UpdateLlmAccountJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateLlmAccountRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewUpdateLlmAccountRequestWithBody constructs an http.Request for the UpdateLlmAccount method, with any body, and a specified content type
+func NewUpdateLlmAccountRequestWithBody(server string, id openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/llm-accounts/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewReplaceAPIKeyRequest calls the generic ReplaceAPIKey builder with application/json body
+func NewReplaceAPIKeyRequest(server string, id openapi_types.UUID, body ReplaceAPIKeyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplaceAPIKeyRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewReplaceAPIKeyRequestWithBody constructs an http.Request for the ReplaceAPIKey method, with any body, and a specified content type
+func NewReplaceAPIKeyRequestWithBody(server string, id openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/llm-accounts/%s/api-key", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetAuthFileRequest constructs an http.Request for the GetAuthFile method
+func NewGetAuthFileRequest(server string, id openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/llm-accounts/%s/auth-file", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewReplaceAuthFileRequest calls the generic ReplaceAuthFile builder with application/json body
+func NewReplaceAuthFileRequest(server string, id openapi_types.UUID, params *ReplaceAuthFileParams, body ReplaceAuthFileJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplaceAuthFileRequestWithBody(server, id, params, "application/json", bodyReader)
+}
+
+// NewReplaceAuthFileRequestWithBody constructs an http.Request for the ReplaceAuthFile method, with any body, and a specified content type
+func NewReplaceAuthFileRequestWithBody(server string, id openapi_types.UUID, params *ReplaceAuthFileParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/llm-accounts/%s/auth-file", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("If-Match", headerParam0)
+
+	}
+
+	return req, nil
+}
+
 // NewGetProfilesRequest constructs an http.Request for the GetProfiles method
-func NewGetProfilesRequest(server string) (*http.Request, error) {
+func NewGetProfilesRequest(server string, params *GetProfilesParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -3440,10 +4540,252 @@ func NewGetProfilesRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Active != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "active", *params.Active, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name", *params.Name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.NameContains != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name_contains", *params.NameContains, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Available != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "available", *params.Available, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewCreateProfileRequest calls the generic CreateProfile builder with application/json body
+func NewCreateProfileRequest(server string, body CreateProfileJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateProfileRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateProfileRequestWithBody constructs an http.Request for the CreateProfile method, with any body, and a specified content type
+func NewCreateProfileRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/profiles")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteProfileRequest constructs an http.Request for the DeleteProfile method
+func NewDeleteProfileRequest(server string, id openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/profiles/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetProfileRequest constructs an http.Request for the GetProfile method
+func NewGetProfileRequest(server string, id openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/profiles/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateProfileRequest calls the generic UpdateProfile builder with application/json body
+func NewUpdateProfileRequest(server string, id openapi_types.UUID, body UpdateProfileJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateProfileRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewUpdateProfileRequestWithBody constructs an http.Request for the UpdateProfile method, with any body, and a specified content type
+func NewUpdateProfileRequestWithBody(server string, id openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/profiles/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -4856,14 +6198,14 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
-	// GetAccountLimitsWithResponse Current provider limits by configured account
+	// GetAccountLimitsWithResponse Current provider limits by account
 	//
 	// Read-only snapshot from worker observations. Does not contact the provider or refresh credentials. Responses use Cache-Control no-store.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/v1/accounts/limits (the `GetAccountLimits` operationId).
-	GetAccountLimitsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAccountLimitsHTTPResponse, error)
+	GetAccountLimitsWithResponse(ctx context.Context, params *GetAccountLimitsParams, reqEditors ...RequestEditorFn) (*GetAccountLimitsHTTPResponse, error)
 
 	// GetAnalyticsOverviewWithResponse Dashboard analytics snapshot
 	//
@@ -4883,14 +6225,149 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/auth/session (the `AuthSession` operationId).
 	AuthSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*AuthSessionHTTPResponse, error)
 
-	// GetProfilesWithResponse List configured profiles
+	// GetCredentialStoresWithResponse List configured credential store names
 	//
-	// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/credential-stores (the `GetCredentialStores` operationId).
+	GetCredentialStoresWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCredentialStoresHTTPResponse, error)
+
+	// GetLlmAccountsWithResponse List llm-accounts
+	//
+	// Database catalog ordered by (name, id), with filters bound to forward/backward cursors. Changes apply to new sessions; accepted sessions retain their account and execution snapshot.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/llm-accounts (the `GetLlmAccounts` operationId).
+	GetLlmAccountsWithResponse(ctx context.Context, params *GetLlmAccountsParams, reqEditors ...RequestEditorFn) (*GetLlmAccountsHTTPResponse, error)
+
+	// CreateLlmAccountWithBodyWithResponse Create llm account
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/llm-accounts (the `CreateLlmAccount` operationId).
+	CreateLlmAccountWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateLlmAccountHTTPResponse, error)
+
+	// CreateLlmAccountWithResponse Create llm account
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/llm-accounts (the `CreateLlmAccount` operationId).
+	CreateLlmAccountWithResponse(ctx context.Context, body CreateLlmAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateLlmAccountHTTPResponse, error)
+
+	// DeleteLlmAccountWithResponse Delete llm account
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/llm-accounts/{id} (the `DeleteLlmAccount` operationId).
+	DeleteLlmAccountWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteLlmAccountHTTPResponse, error)
+
+	// GetLlmAccountWithResponse Read llm account
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/llm-accounts/{id} (the `GetLlmAccount` operationId).
+	GetLlmAccountWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetLlmAccountHTTPResponse, error)
+
+	// UpdateLlmAccountWithBodyWithResponse Update llm account
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/llm-accounts/{id} (the `UpdateLlmAccount` operationId).
+	UpdateLlmAccountWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLlmAccountHTTPResponse, error)
+
+	// UpdateLlmAccountWithResponse Update llm account
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/llm-accounts/{id} (the `UpdateLlmAccount` operationId).
+	UpdateLlmAccountWithResponse(ctx context.Context, id openapi_types.UUID, body UpdateLlmAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLlmAccountHTTPResponse, error)
+
+	// ReplaceAPIKeyWithBodyWithResponse Replace an account API key
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/llm-accounts/{id}/api-key (the `ReplaceAPIKey` operationId).
+	ReplaceAPIKeyWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceAPIKeyHTTPResponse, error)
+
+	// ReplaceAPIKeyWithResponse Replace an account API key
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/llm-accounts/{id}/api-key (the `ReplaceAPIKey` operationId).
+	ReplaceAPIKeyWithResponse(ctx context.Context, id openapi_types.UUID, body ReplaceAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceAPIKeyHTTPResponse, error)
+
+	// GetAuthFileWithResponse Read the account authorization file
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/llm-accounts/{id}/auth-file (the `GetAuthFile` operationId).
+	GetAuthFileWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetAuthFileHTTPResponse, error)
+
+	// ReplaceAuthFileWithBodyWithResponse Conditionally replace the account authorization file
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/llm-accounts/{id}/auth-file (the `ReplaceAuthFile` operationId).
+	ReplaceAuthFileWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, params *ReplaceAuthFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceAuthFileHTTPResponse, error)
+
+	// ReplaceAuthFileWithResponse Conditionally replace the account authorization file
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/llm-accounts/{id}/auth-file (the `ReplaceAuthFile` operationId).
+	ReplaceAuthFileWithResponse(ctx context.Context, id openapi_types.UUID, params *ReplaceAuthFileParams, body ReplaceAuthFileJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceAuthFileHTTPResponse, error)
+
+	// GetProfilesWithResponse List profiles
+	//
+	// Database catalog ordered by (name, id), with filters bound to forward/backward cursors. Changes apply to new sessions; accepted sessions retain their account and execution snapshot.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/v1/profiles (the `GetProfiles` operationId).
-	GetProfilesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetProfilesHTTPResponse, error)
+	GetProfilesWithResponse(ctx context.Context, params *GetProfilesParams, reqEditors ...RequestEditorFn) (*GetProfilesHTTPResponse, error)
+
+	// CreateProfileWithBodyWithResponse Create profile
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/profiles (the `CreateProfile` operationId).
+	CreateProfileWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateProfileHTTPResponse, error)
+
+	// CreateProfileWithResponse Create profile
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/profiles (the `CreateProfile` operationId).
+	CreateProfileWithResponse(ctx context.Context, body CreateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProfileHTTPResponse, error)
+
+	// DeleteProfileWithResponse Delete profile
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/profiles/{id} (the `DeleteProfile` operationId).
+	DeleteProfileWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteProfileHTTPResponse, error)
+
+	// GetProfileWithResponse Read profile
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/profiles/{id} (the `GetProfile` operationId).
+	GetProfileWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetProfileHTTPResponse, error)
+
+	// UpdateProfileWithBodyWithResponse Update profile
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/profiles/{id} (the `UpdateProfile` operationId).
+	UpdateProfileWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProfileHTTPResponse, error)
+
+	// UpdateProfileWithResponse Update profile
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/profiles/{id} (the `UpdateProfile` operationId).
+	UpdateProfileWithResponse(ctx context.Context, id openapi_types.UUID, body UpdateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProfileHTTPResponse, error)
 
 	// ListAllRunsWithResponse List All Runs
 	//
@@ -5115,6 +6592,8 @@ type GetAccountLimitsHTTPResponse struct {
 	JSON401 *ErrorResponse
 	// JSON503 the response for an HTTP 503 `application/json` response
 	JSON503 *ErrorResponse
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -5130,6 +6609,11 @@ func (r GetAccountLimitsHTTPResponse) GetJSON401() *ErrorResponse {
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
 func (r GetAccountLimitsHTTPResponse) GetJSON503() *ErrorResponse {
 	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetAccountLimitsHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
 }
 
 // GetBody returns the raw response body bytes
@@ -5271,15 +6755,439 @@ func (r AuthSessionHTTPResponse) ContentType() string {
 	return ""
 }
 
+type GetCredentialStoresHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *CredentialStores
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetCredentialStoresHTTPResponse) GetJSON200() *CredentialStores {
+	return r.JSON200
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetCredentialStoresHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetCredentialStoresHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetCredentialStoresHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetCredentialStoresHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetCredentialStoresHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetLlmAccountsHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LLMAccounts
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetLlmAccountsHTTPResponse) GetJSON200() *LLMAccounts {
+	return r.JSON200
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetLlmAccountsHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetLlmAccountsHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLlmAccountsHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLlmAccountsHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLlmAccountsHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateLlmAccountHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *LLMAccountDetails
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateLlmAccountHTTPResponse) GetJSON201() *LLMAccountDetails {
+	return r.JSON201
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r CreateLlmAccountHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateLlmAccountHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateLlmAccountHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateLlmAccountHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateLlmAccountHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteLlmAccountHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteLlmAccountHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteLlmAccountHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteLlmAccountHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteLlmAccountHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteLlmAccountHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetLlmAccountHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LLMAccountDetails
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetLlmAccountHTTPResponse) GetJSON200() *LLMAccountDetails {
+	return r.JSON200
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetLlmAccountHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetLlmAccountHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLlmAccountHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLlmAccountHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLlmAccountHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateLlmAccountHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LLMAccountDetails
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateLlmAccountHTTPResponse) GetJSON200() *LLMAccountDetails {
+	return r.JSON200
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r UpdateLlmAccountHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateLlmAccountHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateLlmAccountHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateLlmAccountHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateLlmAccountHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ReplaceAPIKeyHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r ReplaceAPIKeyHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ReplaceAPIKeyHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplaceAPIKeyHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplaceAPIKeyHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReplaceAPIKeyHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetAuthFileHTTPResponse200Headers the declared response headers of an HTTP 200 response for GetAuthFile
+type GetAuthFileHTTPResponse200Headers struct {
+	CacheControl string
+	ETag         string
+}
+
+type GetAuthFileHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AuthFile
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetAuthFileHTTPResponse200Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAuthFileHTTPResponse) GetJSON200() *AuthFile {
+	return r.JSON200
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetAuthFileHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAuthFileHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAuthFileHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAuthFileHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAuthFileHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ReplaceAuthFileHTTPResponse204Headers the declared response headers of an HTTP 204 response for ReplaceAuthFile
+type ReplaceAuthFileHTTPResponse204Headers struct {
+	ETag string
+}
+
+type ReplaceAuthFileHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+	// Headers204 the parsed response headers for an HTTP 204 response
+	Headers204 *ReplaceAuthFileHTTPResponse204Headers
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r ReplaceAuthFileHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ReplaceAuthFileHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplaceAuthFileHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplaceAuthFileHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReplaceAuthFileHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetProfilesHTTPResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *Profiles
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *ErrorResponse
-	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *ErrorResponse
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -5287,14 +7195,9 @@ func (r GetProfilesHTTPResponse) GetJSON200() *Profiles {
 	return r.JSON200
 }
 
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r GetProfilesHTTPResponse) GetJSON401() *ErrorResponse {
-	return r.JSON401
-}
-
-// GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r GetProfilesHTTPResponse) GetJSON503() *ErrorResponse {
-	return r.JSON503
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetProfilesHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
 }
 
 // GetBody returns the raw response body bytes
@@ -5320,6 +7223,191 @@ func (r GetProfilesHTTPResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetProfilesHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateProfileHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *Profile
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateProfileHTTPResponse) GetJSON201() *Profile {
+	return r.JSON201
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r CreateProfileHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateProfileHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateProfileHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateProfileHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateProfileHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteProfileHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteProfileHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteProfileHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteProfileHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteProfileHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteProfileHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetProfileHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Profile
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetProfileHTTPResponse) GetJSON200() *Profile {
+	return r.JSON200
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetProfileHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetProfileHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProfileHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProfileHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetProfileHTTPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateProfileHTTPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Profile
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *ErrorResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateProfileHTTPResponse) GetJSON200() *Profile {
+	return r.JSON200
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r UpdateProfileHTTPResponse) GetJSONDefault() *ErrorResponse {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateProfileHTTPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateProfileHTTPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateProfileHTTPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateProfileHTTPResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -7005,15 +9093,15 @@ func (r SamlMetadataHTTPResponse) ContentType() string {
 	return ""
 }
 
-// GetAccountLimitsWithResponse Current provider limits by configured account
+// GetAccountLimitsWithResponse Current provider limits by account
 //
 // Read-only snapshot from worker observations. Does not contact the provider or refresh credentials. Responses use Cache-Control no-store.
 //
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/v1/accounts/limits (the `GetAccountLimits` operationId).
-func (c *ClientWithResponses) GetAccountLimitsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAccountLimitsHTTPResponse, error) {
-	rsp, err := c.GetAccountLimits(ctx, reqEditors...)
+func (c *ClientWithResponses) GetAccountLimitsWithResponse(ctx context.Context, params *GetAccountLimitsParams, reqEditors ...RequestEditorFn) (*GetAccountLimitsHTTPResponse, error) {
+	rsp, err := c.GetAccountLimits(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -7050,19 +9138,268 @@ func (c *ClientWithResponses) AuthSessionWithResponse(ctx context.Context, reqEd
 	return ParseAuthSessionHTTPResponse(rsp)
 }
 
-// GetProfilesWithResponse List configured profiles
+// GetCredentialStoresWithResponse List configured credential store names
 //
-// Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/credential-stores (the `GetCredentialStores` operationId).
+func (c *ClientWithResponses) GetCredentialStoresWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCredentialStoresHTTPResponse, error) {
+	rsp, err := c.GetCredentialStores(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetCredentialStoresHTTPResponse(rsp)
+}
+
+// GetLlmAccountsWithResponse List llm-accounts
+//
+// Database catalog ordered by (name, id), with filters bound to forward/backward cursors. Changes apply to new sessions; accepted sessions retain their account and execution snapshot.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/llm-accounts (the `GetLlmAccounts` operationId).
+func (c *ClientWithResponses) GetLlmAccountsWithResponse(ctx context.Context, params *GetLlmAccountsParams, reqEditors ...RequestEditorFn) (*GetLlmAccountsHTTPResponse, error) {
+	rsp, err := c.GetLlmAccounts(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLlmAccountsHTTPResponse(rsp)
+}
+
+// CreateLlmAccountWithBodyWithResponse Create llm account
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/llm-accounts (the `CreateLlmAccount` operationId).
+func (c *ClientWithResponses) CreateLlmAccountWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateLlmAccountHTTPResponse, error) {
+	rsp, err := c.CreateLlmAccountWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateLlmAccountHTTPResponse(rsp)
+}
+
+// CreateLlmAccountWithResponse Create llm account
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/llm-accounts (the `CreateLlmAccount` operationId).
+func (c *ClientWithResponses) CreateLlmAccountWithResponse(ctx context.Context, body CreateLlmAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateLlmAccountHTTPResponse, error) {
+	rsp, err := c.CreateLlmAccount(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateLlmAccountHTTPResponse(rsp)
+}
+
+// DeleteLlmAccountWithResponse Delete llm account
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/llm-accounts/{id} (the `DeleteLlmAccount` operationId).
+func (c *ClientWithResponses) DeleteLlmAccountWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteLlmAccountHTTPResponse, error) {
+	rsp, err := c.DeleteLlmAccount(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteLlmAccountHTTPResponse(rsp)
+}
+
+// GetLlmAccountWithResponse Read llm account
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/llm-accounts/{id} (the `GetLlmAccount` operationId).
+func (c *ClientWithResponses) GetLlmAccountWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetLlmAccountHTTPResponse, error) {
+	rsp, err := c.GetLlmAccount(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLlmAccountHTTPResponse(rsp)
+}
+
+// UpdateLlmAccountWithBodyWithResponse Update llm account
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/llm-accounts/{id} (the `UpdateLlmAccount` operationId).
+func (c *ClientWithResponses) UpdateLlmAccountWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLlmAccountHTTPResponse, error) {
+	rsp, err := c.UpdateLlmAccountWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateLlmAccountHTTPResponse(rsp)
+}
+
+// UpdateLlmAccountWithResponse Update llm account
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/llm-accounts/{id} (the `UpdateLlmAccount` operationId).
+func (c *ClientWithResponses) UpdateLlmAccountWithResponse(ctx context.Context, id openapi_types.UUID, body UpdateLlmAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLlmAccountHTTPResponse, error) {
+	rsp, err := c.UpdateLlmAccount(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateLlmAccountHTTPResponse(rsp)
+}
+
+// ReplaceAPIKeyWithBodyWithResponse Replace an account API key
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/llm-accounts/{id}/api-key (the `ReplaceAPIKey` operationId).
+func (c *ClientWithResponses) ReplaceAPIKeyWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceAPIKeyHTTPResponse, error) {
+	rsp, err := c.ReplaceAPIKeyWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceAPIKeyHTTPResponse(rsp)
+}
+
+// ReplaceAPIKeyWithResponse Replace an account API key
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/llm-accounts/{id}/api-key (the `ReplaceAPIKey` operationId).
+func (c *ClientWithResponses) ReplaceAPIKeyWithResponse(ctx context.Context, id openapi_types.UUID, body ReplaceAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceAPIKeyHTTPResponse, error) {
+	rsp, err := c.ReplaceAPIKey(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceAPIKeyHTTPResponse(rsp)
+}
+
+// GetAuthFileWithResponse Read the account authorization file
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/llm-accounts/{id}/auth-file (the `GetAuthFile` operationId).
+func (c *ClientWithResponses) GetAuthFileWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetAuthFileHTTPResponse, error) {
+	rsp, err := c.GetAuthFile(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAuthFileHTTPResponse(rsp)
+}
+
+// ReplaceAuthFileWithBodyWithResponse Conditionally replace the account authorization file
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/llm-accounts/{id}/auth-file (the `ReplaceAuthFile` operationId).
+func (c *ClientWithResponses) ReplaceAuthFileWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, params *ReplaceAuthFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceAuthFileHTTPResponse, error) {
+	rsp, err := c.ReplaceAuthFileWithBody(ctx, id, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceAuthFileHTTPResponse(rsp)
+}
+
+// ReplaceAuthFileWithResponse Conditionally replace the account authorization file
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/llm-accounts/{id}/auth-file (the `ReplaceAuthFile` operationId).
+func (c *ClientWithResponses) ReplaceAuthFileWithResponse(ctx context.Context, id openapi_types.UUID, params *ReplaceAuthFileParams, body ReplaceAuthFileJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceAuthFileHTTPResponse, error) {
+	rsp, err := c.ReplaceAuthFile(ctx, id, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceAuthFileHTTPResponse(rsp)
+}
+
+// GetProfilesWithResponse List profiles
+//
+// Database catalog ordered by (name, id), with filters bound to forward/backward cursors. Changes apply to new sessions; accepted sessions retain their account and execution snapshot.
 //
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/v1/profiles (the `GetProfiles` operationId).
-func (c *ClientWithResponses) GetProfilesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetProfilesHTTPResponse, error) {
-	rsp, err := c.GetProfiles(ctx, reqEditors...)
+func (c *ClientWithResponses) GetProfilesWithResponse(ctx context.Context, params *GetProfilesParams, reqEditors ...RequestEditorFn) (*GetProfilesHTTPResponse, error) {
+	rsp, err := c.GetProfiles(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseGetProfilesHTTPResponse(rsp)
+}
+
+// CreateProfileWithBodyWithResponse Create profile
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/profiles (the `CreateProfile` operationId).
+func (c *ClientWithResponses) CreateProfileWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateProfileHTTPResponse, error) {
+	rsp, err := c.CreateProfileWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateProfileHTTPResponse(rsp)
+}
+
+// CreateProfileWithResponse Create profile
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/profiles (the `CreateProfile` operationId).
+func (c *ClientWithResponses) CreateProfileWithResponse(ctx context.Context, body CreateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProfileHTTPResponse, error) {
+	rsp, err := c.CreateProfile(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateProfileHTTPResponse(rsp)
+}
+
+// DeleteProfileWithResponse Delete profile
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/profiles/{id} (the `DeleteProfile` operationId).
+func (c *ClientWithResponses) DeleteProfileWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteProfileHTTPResponse, error) {
+	rsp, err := c.DeleteProfile(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteProfileHTTPResponse(rsp)
+}
+
+// GetProfileWithResponse Read profile
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/profiles/{id} (the `GetProfile` operationId).
+func (c *ClientWithResponses) GetProfileWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetProfileHTTPResponse, error) {
+	rsp, err := c.GetProfile(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProfileHTTPResponse(rsp)
+}
+
+// UpdateProfileWithBodyWithResponse Update profile
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/profiles/{id} (the `UpdateProfile` operationId).
+func (c *ClientWithResponses) UpdateProfileWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProfileHTTPResponse, error) {
+	rsp, err := c.UpdateProfileWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateProfileHTTPResponse(rsp)
+}
+
+// UpdateProfileWithResponse Update profile
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/profiles/{id} (the `UpdateProfile` operationId).
+func (c *ClientWithResponses) UpdateProfileWithResponse(ctx context.Context, id openapi_types.UUID, body UpdateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProfileHTTPResponse, error) {
+	rsp, err := c.UpdateProfile(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateProfileHTTPResponse(rsp)
 }
 
 // ListAllRunsWithResponse List All Runs
@@ -7475,6 +9812,13 @@ func ParseGetAccountLimitsHTTPResponse(rsp *http.Response) (*GetAccountLimitsHTT
 		}
 		response.JSON503 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
 	}
 
 	return response, nil
@@ -7560,6 +9904,324 @@ func ParseAuthSessionHTTPResponse(rsp *http.Response) (*AuthSessionHTTPResponse,
 	return response, nil
 }
 
+// ParseGetCredentialStoresHTTPResponse parses an HTTP response from a GetCredentialStoresWithResponse call
+func ParseGetCredentialStoresHTTPResponse(rsp *http.Response) (*GetCredentialStoresHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetCredentialStoresHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CredentialStores
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLlmAccountsHTTPResponse parses an HTTP response from a GetLlmAccountsWithResponse call
+func ParseGetLlmAccountsHTTPResponse(rsp *http.Response) (*GetLlmAccountsHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLlmAccountsHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LLMAccounts
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateLlmAccountHTTPResponse parses an HTTP response from a CreateLlmAccountWithResponse call
+func ParseCreateLlmAccountHTTPResponse(rsp *http.Response) (*CreateLlmAccountHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateLlmAccountHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest LLMAccountDetails
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteLlmAccountHTTPResponse parses an HTTP response from a DeleteLlmAccountWithResponse call
+func ParseDeleteLlmAccountHTTPResponse(rsp *http.Response) (*DeleteLlmAccountHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteLlmAccountHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLlmAccountHTTPResponse parses an HTTP response from a GetLlmAccountWithResponse call
+func ParseGetLlmAccountHTTPResponse(rsp *http.Response) (*GetLlmAccountHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLlmAccountHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LLMAccountDetails
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateLlmAccountHTTPResponse parses an HTTP response from a UpdateLlmAccountWithResponse call
+func ParseUpdateLlmAccountHTTPResponse(rsp *http.Response) (*UpdateLlmAccountHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateLlmAccountHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LLMAccountDetails
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReplaceAPIKeyHTTPResponse parses an HTTP response from a ReplaceAPIKeyWithResponse call
+func ParseReplaceAPIKeyHTTPResponse(rsp *http.Response) (*ReplaceAPIKeyHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplaceAPIKeyHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAuthFileHTTPResponse parses an HTTP response from a GetAuthFileWithResponse call
+func ParseGetAuthFileHTTPResponse(rsp *http.Response) (*GetAuthFileHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAuthFileHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuthFile
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetAuthFileHTTPResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		response.Headers200 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseReplaceAuthFileHTTPResponse parses an HTTP response from a ReplaceAuthFileWithResponse call
+func ParseReplaceAuthFileHTTPResponse(rsp *http.Response) (*ReplaceAuthFileHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplaceAuthFileHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		var headers ReplaceAuthFileHTTPResponse204Headers
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		response.Headers204 = &headers
+	}
+
+	return response, nil
+}
+
 // ParseGetProfilesHTTPResponse parses an HTTP response from a GetProfilesWithResponse call
 func ParseGetProfilesHTTPResponse(rsp *http.Response) (*GetProfilesHTTPResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -7581,19 +10243,140 @@ func ParseGetProfilesHTTPResponse(rsp *http.Response) (*GetProfilesHTTPResponse,
 		}
 		response.JSON200 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON401 = &dest
+		response.JSONDefault = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+	}
+
+	return response, nil
+}
+
+// ParseCreateProfileHTTPResponse parses an HTTP response from a CreateProfileWithResponse call
+func ParseCreateProfileHTTPResponse(rsp *http.Response) (*CreateProfileHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateProfileHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Profile
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON503 = &dest
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteProfileHTTPResponse parses an HTTP response from a DeleteProfileWithResponse call
+func ParseDeleteProfileHTTPResponse(rsp *http.Response) (*DeleteProfileHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteProfileHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProfileHTTPResponse parses an HTTP response from a GetProfileWithResponse call
+func ParseGetProfileHTTPResponse(rsp *http.Response) (*GetProfileHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProfileHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Profile
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateProfileHTTPResponse parses an HTTP response from a UpdateProfileWithResponse call
+func ParseUpdateProfileHTTPResponse(rsp *http.Response) (*UpdateProfileHTTPResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateProfileHTTPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Profile
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
 
 	}
 

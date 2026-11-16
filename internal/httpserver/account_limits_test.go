@@ -14,7 +14,8 @@ import (
 
 	"github.com/orpheus-agents/orpheus/client"
 	"github.com/orpheus-agents/orpheus/internal/accountlimits"
-	"github.com/orpheus-agents/orpheus/internal/config"
+	"github.com/orpheus-agents/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
 func TestAccountLimitsHTTPAndGeneratedClient(t *testing.T) {
@@ -30,20 +31,9 @@ func TestAccountLimitsHTTPAndGeneratedClient(t *testing.T) {
 	if err := json.Unmarshal(body, &empty); err != nil || len(empty.Items) != 0 {
 		t.Fatal(empty, err)
 	}
-	p, err := config.ReadProfiles(strings.NewReader(`[credential_stores.s]
-bucket="test-credentials"
-[profiles.account]
-harness="codex"
-[profiles.account.auth]
-mode="account"
-account_id="team-main"
-store="s"
-key="auth.json"
-`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	storage.Profiles = p
+	metadata := session.CredentialStore{Type: "s3", Region: "us-east-1", Bucket: "test-credentials"}
+	storage.Deployment.CredentialStores = map[string]session.CredentialStore{"s": metadata}
+	account := testutil.SeedFileAccount(t, storage.Pool, "s", "auth.json", metadata, "account")
 	metrics := SystemHandler(new(atomic.Bool), NewHTTPMetrics(), storage.AccountLimits)
 	scrape := func(want string) {
 		t.Helper()
@@ -53,8 +43,7 @@ key="auth.json"
 			t.Fatal(w.Code, w.Body.String())
 		}
 	}
-	scrape(`orpheus_account_limit_state{account_id="team-main",state="unknown"} 1`)
-	account := p.Accounts()[0]
+	scrape(`orpheus_account_limit_state{account_id="` + account.ID + `",state="unknown"} 1`)
 	c, err := client.NewClientWithResponses(server.URL, client.WithHTTPClient(server.Client()), client.WithRequestEditorFn(func(_ context.Context, r *http.Request) error {
 		r.Header.Set("Authorization", "Bearer key")
 		return nil
@@ -62,7 +51,7 @@ key="auth.json"
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := c.GetAccountLimitsWithResponse(t.Context())
+	res, err := c.GetAccountLimitsWithResponse(t.Context(), nil)
 	if err != nil || res.JSON200 == nil || len(res.JSON200.Items) != 1 || res.JSON200.Items[0].State != client.AccountLimitItemState("unknown") {
 		t.Fatal(res, err)
 	}
@@ -74,7 +63,7 @@ key="auth.json"
 	if err := storage.SaveAccountLimitObservation(t.Context(), account.ID, account.Fingerprint, base.Add(-2*time.Second), nil, &code); err != nil {
 		t.Fatal(err)
 	}
-	res, err = c.GetAccountLimitsWithResponse(t.Context())
+	res, err = c.GetAccountLimitsWithResponse(t.Context(), nil)
 	if err != nil || res.JSON200 == nil || res.JSON200.Items[0].State != client.AccountLimitItemState("unavailable") || len(res.JSON200.Items[0].Buckets) != 0 {
 		t.Fatal(res, err)
 	}
@@ -83,29 +72,29 @@ key="auth.json"
 	if err := storage.SaveAccountLimitObservation(t.Context(), account.ID, account.Fingerprint, base.Add(-time.Second), &sample, nil); err != nil {
 		t.Fatal(err)
 	}
-	res, err = c.GetAccountLimitsWithResponse(t.Context())
+	res, err = c.GetAccountLimitsWithResponse(t.Context(), nil)
 	if err != nil || res.JSON200 == nil || len(res.JSON200.Items) != 1 {
 		t.Fatal(res, err)
 	}
 	item := res.JSON200.Items[0]
-	if item.AccountID != "team-main" || item.State != client.AccountLimitItemState("fresh") || len(item.Buckets) != 1 || item.Buckets[0].Primary == nil || item.Buckets[0].Primary.RemainingPercent != 75 || item.Buckets[0].Primary.WindowMinutes == nil || *item.Buckets[0].Primary.WindowMinutes != 300 || item.ResetCreditsAvailable == nil || *item.ResetCreditsAvailable != 2 {
+	if item.AccountID != account.ID || item.State != client.AccountLimitItemState("fresh") || len(item.Buckets) != 1 || item.Buckets[0].Primary == nil || item.Buckets[0].Primary.RemainingPercent != 75 || item.Buckets[0].Primary.WindowMinutes == nil || *item.Buckets[0].Primary.WindowMinutes != 300 || item.ResetCreditsAvailable == nil || *item.ResetCreditsAvailable != 2 {
 		t.Fatal(item)
 	}
 	if strings.Contains(string(res.Body), "auth.json") || strings.Contains(string(res.Body), "test-credentials") {
 		t.Fatal("credential source leaked")
 	}
-	scrape(`orpheus_account_reset_credits_available{account_id="team-main"} 2`)
-	scrape(`orpheus_account_limit_state{account_id="team-main",state="fresh"} 1`)
+	scrape(`orpheus_account_reset_credits_available{account_id="` + account.ID + `"} 2`)
+	scrape(`orpheus_account_limit_state{account_id="` + account.ID + `",state="fresh"} 1`)
 	code = "temporarily_unavailable"
 	if err := storage.SaveAccountLimitObservation(t.Context(), account.ID, account.Fingerprint, base, nil, &code); err != nil {
 		t.Fatal(err)
 	}
-	res, err = c.GetAccountLimitsWithResponse(t.Context())
+	res, err = c.GetAccountLimitsWithResponse(t.Context(), nil)
 	if err != nil || res.JSON200 == nil || res.JSON200.Items[0].State != client.AccountLimitItemState("stale") || len(res.JSON200.Items[0].Buckets) != 1 || res.JSON200.Items[0].ResetCreditsAvailable == nil || *res.JSON200.Items[0].ResetCreditsAvailable != 2 {
 		t.Fatal(res, err)
 	}
-	scrape(`orpheus_account_limit_state{account_id="team-main",state="stale"} 1`)
-	scrape(`orpheus_account_reset_credits_available{account_id="team-main"} 2`)
+	scrape(`orpheus_account_limit_state{account_id="` + account.ID + `",state="stale"} 1`)
+	scrape(`orpheus_account_reset_credits_available{account_id="` + account.ID + `"} 2`)
 	for i, count := range []*int64{new(int64(0)), nil} {
 		sample.ResetCreditsAvailable = count
 		if err := storage.SaveAccountLimitObservation(t.Context(), account.ID, account.Fingerprint, base.Add(time.Duration(i+1)*time.Microsecond), &sample, nil); err != nil {

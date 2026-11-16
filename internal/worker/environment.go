@@ -111,9 +111,16 @@ func launchMatches(processes []harness.Process, id uuid.UUID) []harness.Process 
 }
 func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecord, run *store.RunRecord) error {
 	cfg := record.Configuration
-	e.redactor.Add(os.Getenv("AGENTBOX_API_KEY"), os.Getenv(cfg.Credentials.APIKeyEnv))
+	source, err := e.Store.SessionCredentials(ctx, *record)
+	if err != nil {
+		if !errors.Is(err, store.ErrCredentialsUnavailable) {
+			return errors.Join(errStoreAccess, err)
+		}
+		return harness.Failure("credentials_unavailable", "Account credentials are unavailable.")
+	}
+	e.redactor.Add(os.Getenv("AGENTBOX_API_KEY"), source.APIKey)
 	repair := false
-	if cfg.Credentials.Mode == "account" && run.ExecutionStartedAt == nil {
+	if run.ExecutionStartedAt == nil {
 		var err error
 		repair, err = e.Store.AuthFailedBefore(ctx, e.ID, run.Number, false)
 		if err != nil {
@@ -192,7 +199,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 			_ = driver.Close()
 		}
 	}()
-	if e.account == nil && cfg.Credentials.Mode == "account" {
+	if e.account == nil && source.Mode == "account" {
 		if record.HarnessHome == nil {
 			home, err := driver.StateDir(ctx)
 			if err != nil {
@@ -207,7 +214,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 				return err
 			}
 		}
-		e.account, err = e.NewAccount(ctx, e.sandbox, *record.HarnessHome, cfg.Credentials)
+		e.account, err = e.NewAccount(ctx, e.sandbox, *record.HarnessHome, source)
 		if err != nil {
 			return harness.Failure("credentials_unavailable", "Account credentials are unavailable.")
 		}
@@ -245,7 +252,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 				}
 				return harness.Failure("environment_unavailable", "Harness environment is unavailable.")
 			}
-			env, err = config.Environment(env, cfg.Public, e.Store.Profiles.EnvironmentAllowlist(e.Store.Settings.HarnessEnvAllowlist))
+			env, err = config.Environment(env, cfg.Public, e.Store.Deployment.EnvironmentAllowlist(e.Store.Settings.HarnessEnvAllowlist))
 			if err != nil {
 				return harness.Failure("environment_unavailable", "Harness environment is unavailable.")
 			}
@@ -259,7 +266,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 			config.AddSandboxProxy(env, e.Store.Settings.SandboxProxyURL)
 			env["ORPHEUS_LAUNCH_ID"] = o.ID.String()
 			result, err := e.invoke(ctx, o, func() (operationResult, error) {
-				pid, err := driver.Launch(ctx, env, *record.Workspace, cfg.Credentials)
+				pid, err := driver.Launch(ctx, env, *record.Workspace, source)
 				return operationResult{PID: pid}, err
 			})
 			if err != nil {
@@ -294,11 +301,11 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 		}
 		initialized = result.Initialized
 	}
-	if err := driver.Initialize(ctx, cfg.Credentials, !initialized); err != nil {
+	if err := driver.Initialize(ctx, source, !initialized); err != nil {
 		return err
 	}
 	if e.Limits != nil {
-		unregisterLimits = e.Limits.Register(e.ID, cfg, driver)
+		unregisterLimits = e.Limits.Register(e.ID, cfg.Harness, source, driver)
 	}
 	if record.ThreadID != nil {
 		if !initialized {
@@ -544,7 +551,14 @@ func (e *Executor) deleteNow(ctx context.Context, record store.SessionRecord) er
 // Keep the existing conditional account upload. Deletion treats preparation
 // errors as best effort; pausing retains its original retry behavior.
 func (e *Executor) finalAuthSync(ctx context.Context, record store.SessionRecord, last store.RunRecord) error {
-	if e.settleAuthSynced || record.Configuration.Credentials.Mode != "account" || record.HarnessHome == nil {
+	if e.settleAuthSynced || record.HarnessHome == nil {
+		return nil
+	}
+	source, err := e.Store.SessionCredentials(ctx, record)
+	if err != nil {
+		return err
+	}
+	if source.Mode != "account" {
 		return nil
 	}
 	failed, err := e.Store.AuthFailedBefore(ctx, e.ID, last.Number, true)
@@ -567,7 +581,7 @@ func (e *Executor) finalAuthSync(ctx context.Context, record store.SessionRecord
 			e.sandbox = box
 		}
 		if e.account == nil {
-			e.account, err = e.NewAccount(ctx, e.sandbox, *record.HarnessHome, record.Configuration.Credentials)
+			e.account, err = e.NewAccount(ctx, e.sandbox, *record.HarnessHome, source)
 			if err != nil {
 				return err
 			}

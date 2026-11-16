@@ -146,7 +146,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return errors.New("invalid database configuration")
 	}
 	defer pool.Close()
-	storage := &store.Store{Pool: pool, Settings: settings, Profiles: profiles, Cipher: cipher}
+	storage := &store.Store{Pool: pool, Settings: settings, Deployment: profiles, Cipher: cipher}
+	if err := storage.ValidateCredentialStores(ctx); err != nil {
+		return fmt.Errorf("invalid account configuration (%s)", diagnostic.Describe(err))
+	}
 	if args[0] == "worker" {
 		platform, err := agentbox.New()
 		if err != nil {

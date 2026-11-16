@@ -1,4 +1,4 @@
-// Package config resolves deployment profiles into immutable execution snapshots.
+// Package config loads infrastructure settings and resolves execution snapshots.
 package config
 
 import (
@@ -15,66 +15,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/orpheus-agents/orpheus/internal/llm"
 	"github.com/orpheus-agents/orpheus/internal/secret"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/pelletier/go-toml/v2"
 )
 
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-var accountID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 var reserved = strings.Fields(`ALL_PROXY NO_PROXY HTTP_PROXY HTTPS_PROXY all_proxy no_proxy http_proxy https_proxy HOME CODEX_HOME ORPHEUS_LAUNCH_ID ORPHEUS_HOOK_OPERATION_ID ORPHEUS_SESSION_ID ORPHEUS_WORKSPACE_PATH ORPHEUS_RUN_ID ORPHEUS_INPUT_FINGERPRINT ORPHEUS_AGENT_STATUS ORPHEUS_STOP_REASON ORPHEUS_BROWSER_AUTH ORPHEUS_PUBLIC_URL SAML_SP_ENTITY_ID SAML_IDP_METADATA_FILE SAML_SP_CERT_FILE SAML_SP_KEY_FILE BROWSER_SESSION_TTL_SECONDS PUBLIC_API_KEYS OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL OPENAI_ORG_ID OPENAI_ORGANIZATION OPENAI_PROJECT_ID CHATGPT_BASE_URL ENV_ENCRYPTION_KEY AGENTBOX_API_KEY`)
 
-type Auth struct {
-	Mode      string `toml:"mode"`
-	AccountID string `toml:"account_id"`
-	APIKeyEnv string `toml:"api_key_env"`
-	Store     string `toml:"store"`
-	Key       string `toml:"key"`
-}
-type CodexProfile struct {
-	Effort      string `toml:"effort"`
-	Summary     string `toml:"summary"`
-	Personality string `toml:"personality"`
-	ServiceTier string `toml:"service_tier"`
-}
-type Profile struct {
-	Description  *string      `toml:"description"`
-	Harness      string       `toml:"harness"`
-	Model        *string      `toml:"model"`
-	Codex        CodexProfile `toml:"codex"`
-	Instructions string       `toml:"instructions"`
-	Auth         Auth         `toml:"auth"`
-}
-type Profiles struct {
+type Deployment struct {
 	Services         map[string]Service                 `toml:"services"`
-	Profiles         map[string]Profile                 `toml:"profiles"`
 	CredentialStores map[string]session.CredentialStore `toml:"credential_stores"`
 }
 
-func ReadProfiles(r io.Reader) (Profiles, error) {
-	// Presence matters: an omitted default and an explicitly empty value are
-	// different, as are forbidden fields in either authentication variant.
+func ReadDeployment(r io.Reader) (Deployment, error) {
 	var source struct {
-		Services map[string]Service `toml:"services"`
-		Profiles map[string]struct {
-			Description *string `toml:"description"`
-			Harness     string  `toml:"harness"`
-			Model       *string `toml:"model"`
-			Codex       struct {
-				Effort      *string `toml:"effort"`
-				Summary     *string `toml:"summary"`
-				Personality *string `toml:"personality"`
-				ServiceTier *string `toml:"service_tier"`
-			} `toml:"codex"`
-			Instructions string `toml:"instructions"`
-			Auth         struct {
-				Mode      string  `toml:"mode"`
-				AccountID *string `toml:"account_id"`
-				APIKeyEnv *string `toml:"api_key_env"`
-				Store     *string `toml:"store"`
-				Key       *string `toml:"key"`
-			} `toml:"auth"`
-		} `toml:"profiles"`
+		Services         map[string]Service `toml:"services"`
 		CredentialStores map[string]struct {
 			Type        *string `toml:"type"`
 			Bucket      string  `toml:"bucket"`
@@ -82,122 +39,39 @@ func ReadProfiles(r io.Reader) (Profiles, error) {
 			EndpointURL *string `toml:"endpoint_url"`
 		} `toml:"credential_stores"`
 	}
-	p := Profiles{Profiles: map[string]Profile{}, CredentialStores: map[string]session.CredentialStore{}}
+	out := Deployment{CredentialStores: map[string]session.CredentialStore{}}
 	if err := toml.NewDecoder(r).DisallowUnknownFields().Decode(&source); err != nil {
-		return p, err
-	}
-	if len(source.Profiles) == 0 {
-		return p, errors.New("at least one named profile is required")
+		return out, err
 	}
 	if err := validateServices(source.Services); err != nil {
-		return p, err
+		return out, err
 	}
-	p.Services = source.Services
+	out.Services = source.Services
 	for name, raw := range source.CredentialStores {
-		s := session.CredentialStore{Type: "s3", Bucket: raw.Bucket, Region: "us-east-1", EndpointURL: raw.EndpointURL}
+		value := session.CredentialStore{Type: "s3", Bucket: raw.Bucket, Region: "us-east-1", EndpointURL: raw.EndpointURL}
 		if raw.Type != nil {
-			s.Type = *raw.Type
+			value.Type = *raw.Type
 		}
 		if raw.Region != nil {
-			s.Region = *raw.Region
+			value.Region = *raw.Region
 		}
-		if s.Type != "s3" || s.Bucket == "" || s.Region == "" || (s.EndpointURL != nil && *s.EndpointURL == "") {
-			return p, errors.New("invalid credential store")
+		if name == "" || value.Type != "s3" || value.Bucket == "" || value.Region == "" || (value.EndpointURL != nil && *value.EndpointURL == "") {
+			return out, errors.New("invalid credential store")
 		}
-		p.CredentialStores[name] = s
+		if _, err := canonicalEndpoint(value.EndpointURL); err != nil {
+			return out, err
+		}
+		out.CredentialStores[name] = value
 	}
-	for name, raw := range source.Profiles {
-		v := Profile{Description: normalizedDescription(raw.Description), Harness: raw.Harness, Model: raw.Model, Instructions: raw.Instructions, Auth: Auth{Mode: raw.Auth.Mode}}
-		for _, option := range []struct {
-			name   string
-			value  *string
-			target *string
-		}{
-			{"effort", raw.Codex.Effort, &v.Codex.Effort},
-			{"summary", raw.Codex.Summary, &v.Codex.Summary},
-			{"personality", raw.Codex.Personality, &v.Codex.Personality},
-			{"service_tier", raw.Codex.ServiceTier, &v.Codex.ServiceTier},
-		} {
-			if option.value != nil {
-				if !validCodexOption(option.name, *option.value) {
-					return p, fmt.Errorf("invalid profile %q: codex.%s", name, option.name)
-				}
-				*option.target = *option.value
-			}
-		}
-		if strings.TrimSpace(name) == "" || v.Harness != "codex" || (v.Model != nil && *v.Model == "") {
-			return p, errors.New("invalid profile")
-		}
-		switch v.Auth.Mode {
-		case "api_key":
-			if raw.Auth.APIKeyEnv == nil || !envName.MatchString(*raw.Auth.APIKeyEnv) || raw.Auth.Store != nil || raw.Auth.Key != nil || raw.Auth.AccountID != nil {
-				return p, errors.New("invalid API key profile")
-			}
-			v.Auth.APIKeyEnv = *raw.Auth.APIKeyEnv
-		case "account":
-			if raw.Auth.Store == nil || *raw.Auth.Store == "" || raw.Auth.Key == nil || *raw.Auth.Key == "" || raw.Auth.APIKeyEnv != nil || raw.Auth.AccountID == nil || len(*raw.Auth.AccountID) > 128 || !accountID.MatchString(*raw.Auth.AccountID) {
-				return p, errors.New("invalid account profile")
-			}
-			v.Auth.Store, v.Auth.Key, v.Auth.AccountID = *raw.Auth.Store, *raw.Auth.Key, *raw.Auth.AccountID
-			if _, ok := p.CredentialStores[v.Auth.Store]; !ok {
-				return p, errors.New("invalid account profile")
-			}
-		default:
-			return p, errors.New("invalid authentication mode")
-		}
-		p.Profiles[name] = v
-	}
-	byID, bySource := map[string]string{}, map[string]string{}
-	for _, v := range p.Profiles {
-		if v.Auth.Mode != "account" {
-			continue
-		}
-		credentials := session.Credentials{Mode: "account", AccountID: v.Auth.AccountID, Store: new(p.CredentialStores[v.Auth.Store]), Key: v.Auth.Key}
-		fingerprint, err := SourceFingerprint(v.Harness, credentials)
-		if err != nil {
-			return p, err
-		}
-		if old, ok := byID[v.Auth.AccountID]; ok && old != fingerprint {
-			return p, errors.New("account_id refers to multiple credential sources")
-		}
-		if old, ok := bySource[fingerprint]; ok && old != v.Auth.AccountID {
-			return p, errors.New("credential source refers to multiple account_id values")
-		}
-		byID[v.Auth.AccountID], bySource[fingerprint] = fingerprint, v.Auth.AccountID
-	}
-	if len(byID) > 1000 {
-		return p, errors.New("too many account_id values")
-	}
-	return p, nil
+	return out, nil
 }
-
-func normalizedDescription(value *string) *string {
-	if value == nil || strings.TrimSpace(*value) == "" {
-		return nil
-	}
-	return value
-}
-
-var codexOptionEnums = map[string][]string{
-	"effort":      {"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"},
-	"summary":     {"auto", "concise", "detailed", "none"},
-	"personality": {"none", "friendly", "pragmatic"},
-}
-
-func validCodexOption(name, value string) bool {
-	if name == "service_tier" {
-		// The app-server protocol accepts a string; supported tiers depend on the provider.
-		return value != "" && strings.TrimSpace(value) == value
-	}
-	return slices.Contains(codexOptionEnums[name], value)
-}
-func LoadProfiles(path string) (Profiles, error) {
-	f, err := os.Open(path)
+func LoadDeployment(path string) (Deployment, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return Profiles{}, err
+		return Deployment{}, err
 	}
-	defer func() { _ = f.Close() }()
-	return ReadProfiles(f)
+	defer func() { _ = file.Close() }()
+	return ReadDeployment(file)
 }
 
 func ValidateSandbox(s session.SandboxInput) error {
@@ -282,7 +156,7 @@ func invalid(message string, path ...any) *session.APIError {
 	p.Problem.Details = []session.Detail{{Path: append([]any{"body"}, path...), Code: "invalid_value"}}
 	return p
 }
-func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defaultMaxTokens int64) (session.ResolvedConfiguration, error) {
+func Resolve(in session.ConfigurationInput, profile llm.ProfileInput, harness string, p Deployment, allowlist []string, defaultMaxTokens int64) (session.ResolvedConfiguration, error) {
 	var out session.ResolvedConfiguration
 	if err := ValidateSandbox(in.Sandbox); err != nil {
 		return out, err
@@ -296,31 +170,17 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if err != nil {
 		return out, err
 	}
-	profile, ok := p.Profiles[in.Agent.Profile]
-	if !ok {
-		problem := invalid("Unknown agent profile.", "configuration", "agent", "profile")
-		problem.Problem.Code = "unknown_profile"
-		return out, problem
-	}
 	for _, name := range refs {
 		if !slices.Contains(allowlist, name) {
 			return out, invalid("Environment reference is not allowed.", "configuration", "sandbox", "env_from")
 		}
 	}
-	model := profile.Model
+	model := new(profile.Model)
 	if in.Agent.Model != nil {
 		model = in.Agent.Model
 	}
 	if model == nil || strings.TrimSpace(*model) == "" {
 		return out, invalid("An explicit model is required.", "configuration", "agent", "model")
-	}
-	for name, value := range map[string]string{
-		"effort": profile.Codex.Effort, "summary": profile.Codex.Summary,
-		"personality": profile.Codex.Personality, "service_tier": profile.Codex.ServiceTier,
-	} {
-		if value != "" && !validCodexOption(name, value) {
-			return out, invalid("Invalid Codex profile option.", "configuration", "agent", "codex", name)
-		}
 	}
 	instructions := profile.Instructions
 	if in.Agent.Instructions != nil {
@@ -335,15 +195,11 @@ func Resolve(in session.ConfigurationInput, p Profiles, allowlist []string, defa
 	if in.Limits.MaxSessionTokens <= 0 {
 		return out, invalid("Invalid session token budget.", "configuration", "limits", "max_session_tokens")
 	}
-	creds := session.Credentials{Mode: profile.Auth.Mode, AccountID: profile.Auth.AccountID, APIKeyEnv: profile.Auth.APIKeyEnv, Key: profile.Auth.Key}
-	if profile.Auth.Mode == "account" {
-		creds.Store = new(p.CredentialStores[profile.Auth.Store])
-	}
 	names := slices.Sorted(maps.Keys(in.Sandbox.Env))
 	if names == nil {
 		names = []string{}
 	}
-	out = session.ResolvedConfiguration{Version: 1, Harness: "codex", Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Codex: session.CodexConfiguration{Effort: profile.Codex.Effort, Summary: profile.Codex.Summary, Personality: profile.Codex.Personality, ServiceTier: profile.Codex.ServiceTier}, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs, Services: services}, Limits: in.Limits, Hooks: hooks}, Credentials: creds}
+	out = session.ResolvedConfiguration{Version: 1, Harness: harness, Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Codex: profile.Options(), Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs, Services: services}, Limits: in.Limits, Hooks: hooks}}
 	return out, nil
 }
 func Environment(env map[string]string, cfg session.Configuration, allowlist []string) (map[string]string, error) {
@@ -499,16 +355,16 @@ func Load() (Settings, error) {
 	}
 	return s, nil
 }
-func (s Settings) Runtime(api bool) (Profiles, *secret.Cipher, error) {
+func (s Settings) Runtime(api bool) (Deployment, *secret.Cipher, error) {
 	if api {
 		if _, err := s.BrowserAuth.Validated(); err != nil {
-			return Profiles{}, nil, err
+			return Deployment{}, nil, err
 		}
 	}
 	if api && ((s.BrowserAuth.Mode == "api_only" && len(s.PublicAPIKeys) == 0) || slices.Contains(s.PublicAPIKeys, "")) {
-		return Profiles{}, nil, errors.New("PUBLIC_API_KEYS must contain nonempty keys")
+		return Deployment{}, nil, errors.New("PUBLIC_API_KEYS must contain nonempty keys")
 	}
-	p, err := LoadProfiles(s.ConfigFile)
+	p, err := LoadDeployment(s.ConfigFile)
 	if err != nil {
 		return p, nil, err
 	}

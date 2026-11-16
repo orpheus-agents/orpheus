@@ -115,7 +115,8 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 	if model == "" {
 		model = "gpt-6-luna"
 	}
-	s := &store.Store{Pool: testutil.Database(t), Settings: settings, Cipher: cipher, Profiles: config.Profiles{Profiles: map[string]config.Profile{"live": {Harness: "codex", Model: &model, Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
+	s := &store.Store{Pool: testutil.Database(t), Settings: settings, Cipher: cipher}
+	testutil.SeedProfile(t, s.Pool, s.Cipher, "live", model, os.Getenv("OPENAI_API_KEY"))
 	testutil.RegisterTemplate(t, s.Pool, "codex")
 	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Minute)
 	defer cancel()

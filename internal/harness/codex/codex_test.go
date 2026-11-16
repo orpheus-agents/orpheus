@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"maps"
 	"os"
 	"os/exec"
@@ -61,6 +62,13 @@ func (b *testBox) Run(ctx context.Context, command string) ([]byte, error) {
 		return b.run(ctx, command)
 	}
 	return exec.CommandContext(ctx, "sh", "-c", command).Output()
+}
+func (b *testBox) Read(_ context.Context, path string) (io.ReadCloser, error) {
+	raw, ok := b.files[path]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return io.NopCloser(bytes.NewReader(raw)), nil
 }
 func (b *testBox) Write(_ context.Context, path string, raw []byte) error {
 	if b.files == nil {

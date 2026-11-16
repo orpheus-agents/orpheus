@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/orpheus-agents/orpheus/internal/accountlimits"
+	"github.com/orpheus-agents/orpheus/internal/config"
 	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store/db"
@@ -38,13 +40,22 @@ func accountLimitsUnavailable() error {
 }
 
 func (s *Store) SaveAccountLimitObservation(ctx context.Context, id, fingerprint string, at time.Time, snapshot *accountlimits.Snapshot, errorCode *string) error {
-	valid := false
-	for _, account := range s.Profiles.Accounts() {
-		if account.ID == id && account.Fingerprint == fingerprint {
-			valid = true
-			break
-		}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	accountID, err := uuid.Parse(id)
+	if err != nil {
+		return errors.New("invalid account limits identity")
 	}
+	row, err := db.New(s.Pool).ReadLLMAccount(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	source, err := s.credentialSource(row)
+	if err != nil {
+		return err
+	}
+	expected, err := config.SourceFingerprint(row.Harness, source)
+	valid := err == nil && expected == fingerprint
 	if !valid || (snapshot == nil) == (errorCode == nil) {
 		return errors.New("invalid account limits observation")
 	}
@@ -56,12 +67,14 @@ func (s *Store) SaveAccountLimitObservation(ctx context.Context, id, fingerprint
 			return err
 		}
 	}
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
 	return db.New(s.Pool).UpsertAccountLimitObservation(ctx, db.UpsertAccountLimitObservationParams{AccountID: id, SourceFingerprint: fingerprint, ObservedAt: at.UTC(), ErrorCode: errorCode, Snapshot: raw})
 }
 
 func (s *Store) AccountLimits(ctx context.Context) (LimitReport, error) {
+	return s.AccountLimitsFor(ctx, nil)
+}
+
+func (s *Store) AccountLimitsFor(ctx context.Context, selected []uuid.UUID) (LimitReport, error) {
 	out := LimitReport{StaleAfterSeconds: accountLimitsStaleAfter, Items: []LimitItem{}}
 	requestCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -74,7 +87,10 @@ func (s *Store) AccountLimits(ctx context.Context) (LimitReport, error) {
 			return err
 		}
 		out.AsOf = out.AsOf.UTC()
-		accounts := s.Profiles.Accounts()
+		accounts, err := s.accountSources(ctx, tx, selected)
+		if err != nil {
+			return err
+		}
 		if len(accounts) == 0 {
 			return nil
 		}
@@ -123,6 +139,26 @@ func (s *Store) AccountLimits(ctx context.Context) (LimitReport, error) {
 			slog.WarnContext(requestCtx, "Account limits query failed", "error_type", diagnostic.Describe(err))
 		}
 		return LimitReport{}, accountLimitsUnavailable()
+	}
+	return out, nil
+}
+
+func (s *Store) accountSources(ctx context.Context, q db.DBTX, selected []uuid.UUID) ([]config.Account, error) {
+	rows, err := db.New(q).AccountSources(ctx, selected)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]config.Account, 0, len(rows))
+	for _, row := range rows {
+		source, err := s.credentialSource(db.LlmAccount{ID: row.ID, AuthMode: row.AuthMode, CredentialStore: row.CredentialStore, CredentialKey: row.CredentialKey})
+		if err != nil {
+			return nil, err
+		}
+		fingerprint, err := config.SourceFingerprint(row.Harness, source)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, config.Account{ID: row.ID.String(), Profiles: row.Profiles, Fingerprint: fingerprint})
 	}
 	return out, nil
 }

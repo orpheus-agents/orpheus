@@ -5,23 +5,15 @@ serves their latest snapshots at `GET /api/v1/accounts/limits`. The endpoint doe
 not contact Codex, read credentials, or wake a sandbox. It accepts Bearer auth
 and the read-only browser modes described in [browser authentication](browser-auth.md).
 
-Give every account profile a stable, non-secret `account_id`:
+Accounts are identified by their database UUID. Every profile points to an
+account; existing sessions keep their original account when profiles are moved.
+Account creation and profile changes do not require a restart. An inactive
+account still reports observations from its existing sessions.
 
-```toml
-[profiles.fast.auth]
-mode = "account"
-account_id = "team-main"
-store = "main"
-key = "codex/team/auth.json"
-```
-
-Profiles sharing one account must reference the same resolved credential
-source. A source cannot have two IDs. Set `account_id` on existing account
-profiles **before** upgrading. New sessions retain the ID and source in their
-immutable credential snapshot; older sessions continue to execute but do not
-report limits. Changing the person or organization behind credentials requires
-a new ID. Changes to account configuration take effect after restarting serve
-and worker with the same configuration revision.
+The optional `account_ids` query is a comma-separated list of 1–200 UUIDs.
+Omit it for all file accounts; unknown IDs produce no item. The account list UI
+uses this filter to request only the visible page. Existing observations retain
+their timestamps when imported; they are not discarded or marked fresh.
 
 API-key-only installations return an empty `items` list. Account profiles
 without a successful sample appear as `unknown` or `unavailable`, never as 0% used.

@@ -20,6 +20,12 @@ import (
 )
 
 func Database(t *testing.T) *pgxpool.Pool {
+	return DatabaseAt(t, 0)
+}
+
+// DatabaseAt prepares an isolated historical schema without reversing later
+// irreversible imports. Zero selects all shipped migrations.
+func DatabaseAt(t *testing.T, version int64) *pgxpool.Pool {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {
@@ -45,7 +51,7 @@ func Database(t *testing.T) *pgxpool.Pool {
 	cfg.ConnConfig.RuntimeParams["search_path"] = name
 	db := stdlib.OpenDB(*cfg.ConnConfig)
 	t.Cleanup(func() { _ = db.Close() })
-	Migrate(t, db)
+	MigrateTo(t, db, version)
 	pool, err := pgxpool.NewWithConfig(t.Context(), cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +59,7 @@ func Database(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(pool.Close)
 	return pool
 }
-func Migrate(t *testing.T, db *sql.DB) {
+func MigrateTo(t *testing.T, db *sql.DB, version int64) {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
@@ -64,7 +70,13 @@ func Migrate(t *testing.T, db *sql.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Up(t.Context()); err != nil {
-		t.Fatal(err)
+	var errUp error
+	if version == 0 {
+		_, errUp = p.Up(t.Context())
+	} else {
+		_, errUp = p.UpTo(t.Context(), version)
+	}
+	if errUp != nil {
+		t.Fatal(errUp)
 	}
 }

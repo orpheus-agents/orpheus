@@ -67,7 +67,7 @@ func TestEmptyTemplateCatalogDoesNotPersistAdmission(t *testing.T) {
 	var rows int
 	if err := s.Pool.QueryRow(t.Context(), `SELECT
         (SELECT count(*) FROM sessions) + (SELECT count(*) FROM runs) +
-        (SELECT count(*) FROM secrets) + (SELECT count(*) FROM idempotency_keys)`).Scan(&rows); err != nil || rows != 0 {
+        (SELECT count(*) FROM secrets x WHERE NOT EXISTS(SELECT 1 FROM llm_accounts a WHERE a.api_key_secret_id=x.id)) + (SELECT count(*) FROM idempotency_keys)`).Scan(&rows); err != nil || rows != 0 {
 		t.Fatal("rejected admission persisted data", rows, err)
 	}
 	testutil.RegisterTemplate(t, s.Pool, "codex")

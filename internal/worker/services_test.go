@@ -16,7 +16,7 @@ func TestServiceEnvironmentScope(t *testing.T) {
 	if _, err := s.Cancel(t.Context(), initial.SessionID, initial.RunID); err != nil {
 		t.Fatal(err)
 	}
-	s.Profiles.Services = map[string]config.Service{
+	s.Deployment.Services = map[string]config.Service{
 		"session": {Name: "Session", Description: "Agent service", EnvFrom: []string{"SESSION_SERVICE_ENV"}},
 		"run":     {Name: "Run", Description: "Hook service", EnvFrom: []string{"RUN_SERVICE_ENV"}},
 	}

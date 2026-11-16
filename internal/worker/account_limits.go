@@ -159,6 +159,7 @@ func (a *limitAccount) markDirty(now time.Time) {
 }
 
 type AccountLimitsCollector struct {
+	mu       sync.Mutex
 	ctx      context.Context
 	save     func(context.Context, string, string, time.Time, *accountlimits.Snapshot, *string) error
 	accounts map[string]*limitAccount
@@ -168,27 +169,29 @@ type AccountLimitsCollector struct {
 
 func newAccountLimitsCollector(ctx context.Context, s *store.Store) *AccountLimitsCollector {
 	c := &AccountLimitsCollector{ctx: ctx, save: s.SaveAccountLimitObservation, accounts: map[string]*limitAccount{}, sem: make(chan struct{}, 4)}
-	for _, account := range s.Profiles.Accounts() {
-		a := &limitAccount{config: account, donors: map[uuid.UUID]*limitDonor{}, wake: make(chan struct{}, 1)}
-		c.accounts[account.ID] = a
-		c.wg.Go(func() { c.run(a) })
-	}
 	return c
 }
 func (c *AccountLimitsCollector) Wait() { c.wg.Wait() }
 
-// Register uses the immutable session credentials, never a re-resolved profile.
+// Register uses the session's pinned account source, never a re-resolved profile.
 // The returned function must run before the driver is closed or its sandbox paused.
-func (c *AccountLimitsCollector) Register(id uuid.UUID, cfg session.ResolvedConfiguration, driver harness.Driver) func() {
-	if c == nil || cfg.Credentials.AccountID == "" || cfg.Credentials.Mode != "account" {
+func (c *AccountLimitsCollector) Register(id uuid.UUID, harnessName string, source session.Credentials, driver harness.Driver) func() {
+	if c == nil || source.AccountID == "" || source.Mode != "account" {
 		return func() {}
 	}
-	a := c.accounts[cfg.Credentials.AccountID]
+	fingerprint, err := config.SourceFingerprint(harnessName, source)
+	if err != nil {
+		return func() {}
+	}
+	c.mu.Lock()
+	a := c.accounts[source.AccountID]
 	if a == nil {
-		return func() {}
+		a = &limitAccount{config: config.Account{ID: source.AccountID, Fingerprint: fingerprint}, donors: map[uuid.UUID]*limitDonor{}, wake: make(chan struct{}, 1)}
+		c.accounts[source.AccountID] = a
+		c.wg.Go(func() { c.run(a) })
 	}
-	fingerprint, err := config.SourceFingerprint(cfg.Harness, cfg.Credentials)
-	if err != nil || fingerprint != a.config.Fingerprint {
+	c.mu.Unlock()
+	if fingerprint != a.config.Fingerprint {
 		return func() {}
 	}
 	reader, ok := driver.(harness.AccountLimitsReader)

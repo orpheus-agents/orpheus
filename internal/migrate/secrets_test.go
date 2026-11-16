@@ -24,7 +24,7 @@ import (
 
 func secretsMigration(t *testing.T) (*pgxpool.Pool, *goose.Provider) {
 	t.Helper()
-	pool := testutil.Database(t)
+	pool := testutil.DatabaseAt(t, 29)
 	database := stdlib.OpenDB(*pool.Config().ConnConfig)
 	t.Cleanup(func() { _ = database.Close() })
 	p, err := migrate.Provider(database, "../../migrations")
@@ -225,7 +225,7 @@ func TestSecretsMigrationRejectsInvalidFormatAtomically(t *testing.T) {
 }
 
 func TestSecretsSchemaConstraints(t *testing.T) {
-	pool := testutil.Database(t)
+	pool := testutil.DatabaseAt(t, 29)
 	for _, sizes := range [][2]int{{11, 16}, {13, 16}, {12, 15}} {
 		if _, err := pool.Exec(t.Context(), "INSERT INTO secrets(id,nonce,ciphertext) VALUES($1,$2,$3)", uuid.New(), make([]byte, sizes[0]), make([]byte, sizes[1])); err == nil {
 			t.Fatal("invalid lengths accepted", sizes)

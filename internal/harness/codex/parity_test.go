@@ -111,7 +111,6 @@ func TestExplicitNullToolInputIsPreserved(t *testing.T) {
 func TestNativePreparationAndAccountModes(t *testing.T) {
 	for _, mode := range []string{"api_key", "account"} {
 		t.Run(mode, func(t *testing.T) {
-			t.Setenv("FIXTURE_KEY", "private-key")
 			logins, reads := 0, 0
 			accountType := "chatgpt"
 			rpc, box := newRPC(t, func(req map[string]json.RawMessage) any {
@@ -132,7 +131,7 @@ func TestNativePreparationAndAccountModes(t *testing.T) {
 			})
 			d := New(box, time.Second, 1024, new(diagnostic.Redactor))
 			d.rpc = rpc
-			source := session.Credentials{Mode: mode, APIKeyEnv: "FIXTURE_KEY"}
+			source := session.Credentials{Mode: mode, APIKey: "secret-value"}
 			box.run = func(_ context.Context, command string) ([]byte, error) {
 				if !strings.Contains(command, "${CODEX_HOME:-$HOME/.codex}") {
 					t.Fatal("Codex state directory did not follow image environment", command)
@@ -172,6 +171,7 @@ func TestNativePreparationAndAccountModes(t *testing.T) {
 			if err := d.Initialize(t.Context(), source, true); err != nil {
 				t.Fatal(err)
 			}
+			box.files = map[string][]byte{home + "/auth.json": []byte(`{"OPENAI_API_KEY":"old-process-key"}`)}
 			if err := d.Initialize(t.Context(), source, false); err != nil {
 				t.Fatal(err)
 			}
@@ -179,7 +179,7 @@ func TestNativePreparationAndAccountModes(t *testing.T) {
 				if logins != 1 || reads != 0 {
 					t.Fatal(logins, reads)
 				}
-				t.Setenv("FIXTURE_KEY", "")
+				source.APIKey = ""
 				if err := d.Initialize(t.Context(), source, true); err == nil {
 					t.Fatal("missing key accepted")
 				}
@@ -188,6 +188,7 @@ func TestNativePreparationAndAccountModes(t *testing.T) {
 					t.Fatal(logins, reads)
 				}
 				accountType = "apiKey"
+				box.files = map[string][]byte{home + "/auth.json": []byte(`{"OPENAI_API_KEY":"old-process-key"}`)}
 				if err := d.Initialize(t.Context(), source, false); err == nil {
 					t.Fatal("wrong account accepted")
 				}

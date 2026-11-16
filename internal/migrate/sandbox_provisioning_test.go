@@ -12,7 +12,7 @@ import (
 )
 
 func TestSandboxProvisioningMigrationPreservesUsedEnvironments(t *testing.T) {
-	pool := testutil.Database(t)
+	pool := testutil.DatabaseAt(t, 29)
 	sqlDB := stdlib.OpenDB(*pool.Config().ConnConfig)
 	defer func() { _ = sqlDB.Close() }()
 	provider, err := migrate.Provider(sqlDB, "../../migrations")
@@ -46,7 +46,7 @@ func TestSandboxProvisioningMigrationPreservesUsedEnvironments(t *testing.T) {
 			}
 		}
 	}
-	if _, err := provider.Up(t.Context()); err != nil {
+	if _, err := provider.UpTo(t.Context(), 29); err != nil {
 		t.Fatal(err)
 	}
 	var adopted, deadlines, reserved int
@@ -62,7 +62,7 @@ func TestSandboxProvisioningMigrationPreservesUsedEnvironments(t *testing.T) {
 	if _, err := provider.DownTo(t.Context(), 22); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := provider.Up(t.Context()); err != nil {
+	if _, err := provider.UpTo(t.Context(), 29); err != nil {
 		t.Fatal(err)
 	}
 }

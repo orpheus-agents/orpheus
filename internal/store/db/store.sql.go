@@ -145,9 +145,9 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 }
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions AS s(id, configuration, slot_reserved, namespace, external_key, allow_multiple_runs, env_secret_id)
-VALUES($1, $2, false, $3, $4, $5, $6)
-RETURNING s.id, s.created_at, s.configuration, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs, s.env_secret_id
+INSERT INTO sessions AS s(id, configuration, slot_reserved, namespace, external_key, allow_multiple_runs, env_secret_id, llm_account_id)
+VALUES($1, $2, false, $3, $4, $5, $6, $7)
+RETURNING s.id, s.created_at, s.configuration, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs, s.env_secret_id, s.llm_account_id
 `
 
 type CreateSessionParams struct {
@@ -157,6 +157,7 @@ type CreateSessionParams struct {
 	ExternalKey       *string                       `json:"external_key"`
 	AllowMultipleRuns bool                          `json:"allow_multiple_runs"`
 	EnvSecretID       *uuid.UUID                    `json:"env_secret_id"`
+	LlmAccountID      *uuid.UUID                    `json:"llm_account_id"`
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
@@ -167,6 +168,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		arg.ExternalKey,
 		arg.AllowMultipleRuns,
 		arg.EnvSecretID,
+		arg.LlmAccountID,
 	)
 	var i Session
 	err := row.Scan(
@@ -198,6 +200,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.ReasoningOutputNativeTotal,
 		&i.AllowMultipleRuns,
 		&i.EnvSecretID,
+		&i.LlmAccountID,
 	)
 	return i, err
 }
@@ -312,7 +315,7 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (Run, error) {
 }
 
 const getSession = `-- name: GetSession :one
-SELECT s.id, s.created_at, s.configuration, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs, s.env_secret_id
+SELECT s.id, s.created_at, s.configuration, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs, s.env_secret_id, s.llm_account_id
 FROM sessions s
 WHERE id = $1
 `
@@ -349,6 +352,7 @@ func (q *Queries) GetSession(ctx context.Context, id uuid.UUID) (Session, error)
 		&i.ReasoningOutputNativeTotal,
 		&i.AllowMultipleRuns,
 		&i.EnvSecretID,
+		&i.LlmAccountID,
 	)
 	return i, err
 }
@@ -464,7 +468,7 @@ func (q *Queries) LatestRunsForSessions(ctx context.Context, sessionIds []uuid.U
 }
 
 const lockSession = `-- name: LockSession :one
-SELECT s.id, s.created_at, s.configuration, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs, s.env_secret_id
+SELECT s.id, s.created_at, s.configuration, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs, s.env_secret_id, s.llm_account_id
 FROM sessions s
 WHERE id = $1 FOR UPDATE
 `
@@ -501,6 +505,7 @@ func (q *Queries) LockSession(ctx context.Context, id uuid.UUID) (Session, error
 		&i.ReasoningOutputNativeTotal,
 		&i.AllowMultipleRuns,
 		&i.EnvSecretID,
+		&i.LlmAccountID,
 	)
 	return i, err
 }

@@ -222,8 +222,11 @@ func (e ErrorPhase) Valid() bool {
 
 // Defines values for ErrorDetailCode.
 const (
+	AccountInactive   ErrorDetailCode = "account_inactive"
 	InvalidType       ErrorDetailCode = "invalid_type"
 	InvalidValue      ErrorDetailCode = "invalid_value"
+	ProfileInactive   ErrorDetailCode = "profile_inactive"
+	ProfileNotFound   ErrorDetailCode = "profile_not_found"
 	Required          ErrorDetailCode = "required"
 	TagNotFound       ErrorDetailCode = "tag_not_found"
 	TemplateForbidden ErrorDetailCode = "template_forbidden"
@@ -235,9 +238,15 @@ const (
 // Valid indicates whether the value is a known member of the ErrorDetailCode enum.
 func (e ErrorDetailCode) Valid() bool {
 	switch e {
+	case AccountInactive:
+		return true
 	case InvalidType:
 		return true
 	case InvalidValue:
+		return true
+	case ProfileInactive:
+		return true
+	case ProfileNotFound:
 		return true
 	case Required:
 		return true
@@ -364,6 +373,72 @@ func (e JSONResultType) Valid() bool {
 	}
 }
 
+// Defines values for LLMAccountAuthMode.
+const (
+	LLMAccountAuthModeAPIKey  LLMAccountAuthMode = "api_key"
+	LLMAccountAuthModeAccount LLMAccountAuthMode = "account"
+)
+
+// Valid indicates whether the value is a known member of the LLMAccountAuthMode enum.
+func (e LLMAccountAuthMode) Valid() bool {
+	switch e {
+	case LLMAccountAuthModeAPIKey:
+		return true
+	case LLMAccountAuthModeAccount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMAccountHarness.
+const (
+	LLMAccountHarnessCodex LLMAccountHarness = "codex"
+)
+
+// Valid indicates whether the value is a known member of the LLMAccountHarness enum.
+func (e LLMAccountHarness) Valid() bool {
+	switch e {
+	case LLMAccountHarnessCodex:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMAccountDetailsAuthMode.
+const (
+	LLMAccountDetailsAuthModeAPIKey  LLMAccountDetailsAuthMode = "api_key"
+	LLMAccountDetailsAuthModeAccount LLMAccountDetailsAuthMode = "account"
+)
+
+// Valid indicates whether the value is a known member of the LLMAccountDetailsAuthMode enum.
+func (e LLMAccountDetailsAuthMode) Valid() bool {
+	switch e {
+	case LLMAccountDetailsAuthModeAPIKey:
+		return true
+	case LLMAccountDetailsAuthModeAccount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMAccountDetailsHarness.
+const (
+	LLMAccountDetailsHarnessCodex LLMAccountDetailsHarness = "codex"
+)
+
+// Valid indicates whether the value is a known member of the LLMAccountDetailsHarness enum.
+func (e LLMAccountDetailsHarness) Valid() bool {
+	switch e {
+	case LLMAccountDetailsHarnessCodex:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MessageDeliveryStatus.
 const (
 	MessageDeliveryStatusDelivered MessageDeliveryStatus = "delivered"
@@ -459,13 +534,13 @@ func (e MessageItemType) Valid() bool {
 
 // Defines values for ProfileHarness.
 const (
-	Codex ProfileHarness = "codex"
+	ProfileHarnessCodex ProfileHarness = "codex"
 )
 
 // Valid indicates whether the value is a known member of the ProfileHarness enum.
 func (e ProfileHarness) Valid() bool {
 	switch e {
-	case Codex:
+	case ProfileHarnessCodex:
 		return true
 	default:
 		return false
@@ -1116,6 +1191,9 @@ type AnalyticsOverview struct {
 // AnalyticsOverviewBucket defines model for AnalyticsOverview.Bucket.
 type AnalyticsOverviewBucket string
 
+// AuthFile defines model for AuthFile.
+type AuthFile = json.RawMessage
+
 // BrowserAuthSession defines model for BrowserAuthSession.
 type BrowserAuthSession struct {
 	Authenticated bool                   `json:"authenticated"`
@@ -1167,6 +1245,20 @@ type ConfigurationInput struct {
 	Hooks   *HooksInput  `json:"hooks,omitempty"`
 	Limits  *LimitsInput `json:"limits,omitempty"`
 	Sandbox SandboxInput `json:"sandbox"`
+}
+
+// CreateLLMAccount defines model for CreateLLMAccount.
+type CreateLLMAccount = json.RawMessage
+
+// CreateProfile defines model for CreateProfile.
+type CreateProfile struct {
+	AccountID    openapi_types.UUID `json:"account_id"`
+	Active       *bool              `json:"active,omitempty"`
+	Codex        *CodexProfile      `json:"codex,omitempty"`
+	Description  *string            `json:"description,omitempty"`
+	Instructions *string            `json:"instructions,omitempty"`
+	Model        string             `json:"model"`
+	Name         string             `json:"name"`
 }
 
 // CreateRun defines model for CreateRun.
@@ -1225,6 +1317,11 @@ type CreateTemplate struct {
 
 	// TemplateName Own-project alias, optionally prefixed by its team slug. Normalized to lowercase.
 	TemplateName string `json:"template_name"`
+}
+
+// CredentialStores defines model for CredentialStores.
+type CredentialStores struct {
+	Items []string `json:"items"`
 }
 
 // Error defines model for Error.
@@ -1362,6 +1459,48 @@ type JSONResult struct {
 // JSONResultType defines model for JSONResult.Type.
 type JSONResultType string
 
+// LLMAccount defines model for LLMAccount.
+type LLMAccount struct {
+	Active          bool               `json:"active"`
+	AuthMode        LLMAccountAuthMode `json:"auth_mode"`
+	CredentialStore *string            `json:"credential_store"`
+	Harness         LLMAccountHarness  `json:"harness"`
+	ID              openapi_types.UUID `json:"id"`
+	Name            string             `json:"name"`
+	Profiles        []string           `json:"profiles"`
+}
+
+// LLMAccountAuthMode defines model for LLMAccount.AuthMode.
+type LLMAccountAuthMode string
+
+// LLMAccountHarness defines model for LLMAccount.Harness.
+type LLMAccountHarness string
+
+// LLMAccountDetails defines model for LLMAccountDetails.
+type LLMAccountDetails struct {
+	Active          bool                      `json:"active"`
+	APIKeyMask      *string                   `json:"api_key_mask"`
+	AuthMode        LLMAccountDetailsAuthMode `json:"auth_mode"`
+	CredentialStore *string                   `json:"credential_store"`
+	Harness         LLMAccountDetailsHarness  `json:"harness"`
+	ID              openapi_types.UUID        `json:"id"`
+	Name            string                    `json:"name"`
+	Profiles        []string                  `json:"profiles"`
+}
+
+// LLMAccountDetailsAuthMode defines model for LLMAccountDetails.AuthMode.
+type LLMAccountDetailsAuthMode string
+
+// LLMAccountDetailsHarness defines model for LLMAccountDetails.Harness.
+type LLMAccountDetailsHarness string
+
+// LLMAccounts defines model for LLMAccounts.
+type LLMAccounts struct {
+	Items      []LLMAccount `json:"items"`
+	NextCursor *string      `json:"next_cursor"`
+	PrevCursor *string      `json:"prev_cursor"`
+}
+
 // Limits defines model for Limits.
 type Limits struct {
 	// MaxSessionTokens Session-wide input and output token budget. Omission uses DEFAULT_MAX_SESSION_TOKENS (100000000 by default); explicit null is invalid.
@@ -1439,12 +1578,18 @@ type Position struct {
 
 // Profile defines model for Profile.
 type Profile struct {
-	Codex        CodexProfile   `json:"codex"`
-	Description  *string        `json:"description"`
-	Harness      ProfileHarness `json:"harness"`
-	Instructions string         `json:"instructions"`
-	Model        *string        `json:"model"`
-	Name         string         `json:"name"`
+	AccountActive bool               `json:"account_active"`
+	AccountID     openapi_types.UUID `json:"account_id"`
+	AccountName   string             `json:"account_name"`
+	Active        bool               `json:"active"`
+	Available     bool               `json:"available"`
+	Codex         CodexProfile       `json:"codex"`
+	Description   *string            `json:"description"`
+	Harness       ProfileHarness     `json:"harness"`
+	ID            openapi_types.UUID `json:"id"`
+	Instructions  string             `json:"instructions"`
+	Model         string             `json:"model"`
+	Name          string             `json:"name"`
 }
 
 // ProfileHarness defines model for Profile.Harness.
@@ -1452,7 +1597,14 @@ type ProfileHarness string
 
 // Profiles defines model for Profiles.
 type Profiles struct {
-	Items []Profile `json:"items"`
+	Items      []Profile `json:"items"`
+	NextCursor *string   `json:"next_cursor"`
+	PrevCursor *string   `json:"prev_cursor"`
+}
+
+// ReplaceAPIKey defines model for ReplaceAPIKey.
+type ReplaceAPIKey struct {
+	APIKey *string `json:"api_key,omitempty"`
 }
 
 // Run defines model for Run.
@@ -1762,6 +1914,12 @@ type TruncatedResultSourceType string
 // TruncatedResultType defines model for TruncatedResult.Type.
 type TruncatedResultType string
 
+// UpdateLLMAccount defines model for UpdateLLMAccount.
+type UpdateLLMAccount = json.RawMessage
+
+// UpdateProfile defines model for UpdateProfile.
+type UpdateProfile = json.RawMessage
+
 // UpdateTemplate defines model for UpdateTemplate.
 type UpdateTemplate = json.RawMessage
 
@@ -1772,6 +1930,12 @@ type Usage struct {
 	OutputTokens          int64 `json:"output_tokens"`
 	ReasoningOutputTokens int64 `json:"reasoning_output_tokens"`
 	TotalTokens           int64 `json:"total_tokens"`
+}
+
+// GetAccountLimitsParams defines parameters for GetAccountLimits.
+type GetAccountLimitsParams struct {
+	// AccountIds Comma-separated account UUIDs. Omit to read all account-file identities.
+	AccountIds *[]openapi_types.UUID `form:"account_ids,omitempty" json:"account_ids,omitempty"`
 }
 
 // GetAnalyticsOverviewParams defines parameters for GetAnalyticsOverview.
@@ -1800,6 +1964,40 @@ type GetAnalyticsOverviewParamsWindow string
 
 // GetAnalyticsOverviewParamsBucket defines parameters for GetAnalyticsOverview.
 type GetAnalyticsOverviewParamsBucket string
+
+// GetLlmAccountsParams defines parameters for GetLlmAccounts.
+type GetLlmAccountsParams struct {
+	Active *bool `form:"active,omitempty" json:"active,omitempty"`
+
+	// Name Exact case-sensitive name. Incompatible with name_contains.
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// NameContains Literal case-insensitive substring. Incompatible with name.
+	NameContains *string `form:"name_contains,omitempty" json:"name_contains,omitempty"`
+	Limit        *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor       *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ReplaceAuthFileParams defines parameters for ReplaceAuthFile.
+type ReplaceAuthFileParams struct {
+	IfMatch string `json:"If-Match"`
+}
+
+// GetProfilesParams defines parameters for GetProfiles.
+type GetProfilesParams struct {
+	Active *bool `form:"active,omitempty" json:"active,omitempty"`
+
+	// Name Exact case-sensitive name. Incompatible with name_contains.
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// NameContains Literal case-insensitive substring. Incompatible with name.
+	NameContains *string `form:"name_contains,omitempty" json:"name_contains,omitempty"`
+	Limit        *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor       *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Available Profile and account activity combined.
+	Available *bool `form:"available,omitempty" json:"available,omitempty"`
+}
 
 // ListAllRunsParams defines parameters for ListAllRuns.
 type ListAllRunsParams struct {
@@ -1909,6 +2107,24 @@ type GetTemplatesParams struct {
 type BrowserLoginParams struct {
 	Next *string `form:"next,omitempty" json:"next,omitempty"`
 }
+
+// CreateLlmAccountJSONRequestBody defines body for CreateLlmAccount for application/json ContentType.
+type CreateLlmAccountJSONRequestBody = CreateLLMAccount
+
+// UpdateLlmAccountJSONRequestBody defines body for UpdateLlmAccount for application/json ContentType.
+type UpdateLlmAccountJSONRequestBody = UpdateLLMAccount
+
+// ReplaceAPIKeyJSONRequestBody defines body for ReplaceAPIKey for application/json ContentType.
+type ReplaceAPIKeyJSONRequestBody = ReplaceAPIKey
+
+// ReplaceAuthFileJSONRequestBody defines body for ReplaceAuthFile for application/json ContentType.
+type ReplaceAuthFileJSONRequestBody = AuthFile
+
+// CreateProfileJSONRequestBody defines body for CreateProfile for application/json ContentType.
+type CreateProfileJSONRequestBody = CreateProfile
+
+// UpdateProfileJSONRequestBody defines body for UpdateProfile for application/json ContentType.
+type UpdateProfileJSONRequestBody = UpdateProfile
 
 // CreateSessionJSONRequestBody defines body for CreateSession for application/json ContentType.
 type CreateSessionJSONRequestBody = CreateSession
@@ -2462,18 +2678,57 @@ func (t *ToolResult) UnmarshalJSON(b []byte) error {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// GetAccountLimits Current provider limits by configured account
+	// GetAccountLimits Current provider limits by account
 	// (GET /api/v1/accounts/limits)
-	GetAccountLimits(w http.ResponseWriter, r *http.Request)
+	GetAccountLimits(w http.ResponseWriter, r *http.Request, params GetAccountLimitsParams)
 	// GetAnalyticsOverview Dashboard analytics snapshot
 	// (GET /api/v1/analytics/overview)
 	GetAnalyticsOverview(w http.ResponseWriter, r *http.Request, params GetAnalyticsOverviewParams)
 	// AuthSession Read browser authentication state
 	// (GET /api/v1/auth/session)
 	AuthSession(w http.ResponseWriter, r *http.Request)
-	// GetProfiles List configured profiles
+	// GetCredentialStores List configured credential store names
+	// (GET /api/v1/credential-stores)
+	GetCredentialStores(w http.ResponseWriter, r *http.Request)
+	// GetLlmAccounts List llm-accounts
+	// (GET /api/v1/llm-accounts)
+	GetLlmAccounts(w http.ResponseWriter, r *http.Request, params GetLlmAccountsParams)
+	// CreateLlmAccount Create llm account
+	// (POST /api/v1/llm-accounts)
+	CreateLlmAccount(w http.ResponseWriter, r *http.Request)
+	// DeleteLlmAccount Delete llm account
+	// (DELETE /api/v1/llm-accounts/{id})
+	DeleteLlmAccount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// GetLlmAccount Read llm account
+	// (GET /api/v1/llm-accounts/{id})
+	GetLlmAccount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// UpdateLlmAccount Update llm account
+	// (PATCH /api/v1/llm-accounts/{id})
+	UpdateLlmAccount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// ReplaceAPIKey Replace an account API key
+	// (PUT /api/v1/llm-accounts/{id}/api-key)
+	ReplaceAPIKey(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// GetAuthFile Read the account authorization file
+	// (GET /api/v1/llm-accounts/{id}/auth-file)
+	GetAuthFile(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// ReplaceAuthFile Conditionally replace the account authorization file
+	// (PUT /api/v1/llm-accounts/{id}/auth-file)
+	ReplaceAuthFile(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ReplaceAuthFileParams)
+	// GetProfiles List profiles
 	// (GET /api/v1/profiles)
-	GetProfiles(w http.ResponseWriter, r *http.Request)
+	GetProfiles(w http.ResponseWriter, r *http.Request, params GetProfilesParams)
+	// CreateProfile Create profile
+	// (POST /api/v1/profiles)
+	CreateProfile(w http.ResponseWriter, r *http.Request)
+	// DeleteProfile Delete profile
+	// (DELETE /api/v1/profiles/{id})
+	DeleteProfile(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// GetProfile Read profile
+	// (GET /api/v1/profiles/{id})
+	GetProfile(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// UpdateProfile Update profile
+	// (PATCH /api/v1/profiles/{id})
+	UpdateProfile(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// ListAllRuns List All Runs
 	// (GET /api/v1/runs)
 	ListAllRuns(w http.ResponseWriter, r *http.Request, params ListAllRunsParams)
@@ -2554,8 +2809,27 @@ type MiddlewareFunc func(http.Handler) http.Handler
 // GetAccountLimits operation middleware
 func (siw *ServerInterfaceWrapper) GetAccountLimits(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAccountLimitsParams
+
+	// ------------- Optional query parameter "account_ids" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", false, false, "account_ids", r.URL.Query(), &params.AccountIds, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "account_ids"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "account_ids", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetAccountLimits(w, r)
+		siw.Handler.GetAccountLimits(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2677,11 +2951,484 @@ func (siw *ServerInterfaceWrapper) AuthSession(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetCredentialStores operation middleware
+func (siw *ServerInterfaceWrapper) GetCredentialStores(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCredentialStores(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLlmAccounts operation middleware
+func (siw *ServerInterfaceWrapper) GetLlmAccounts(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetLlmAccountsParams
+
+	// ------------- Optional query parameter "active" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "active", r.URL.Query(), &params.Active, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "active"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "active", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name", r.URL.Query(), &params.Name, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name_contains" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name_contains", r.URL.Query(), &params.NameContains, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name_contains"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name_contains", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLlmAccounts(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateLlmAccount operation middleware
+func (siw *ServerInterfaceWrapper) CreateLlmAccount(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateLlmAccount(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteLlmAccount operation middleware
+func (siw *ServerInterfaceWrapper) DeleteLlmAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteLlmAccount(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLlmAccount operation middleware
+func (siw *ServerInterfaceWrapper) GetLlmAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLlmAccount(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateLlmAccount operation middleware
+func (siw *ServerInterfaceWrapper) UpdateLlmAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateLlmAccount(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceAPIKey operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceAPIKey(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceAPIKey(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAuthFile operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAuthFile(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceAuthFile operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceAuthFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReplaceAuthFileParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "If-Match" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("If-Match")]; found {
+		var IfMatch string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "If-Match", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "If-Match", valueList[0], &IfMatch, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "If-Match", Err: err})
+			return
+		}
+
+		params.IfMatch = IfMatch
+
+	} else {
+		err := fmt.Errorf("Header parameter If-Match is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "If-Match", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceAuthFile(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProfiles operation middleware
 func (siw *ServerInterfaceWrapper) GetProfiles(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetProfilesParams
+
+	// ------------- Optional query parameter "active" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "active", r.URL.Query(), &params.Active, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "active"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "active", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name", r.URL.Query(), &params.Name, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name_contains" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name_contains", r.URL.Query(), &params.NameContains, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name_contains"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name_contains", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "available" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "available", r.URL.Query(), &params.Available, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "available"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "available", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetProfiles(w, r)
+		siw.Handler.GetProfiles(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateProfile operation middleware
+func (siw *ServerInterfaceWrapper) CreateProfile(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateProfile(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteProfile operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteProfile(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProfile operation middleware
+func (siw *ServerInterfaceWrapper) GetProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProfile(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateProfile operation middleware
+func (siw *ServerInterfaceWrapper) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateProfile(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3878,6 +4625,19 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/profiles", wrapper.GetProfiles)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/profiles", wrapper.CreateProfile)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/profiles/{id}", wrapper.DeleteProfile)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/profiles/{id}", wrapper.GetProfile)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/profiles/{id}", wrapper.UpdateProfile)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/llm-accounts", wrapper.GetLlmAccounts)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/llm-accounts", wrapper.CreateLlmAccount)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/llm-accounts/{id}", wrapper.DeleteLlmAccount)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/llm-accounts/{id}", wrapper.GetLlmAccount)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/llm-accounts/{id}", wrapper.UpdateLlmAccount)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/credential-stores", wrapper.GetCredentialStores)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/llm-accounts/{id}/api-key", wrapper.ReplaceAPIKey)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/llm-accounts/{id}/auth-file", wrapper.GetAuthFile)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/llm-accounts/{id}/auth-file", wrapper.ReplaceAuthFile)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/templates", wrapper.GetTemplates)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/templates", wrapper.CreateTemplate)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/templates/{id}", wrapper.DeleteTemplate)
@@ -3908,6 +4668,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 }
 
 type GetAccountLimitsRequestObject struct {
+	Params GetAccountLimitsParams
 }
 
 type GetAccountLimitsResponseObject interface {
@@ -3952,6 +4713,23 @@ func (response GetAccountLimits503JSONResponse) VisitGetAccountLimitsResponse(w 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAccountLimitsdefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response GetAccountLimitsdefaultJSONResponse) VisitGetAccountLimitsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4058,7 +4836,360 @@ func (response AuthSessiondefaultJSONResponse) VisitAuthSessionResponse(w http.R
 	return err
 }
 
+type GetCredentialStoresRequestObject struct {
+}
+
+type GetCredentialStoresResponseObject interface {
+	VisitGetCredentialStoresResponse(w http.ResponseWriter) error
+}
+
+type GetCredentialStores200JSONResponse CredentialStores
+
+func (response GetCredentialStores200JSONResponse) VisitGetCredentialStoresResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCredentialStoresdefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response GetCredentialStoresdefaultJSONResponse) VisitGetCredentialStoresResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLlmAccountsRequestObject struct {
+	Params GetLlmAccountsParams
+}
+
+type GetLlmAccountsResponseObject interface {
+	VisitGetLlmAccountsResponse(w http.ResponseWriter) error
+}
+
+type GetLlmAccounts200JSONResponse LLMAccounts
+
+func (response GetLlmAccounts200JSONResponse) VisitGetLlmAccountsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLlmAccountsdefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response GetLlmAccountsdefaultJSONResponse) VisitGetLlmAccountsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateLlmAccountRequestObject struct {
+	Body *CreateLlmAccountJSONRequestBody
+}
+
+type CreateLlmAccountResponseObject interface {
+	VisitCreateLlmAccountResponse(w http.ResponseWriter) error
+}
+
+type CreateLlmAccount201JSONResponse LLMAccountDetails
+
+func (response CreateLlmAccount201JSONResponse) VisitCreateLlmAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateLlmAccountdefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response CreateLlmAccountdefaultJSONResponse) VisitCreateLlmAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteLlmAccountRequestObject struct {
+	ID openapi_types.UUID `json:"id"`
+}
+
+type DeleteLlmAccountResponseObject interface {
+	VisitDeleteLlmAccountResponse(w http.ResponseWriter) error
+}
+
+type DeleteLlmAccount204Response struct {
+}
+
+func (response DeleteLlmAccount204Response) VisitDeleteLlmAccountResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteLlmAccountdefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response DeleteLlmAccountdefaultJSONResponse) VisitDeleteLlmAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLlmAccountRequestObject struct {
+	ID openapi_types.UUID `json:"id"`
+}
+
+type GetLlmAccountResponseObject interface {
+	VisitGetLlmAccountResponse(w http.ResponseWriter) error
+}
+
+type GetLlmAccount200JSONResponse LLMAccountDetails
+
+func (response GetLlmAccount200JSONResponse) VisitGetLlmAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLlmAccountdefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response GetLlmAccountdefaultJSONResponse) VisitGetLlmAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateLlmAccountRequestObject struct {
+	ID   openapi_types.UUID `json:"id"`
+	Body *UpdateLlmAccountJSONRequestBody
+}
+
+type UpdateLlmAccountResponseObject interface {
+	VisitUpdateLlmAccountResponse(w http.ResponseWriter) error
+}
+
+type UpdateLlmAccount200JSONResponse LLMAccountDetails
+
+func (response UpdateLlmAccount200JSONResponse) VisitUpdateLlmAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateLlmAccountdefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response UpdateLlmAccountdefaultJSONResponse) VisitUpdateLlmAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceAPIKeyRequestObject struct {
+	ID   openapi_types.UUID `json:"id"`
+	Body *ReplaceAPIKeyJSONRequestBody
+}
+
+type ReplaceAPIKeyResponseObject interface {
+	VisitReplaceAPIKeyResponse(w http.ResponseWriter) error
+}
+
+type ReplaceAPIKey204Response struct {
+}
+
+func (response ReplaceAPIKey204Response) VisitReplaceAPIKeyResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ReplaceAPIKeydefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response ReplaceAPIKeydefaultJSONResponse) VisitReplaceAPIKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAuthFileRequestObject struct {
+	ID openapi_types.UUID `json:"id"`
+}
+
+type GetAuthFileResponseObject interface {
+	VisitGetAuthFileResponse(w http.ResponseWriter) error
+}
+
+type GetAuthFile200ResponseHeaders struct {
+	CacheControl string
+	ETag         string
+}
+
+type GetAuthFile200JSONResponse struct {
+	Body    AuthFile
+	Headers GetAuthFile200ResponseHeaders
+}
+
+func (response GetAuthFile200JSONResponse) VisitGetAuthFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("ETag", fmt.Sprint(response.Headers.ETag))
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAuthFiledefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response GetAuthFiledefaultJSONResponse) VisitGetAuthFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceAuthFileRequestObject struct {
+	ID     openapi_types.UUID `json:"id"`
+	Params ReplaceAuthFileParams
+	Body   *ReplaceAuthFileJSONRequestBody
+}
+
+type ReplaceAuthFileResponseObject interface {
+	VisitReplaceAuthFileResponse(w http.ResponseWriter) error
+}
+
+type ReplaceAuthFile204ResponseHeaders struct {
+	ETag string
+}
+
+type ReplaceAuthFile204Response struct {
+	Headers ReplaceAuthFile204ResponseHeaders
+}
+
+func (response ReplaceAuthFile204Response) VisitReplaceAuthFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("ETag", fmt.Sprint(response.Headers.ETag))
+	w.WriteHeader(204)
+	return nil
+}
+
+type ReplaceAuthFiledefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response ReplaceAuthFiledefaultJSONResponse) VisitReplaceAuthFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProfilesRequestObject struct {
+	Params GetProfilesParams
 }
 
 type GetProfilesResponseObject interface {
@@ -4079,30 +5210,170 @@ func (response GetProfiles200JSONResponse) VisitGetProfilesResponse(w http.Respo
 	return err
 }
 
-type GetProfiles401JSONResponse ErrorResponse
+type GetProfilesdefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
 
-func (response GetProfiles401JSONResponse) VisitGetProfilesResponse(w http.ResponseWriter) error {
+func (response GetProfilesdefaultJSONResponse) VisitGetProfilesResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
 		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
 
-type GetProfiles503JSONResponse ErrorResponse
+type CreateProfileRequestObject struct {
+	Body *CreateProfileJSONRequestBody
+}
 
-func (response GetProfiles503JSONResponse) VisitGetProfilesResponse(w http.ResponseWriter) error {
+type CreateProfileResponseObject interface {
+	VisitCreateProfileResponse(w http.ResponseWriter) error
+}
+
+type CreateProfile201JSONResponse Profile
+
+func (response CreateProfile201JSONResponse) VisitCreateProfileResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
 		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(503)
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProfiledefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response CreateProfiledefaultJSONResponse) VisitCreateProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProfileRequestObject struct {
+	ID openapi_types.UUID `json:"id"`
+}
+
+type DeleteProfileResponseObject interface {
+	VisitDeleteProfileResponse(w http.ResponseWriter) error
+}
+
+type DeleteProfile204Response struct {
+}
+
+func (response DeleteProfile204Response) VisitDeleteProfileResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteProfiledefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response DeleteProfiledefaultJSONResponse) VisitDeleteProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProfileRequestObject struct {
+	ID openapi_types.UUID `json:"id"`
+}
+
+type GetProfileResponseObject interface {
+	VisitGetProfileResponse(w http.ResponseWriter) error
+}
+
+type GetProfile200JSONResponse Profile
+
+func (response GetProfile200JSONResponse) VisitGetProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProfiledefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response GetProfiledefaultJSONResponse) VisitGetProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProfileRequestObject struct {
+	ID   openapi_types.UUID `json:"id"`
+	Body *UpdateProfileJSONRequestBody
+}
+
+type UpdateProfileResponseObject interface {
+	VisitUpdateProfileResponse(w http.ResponseWriter) error
+}
+
+type UpdateProfile200JSONResponse Profile
+
+func (response UpdateProfile200JSONResponse) VisitUpdateProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProfiledefaultJSONResponse struct {
+	Body       ErrorResponse
+	StatusCode int
+}
+
+func (response UpdateProfiledefaultJSONResponse) VisitUpdateProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6248,7 +7519,7 @@ func (response SamlMetadatadefaultJSONResponse) VisitSamlMetadataResponse(w http
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
-	// GetAccountLimits Current provider limits by configured account
+	// GetAccountLimits Current provider limits by account
 	// (GET /api/v1/accounts/limits)
 	GetAccountLimits(ctx context.Context, request GetAccountLimitsRequestObject) (GetAccountLimitsResponseObject, error)
 	// GetAnalyticsOverview Dashboard analytics snapshot
@@ -6257,9 +7528,48 @@ type StrictServerInterface interface {
 	// AuthSession Read browser authentication state
 	// (GET /api/v1/auth/session)
 	AuthSession(ctx context.Context, request AuthSessionRequestObject) (AuthSessionResponseObject, error)
-	// GetProfiles List configured profiles
+	// GetCredentialStores List configured credential store names
+	// (GET /api/v1/credential-stores)
+	GetCredentialStores(ctx context.Context, request GetCredentialStoresRequestObject) (GetCredentialStoresResponseObject, error)
+	// GetLlmAccounts List llm-accounts
+	// (GET /api/v1/llm-accounts)
+	GetLlmAccounts(ctx context.Context, request GetLlmAccountsRequestObject) (GetLlmAccountsResponseObject, error)
+	// CreateLlmAccount Create llm account
+	// (POST /api/v1/llm-accounts)
+	CreateLlmAccount(ctx context.Context, request CreateLlmAccountRequestObject) (CreateLlmAccountResponseObject, error)
+	// DeleteLlmAccount Delete llm account
+	// (DELETE /api/v1/llm-accounts/{id})
+	DeleteLlmAccount(ctx context.Context, request DeleteLlmAccountRequestObject) (DeleteLlmAccountResponseObject, error)
+	// GetLlmAccount Read llm account
+	// (GET /api/v1/llm-accounts/{id})
+	GetLlmAccount(ctx context.Context, request GetLlmAccountRequestObject) (GetLlmAccountResponseObject, error)
+	// UpdateLlmAccount Update llm account
+	// (PATCH /api/v1/llm-accounts/{id})
+	UpdateLlmAccount(ctx context.Context, request UpdateLlmAccountRequestObject) (UpdateLlmAccountResponseObject, error)
+	// ReplaceAPIKey Replace an account API key
+	// (PUT /api/v1/llm-accounts/{id}/api-key)
+	ReplaceAPIKey(ctx context.Context, request ReplaceAPIKeyRequestObject) (ReplaceAPIKeyResponseObject, error)
+	// GetAuthFile Read the account authorization file
+	// (GET /api/v1/llm-accounts/{id}/auth-file)
+	GetAuthFile(ctx context.Context, request GetAuthFileRequestObject) (GetAuthFileResponseObject, error)
+	// ReplaceAuthFile Conditionally replace the account authorization file
+	// (PUT /api/v1/llm-accounts/{id}/auth-file)
+	ReplaceAuthFile(ctx context.Context, request ReplaceAuthFileRequestObject) (ReplaceAuthFileResponseObject, error)
+	// GetProfiles List profiles
 	// (GET /api/v1/profiles)
 	GetProfiles(ctx context.Context, request GetProfilesRequestObject) (GetProfilesResponseObject, error)
+	// CreateProfile Create profile
+	// (POST /api/v1/profiles)
+	CreateProfile(ctx context.Context, request CreateProfileRequestObject) (CreateProfileResponseObject, error)
+	// DeleteProfile Delete profile
+	// (DELETE /api/v1/profiles/{id})
+	DeleteProfile(ctx context.Context, request DeleteProfileRequestObject) (DeleteProfileResponseObject, error)
+	// GetProfile Read profile
+	// (GET /api/v1/profiles/{id})
+	GetProfile(ctx context.Context, request GetProfileRequestObject) (GetProfileResponseObject, error)
+	// UpdateProfile Update profile
+	// (PATCH /api/v1/profiles/{id})
+	UpdateProfile(ctx context.Context, request UpdateProfileRequestObject) (UpdateProfileResponseObject, error)
 	// ListAllRuns List All Runs
 	// (GET /api/v1/runs)
 	ListAllRuns(ctx context.Context, request ListAllRunsRequestObject) (ListAllRunsResponseObject, error)
@@ -6368,8 +7678,10 @@ type strictHandler struct {
 }
 
 // GetAccountLimits operation middleware
-func (sh *strictHandler) GetAccountLimits(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetAccountLimits(w http.ResponseWriter, r *http.Request, params GetAccountLimitsParams) {
 	var request GetAccountLimitsRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetAccountLimits(ctx, request.(GetAccountLimitsRequestObject))
@@ -6441,9 +7753,270 @@ func (sh *strictHandler) AuthSession(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetCredentialStores operation middleware
+func (sh *strictHandler) GetCredentialStores(w http.ResponseWriter, r *http.Request) {
+	var request GetCredentialStoresRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCredentialStores(ctx, request.(GetCredentialStoresRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCredentialStores")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCredentialStoresResponseObject); ok {
+		if err := validResponse.VisitGetCredentialStoresResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLlmAccounts operation middleware
+func (sh *strictHandler) GetLlmAccounts(w http.ResponseWriter, r *http.Request, params GetLlmAccountsParams) {
+	var request GetLlmAccountsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLlmAccounts(ctx, request.(GetLlmAccountsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLlmAccounts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLlmAccountsResponseObject); ok {
+		if err := validResponse.VisitGetLlmAccountsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateLlmAccount operation middleware
+func (sh *strictHandler) CreateLlmAccount(w http.ResponseWriter, r *http.Request) {
+	var request CreateLlmAccountRequestObject
+
+	var body CreateLlmAccountJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateLlmAccount(ctx, request.(CreateLlmAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateLlmAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateLlmAccountResponseObject); ok {
+		if err := validResponse.VisitCreateLlmAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteLlmAccount operation middleware
+func (sh *strictHandler) DeleteLlmAccount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request DeleteLlmAccountRequestObject
+
+	request.ID = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteLlmAccount(ctx, request.(DeleteLlmAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteLlmAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteLlmAccountResponseObject); ok {
+		if err := validResponse.VisitDeleteLlmAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLlmAccount operation middleware
+func (sh *strictHandler) GetLlmAccount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetLlmAccountRequestObject
+
+	request.ID = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLlmAccount(ctx, request.(GetLlmAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLlmAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLlmAccountResponseObject); ok {
+		if err := validResponse.VisitGetLlmAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateLlmAccount operation middleware
+func (sh *strictHandler) UpdateLlmAccount(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdateLlmAccountRequestObject
+
+	request.ID = id
+
+	var body UpdateLlmAccountJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateLlmAccount(ctx, request.(UpdateLlmAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateLlmAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateLlmAccountResponseObject); ok {
+		if err := validResponse.VisitUpdateLlmAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReplaceAPIKey operation middleware
+func (sh *strictHandler) ReplaceAPIKey(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request ReplaceAPIKeyRequestObject
+
+	request.ID = id
+
+	var body ReplaceAPIKeyJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReplaceAPIKey(ctx, request.(ReplaceAPIKeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReplaceAPIKey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReplaceAPIKeyResponseObject); ok {
+		if err := validResponse.VisitReplaceAPIKeyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAuthFile operation middleware
+func (sh *strictHandler) GetAuthFile(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAuthFileRequestObject
+
+	request.ID = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAuthFile(ctx, request.(GetAuthFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAuthFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAuthFileResponseObject); ok {
+		if err := validResponse.VisitGetAuthFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReplaceAuthFile operation middleware
+func (sh *strictHandler) ReplaceAuthFile(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ReplaceAuthFileParams) {
+	var request ReplaceAuthFileRequestObject
+
+	request.ID = id
+	request.Params = params
+
+	var body ReplaceAuthFileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReplaceAuthFile(ctx, request.(ReplaceAuthFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReplaceAuthFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReplaceAuthFileResponseObject); ok {
+		if err := validResponse.VisitReplaceAuthFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetProfiles operation middleware
-func (sh *strictHandler) GetProfiles(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetProfiles(w http.ResponseWriter, r *http.Request, params GetProfilesParams) {
 	var request GetProfilesRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetProfiles(ctx, request.(GetProfilesRequestObject))
@@ -6458,6 +8031,122 @@ func (sh *strictHandler) GetProfiles(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetProfilesResponseObject); ok {
 		if err := validResponse.VisitGetProfilesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateProfile operation middleware
+func (sh *strictHandler) CreateProfile(w http.ResponseWriter, r *http.Request) {
+	var request CreateProfileRequestObject
+
+	var body CreateProfileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateProfile(ctx, request.(CreateProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateProfileResponseObject); ok {
+		if err := validResponse.VisitCreateProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteProfile operation middleware
+func (sh *strictHandler) DeleteProfile(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request DeleteProfileRequestObject
+
+	request.ID = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteProfile(ctx, request.(DeleteProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteProfileResponseObject); ok {
+		if err := validResponse.VisitDeleteProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProfile operation middleware
+func (sh *strictHandler) GetProfile(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetProfileRequestObject
+
+	request.ID = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProfile(ctx, request.(GetProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProfileResponseObject); ok {
+		if err := validResponse.VisitGetProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateProfile operation middleware
+func (sh *strictHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdateProfileRequestObject
+
+	request.ID = id
+
+	var body UpdateProfileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateProfile(ctx, request.(UpdateProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateProfileResponseObject); ok {
+		if err := validResponse.VisitUpdateProfileResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -7076,183 +8765,202 @@ func (sh *strictHandler) SamlMetadata(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"7L35cuO2uiD+Kij9TtVN3yPJ8tJJul2/mnLcyYlveiu7+9xbk/GoYBKScJoEGAC0rZNx1bzDvOE8ydSH",
+	"jSAJarNkd3KUf9IWSSwfvh3f8nsv4XnBGWFK9l7/3pPJjORY//MsSUihSAr/LgQviFCU6Cc5kRJPyZjq",
+	"ZymRiaCFopz1Xvcu3iA+QWpGUIalQtgOguw3iDL9kIuUCJKiG6yS2bDX7024yLHqve6VJU17/Z6iKiO9",
+	"17139rsL/eO8gN+kEpRNew/9niiZXUXX95cl6/hWEikpX/b9lXkrOgYsgPxWUgFA+jUc0K+sHwLruhrW",
+	"A9cPym/+QRIFCztLEl4y9ZbmVP1QJl+IggXiNKUAY5x9DA5jgjNJ+o3zyeBLu6/Wts1DhnNSPf7VPe/3",
+	"WJllveuHfq/IMBubxwtfEzTHYq5XyOYfJr3Xv/7e+4sgk97r3v93UCHXgcWsg3B3/0lZyu96D32/Tj3u",
+	"AwwssCJjs1hBcDIj6QqrkSThLN3BehpH7SFcg2cItO4NVDAL13u9BBEuFMnXRANsPu9ChBuNWvpNqkiu",
+	"/7EqoCxaPvhFYyHwHP4mQnAxTnhK6kdAWJkD5Eomy6LgwuI+yQsusKDZfFwyfItphm8y0uv3KLvFGU3H",
+	"gsiCMwk/MT5OscK9fg+XakaYogkGUNS+vG5Sab93P4DJB7dYwClJWEUTsj/Cqs95Sj7Xltf52qdq3Z9r",
+	"y+784sLs57LaTuer7/kbs83ON85q+w9XcB2lJWDFY6wA2vD/Gr9LsSIDRTX6dhMWv5FE3JJ0s68LwSc0",
+	"I3VcayFkE5UEkUSNE0FSquS42mMNr/xKKFPfngC/pYzmgGsjPyJlikyJiNB1vyG9ztwkiGDBSIqAiAea",
+	"iJFejkQTLrQEs9R1imAodDcjDJXsC+N3bIg+SyL1SxLnBBnY6aNCACqEWYomgsgZI1IiqbAiCJsPfiu5",
+	"wuhO8yE51GIKHsOeKwrSs/T6vTrFSIX1//XIbTposrCAOwQH5Oarn3gbg2qEXvGS7kNbxt8s612PwwmS",
+	"Y8oom44LIhLCGrjJSwOZCEqwMr/RGGEWLDfD61KS9BFTm2Me55SVympW7vXDalqHvX7exkHWFtGPwKQ1",
+	"UbjpZeci1xU6cswnS0AZ0LznBmuLIC0QI1xDk8EYTxQRYyNeOyBbsYUmZegtxEdyK46CbUqYOudsQqel",
+	"wIajrAU7yqQSZQJv67+dsngR/h4BYs5TkoUfvNM/RN60dB6++9H+tIxfFP693I5eW26o27bh0AWtC1aU",
+	"6pFQSskEl5nqve71+uuDLKfsLWFTNTOYsQYA41+uC84m3AxEovCaCjLFinwGc2IpzOpy7RNXODOyS5RM",
+	"VmaZNccKIihPh+hc66mIwiK0mBIESw7cBPFS6R8FQZQlWZmar6tX7QuCyIIkit6SbD5En2YE3QiCv6T8",
+	"jiEqkSAJ2H4p4iybI0lZQlDCs4zos0I3ZIrZKZpRqbigCc5QacxGiRhX+mt7siQdojckoTnOkIGxRIUg",
+	"WmihW5yVRKIbMucsRf+Bb/GVhgZ6r5kvvJhQSTkb9prolRhVXe9rrPgXYrCswEoRAbD8n9+M/tevh4NX",
+	"17+OBq+u//3FX6J87XGfG1hu/r0/tvFjR1KAOZt+3sD5GlD6UUg3t969lcbSogyZ4WyuaCI3sqJv5mOp",
+	"sCqXSqUr/dY5SCYJ004Ez1eXgECPYy3Weq9j6iy+N3Lr1Wj03eGrV0cvT747Gb16dbhE0+0pvuoaGqek",
+	"l6+/ry2uHwBkIbDfg5FV4GRdHnVZY0xpCYtDv8Jq+oq/QHczLgmyPhY00/oycAU3Wx/dUTWrtO6UTCjT",
+	"c0tQri2H623tlFm4zW4VcVfHK0oGpxmqOGtqn6WTIws1rrrUaeJKBYROXHETtZe8EIs+3BJxS8ndbtXP",
+	"G88YnHU146Xo9XspnkdMqH4vKYWwyv5anhiQh2OLvHKbmNCy6uozxWC8Hn9aEc/9a7LtE/7kNYx/k0b/",
+	"mApeFuD+nXuKDgg551KZ9yZUSGdiU2Mh60/Bx+z2qOmegxJSjWEUD/2qRDhNUVkgxQMmsJq50WZpEYPD",
+	"DLpVZte3Khb8qGaECpRhRaSqtCejFWlHAsAmoxOiXQtqJng5nSFNB1vkdn9uNrYV1iWJoGQNW7ahnEQw",
+	"C6b8J2ck7i3bVL478zaU85YPBlP2a7zdsT2P7X67NcqPcvRSzX6yJlOcQJQoSfND8NpO+cD++A/J2fAS",
+	"39nLIBj2B8HvJBEwur2iWZcnVz5UEjrIbzjPCGYwB7kvqCAb+oZy6wJ3ggUXdAw2D4AO51mv38OMs3nO",
+	"a/pUTYVPx8AhpIyvrpRErLnnlMoiw/PG7U8XotTevq726o8o7o/KjUuwDt/6fuziaxCO4c45ZgnJstgd",
+	"5KNu/lZigZclM1wwxi6M2zRQh+2k1Ypj2+Epuf9YeRDWODkymXBRU1QYZ543YkCnjN/B3ySlJdD1jE5n",
+	"QEb2/zm+B7BnSuAouhVESFgJVfPILBNBCUs18hYCT3OsaBIdBsxvmpCxokREnCSt18vc3R56Oik1R0o4",
+	"S6iEuVOiMDUQ1auJerYjsN7cD4enVsVbLFJaXq6Hfm/G+ZelmPUzvNT6NPPu1kXfWqcswA6z9IbfL5Xk",
+	"5rXGdE2ZMDXc3Y3pV+N2FKL4Ms9e7YVNPHyrw9+Mvhbc/SfrwNt/tB7Q7WdLgN0F205X4LkgWJG3b99Z",
+	"f/hG1kjNdVoTwYGMAaH1hcyXUXK/dyeoIh9AvOmxHgz/HztOt/AgnYLgPmpJzsSpZm45UctMkJQwRXE2",
+	"looLsgL3mWHBrHh1c8F91n10fCczc3zvxjx6+bK/eI6Iudyr5g33e722BmSwYDNxUg8NaEnQ5t7XwBgD",
+	"wCVHXhOEDw3bqAbik9GrbxdpWc3LgODTb1++PP52oet/nZPcKgLU7l7Neq476fyyXFd+EXbb/UXElKiB",
+	"v/fjfZHRhCpE2C0VnOWEKXSLBYV7XIn8la7x4Ctu/HCiZP8GDvcJF2QsSqZtU3N3Bn9p/jxE4NURNK38",
+	"eJKXIiGy4bvTJsUpYuSWCFRgKUlqJiLI0k7fjp1oEPURF35ukvNbMozxTcJux8750bj3zzJ+l1EJxjgX",
+	"yYxIJbDiIgoDs7zHAeKSSJ7dktS+iCBASD87RbwLRnogQR4LltUDMIxnfkLZlIhCUKbagPtQ4N9KYm+B",
+	"JMOFnHGFbonQKzexEgYopyjlxNzipCQtAcewIgiog0gFuGGH0lx8Qonoo8P/+7//z9HLb9HnTz8Nvkc3",
+	"c6WxgqP3n9/C1u5mVBnTc6CPQN/6DNE5zwssSIrIPU5UNu97DxEDRpfRf2rxOjRacUXL3y5lATaWL+Li",
+	"+mDjGUtJhIt1DBw8WPEcbrPclZiOjZQKC2WcWho+BIuM1j7Xd22AvfquzR61Vh9Qwpki98p4yFb2aH0i",
+	"9yoQITm+vzCfud3bPw/byGA1++WeI/MesPi25eQBGOo8nst1ssANLXwg6nFeZooWmabF+n1x1DF3keel",
+	"0lTtyK/gGU3mQ3QxQeYLS+/m2JAhtTTgYPY7KpFeARw/SxFVElmNDx6lJCMaM4BeEcAxI7CEPppgmpWC",
+	"AIInxpo06AoL0FLX8kk/VIFL4ARAbLK8kUBQzPpPS6ZopqcWRBGm9H60BwdZ0xtYUQIsZ65X6XEPtmMv",
+	"h63zR+8WUNLtijJEqJoBxvI05Lg1daBhhi1WC1rar+Hau5NmLppLk9FKvFuf/p9Lkm0MhD+EFCP3igiG",
+	"M2fI1OF1pZc1+K3EGQidFLnXkYE2+kLmp1pqlYyCfMKJ4FK6bXXLrZeHR08it14eHi2VW1sS5AGG7KX5",
+	"H1ua12716pt/y6ewOaRvaQwv1sfDxZdJxu80z+g838Oj75/kfA+Pvl96vlvRWJKGt6tbg3FKSqcWA0Hj",
+	"mQ3m3Y27ZnM7WuFpGxPe2wMwDBqEvkiwJKfo8+eLN+impFmKBJkQQVhiEVwQg+BD9CGnhvFzYe5vkxlJ",
+	"vkhkN4FugM8oLuBDBooKnk5JMN7yAw9CkX49G/x3PPjnaPBqPBxc//UvC29mlD0Hfw3SIP47NigE18wf",
+	"ZxTLPuKFOatsjgpBJvTeXF1ToHeCcySzcjpEHeBqcaaXq21kcP3Xbw7qf7/4b8uDrOq763ArWE/ZlYb/",
+	"mvjYDtldIoIbC+wOoNX5De2rHpdMUjlJ02ikgrkoWP0GVk/3Rn+kF22Hf2OHaTPNlOIp41LRxDrOImkI",
+	"HS60ZYkHF56PuvQ5yqweUs2KMj6tbGodgN83mQfeFzFEF6oSzVOBmcnBk9Lg5NQkFVgu1kb+n8scs4Eg",
+	"ODVZEDCHE2FD9LPRzxC5J0mptGJgjBXpYkJtch+dUli61efcAEb385iG7IE1tnCKOBgVd1QShNGUMCJo",
+	"4ofQIaSqFIzoOI5GmmA0ZHeGZUcyUiFIgT1r97vq9XsTyrzo6fV7wtpIvetVjtbHAuuZ2xJFo2/uV2wW",
+	"WOFvMIKhiC5SsbjbOsS/Q6aREdwFVjNpdBNjmdzwdN5HM4JTENm/lUTMtYINLw4R3JAEp6uPXzohP0c1",
+	"YTg0rqz/UY5GxwkwG/0vcopgg9Lq96DYYB8mbMNyQSJgEGro1qy0wjEZCchtXAd4WFZJYjavzv2pp+n1",
+	"XabMeEJJ5rLNDGvkajzhJav9SJmVtMFvEy5uaJoSLdXxtPahjeCO/haM5X297qfadU+ck8Fh1NhYhbqd",
+	"2OeDaq4DXvYRBlrCjwvzTuJuIULUsxjWhYA+m63Fs4lj5UsZcGs95tPmSi6rxLn2Wm7tfWFKgQxyygCl",
+	"jAZUFACnKml5WBapifiIr8kyEjOkDvxZ9sVlydzb1imz7At7O+i+UpxnYzAnln33ifPsHGeZ+fDBE8r8",
+	"vVZkDGAe+j3OyAqJr37dD/3FL9ZAsuzl5hpXuie1L1+7s/xoZVMdp2ZYjnN7s+dw42cs0TsuArQI1OH1",
+	"kos8VH0Oif4qYjuRezVOSiENjrnX34MBd25+XhoJb4cOh+pXGwyR38Mjgvg/6zSJeRxcBL6MrFOP2LnQ",
+	"GNRWIKsluAOgDDF9Efa4xK5HIXc47yooa168Xv/0V+DMLb0gxJTVMKN2lsFIIQLE8IPzL5dEapuxiR4p",
+	"wWlGGbHRbRFVdlFYcCTJ2LP81fLuLfOPjnRPVSSFfGk274PW26ic+Tzlx+9qxRtyZ0r6mIXAgdnr9ypv",
+	"aq/f877U4IH2a0bjDkzWy+pwBaeQPfOliC9KpsPzgvdbALBZN/aGgrQDJszvABQ3XCs12aUsx/Yn6ZTh",
+	"bP2T1jrtFg+6Cgr01gFhqXEdiJIx8y+3XdjjxIWlJUHQn/xCi4Kk0a1aAFHOxiarKW6VcFHMSClN7YhV",
+	"LI4WD0ltWG4VoliDV79G/HWiCanPH47Hwjg6xHbWD/S4GFuSjwrQC6kr5oCoSCz2tE50i97oGACwipeq",
+	"ll/sIuCPDk++O/n++NuT7/rrJB03h+yE20YBdQ14Na/IwN4zd576Z6R90dpcxEjOyA1m01NzochZQuyd",
+	"JTiEtTvXXIFaH+3io9h8YndPyiZU5CT1fvPq3tTeQbmLUX0rCqamvmntWl0LFRppGiaf1FyuTkpVCoJK",
+	"8IBa6xYD1YfZGnYREMSqg2T9clZaxWOBZGcn5jpXAvXmhKnonBEc9v7l49GolUFsXteA8Nd8iLJbnoT+",
+	"+bVpoIXk/3H14X2XzuIcS2N9ubCmzKi0pg92GPSDHsavAnwNTCobbtfrVwBxP7gRPhmHQwuoxvMQKNt/",
+	"1z8sieVrsALnvmjs1k4X7CMAVQSQW4gPjQSEbjdAs9tJv1Zs5ppK2pqBf5tUr1kgkWPRnz7EMgKmYAHX",
+	"C4/5TeX/3tZpm+Mc51h+WXxce7x4TrxonNRiNHn8fc/CeHk/TywWo+k6WVAxityu8OJKxnM4VhQ0m9S5",
+	"yfG9y7INqiM0YkvM88EdTUm7UIb+Ct2U6ZSo4Lq0lESiNz/+dPb57afxu7P/Gl/9eHV18eH9+NOHX358",
+	"f4W+ORzZ/+AK0kqoF6eIuEAnlyxrveG14ortfM2jo+Pj745Gx99+//Lku+++HY1Gi0W2qWy4UHn4tq09",
+	"6GSN4GLB2R+gOqUEDC14bm++TICaCbBAgjACwWZOj7IzD5Ee8gdQ9DLMkEnmQAA/BmsVoixU8JlPkJWK",
+	"ZhnCRZHNh9rYSbJS0lvyLsgxjeoxYVqZU4aufFWgJdp9DGb9GA4F0v2ty8DpQNhNDIE91u6xdjHW1rGv",
+	"MwXpXXWB3LitM+GwC3Nma2EzKTpT8dv8jIIdEySsRy5wvYtG+n/ZD60bKiFCYWrucE1oynp3uG/sMpDL",
+	"Bd2uo7MemriOM7lpJZqRIFwRybIoMmqtVszAPOU5WKfWWW8LKuinGsX95eszBDN2q2nOER/V2b5QlnZd",
+	"6vOpsIoUk3dErHfgv8DAOkRCYV1utDbJ6hnsy8/MwTqIs4MJF5yadjpIOLEwenCI3rvjrIVvA7DdLkzo",
+	"Rf2wl6eYFVxS755bCdk/ui+i+C7IlEoFtDk2YepJzVi+9I/RlXscOXrBs3pBTJNLjqWkUmGmQiF6yTPy",
+	"9RWO7vfAhxNuHbz2S28Na+wiwNC+sSPi9aeFgYCmFztvm7k6phY/ogAR+iGDv14Qf9MSFf6SflfywtLq",
+	"CreCFc9ZzGO2ctDzooaszTCEpXVa20erjPMpgJzd/XU39F356Ggh9zXA1nSUVVFMla+s+m2xuyyeGxTx",
+	"czUukZtb/BhwqbbpOqbMZqSGN7voQv/apSna8jIhbyqZLR64mrbP3LvBGsLQsIqg2vt5VErvQn/Oumm/",
+	"5vUN/SMLVxJWc372LOJdOJVaxVy/pjzk0O8Ugq3mhQqTlGuo0G8iW+CmCq99XaFYA8tIwdgOzN+thyrA",
+	"mD+Ee+qSFBlOyNnHi1/IfE3IbFy/obHytv82WF8Z4bxa1Rxvz1Iy4y0yBZfczF+vFARg3h/bNKZtRRc0",
+	"ywOhSzc+6DIP/W0azdsM6gmtYDMuOluSfnjFxfqZhyZBPLxGJfcFZilJkcvhWTPlj91qTiU7F2im55PK",
+	"AVXlhNbM5yp93QYvV7mLYRz6GmvbovfAOqbGW42FCWIP3QToykxgj18Hx48D5XG1rVRq5M4Dt6o9/GTH",
+	"tUv3dYJWEhVB/FzkJDdxW0QzMTd3+1zE0zU9BuvMCpepfoerHMbnSNAEAdvSqzt1ateBArcdEP5+USld",
+	"QtomaDBGEmXEWeX3W8v38yGYcZ3MkYXRfrbaUxUHs5ooCrMXu0sU6HdQ8NwkWIcs17A64VK1TbKNQ4NV",
+	"U01tjmSMDLZhJa9dkQ8+4cU4J2rGO/yAU4ETMikzc5OQrOr4beRD8btaFQYE0xY+/sizYOuDM/UWfJSS",
+	"zqyhkxoFepXERetUedUplQX0Q0O20UooEUtJxMDrJfXKECGYFS/QOwMVB6RFsYYwrFN3erVbEhgU7npW",
+	"D0NsrOLSTLtqidZ4ZdaykSNV0wP7NTXTMfcYkw1VgkB9Cags5kPzNryfL2RJDQ9MVBovjrSMaZv1M6uj",
+	"eVPy9tu5Mh1lVHyux/P632B1z+h7C5N5du13uyxZPC1jPWPVQuwrTEqoI11XBkLFsutxQa75oaaVVpC1",
+	"YW7mD5uJuVL4dcxdE61/uXY9ta2YO4+xcJxKzm7RT4Z1LTR6VhvpvWWIi2o9fdW6hwpKKlRXKfa3VTPl",
+	"V5AOoWyL4VME82upbc/Ldu1SgBCf9e6jmR65ax5cq8K62xKKAVUtq9f0KCLfrKZJnVCakQM4Ucj4b1GC",
+	"FYYiA0ALIbfCbF5VutBUrvB0iN5RKeExaLk2vdm2KHBZ+ujk6Mj1RRy7RZjgdZPurrPFUTszG8ZspWYP",
+	"keubW3V/gMXQlOQFV4QpJMBbOpfoCyGF7Z2gwyWNywcJMsUizYjUzp+gXJrbeTLDzF6Oxxt8rc9e2syj",
+	"M6ymRqndSdWPdh01y1esaxb5MCYXqXTxpg+Gju1/eQlHy6wHrapf4bI4XC4EnHHGpQyKSU1LLDBThNiq",
+	"FfSGZlTNtfNA96A0mOSbYm6i6bzFUqFfYBzkWWKryyYgouUyJtL2VvcLs6oKwamuhY5LaX4pdA0+/UiW",
+	"uQ9EIir4ZysxrmYxRVGq3/NZNo88sBvJsxJIz42nKz5Uotm2IHHnGfg3goNt4bhrFto6miqgQLPtahdt",
+	"YmhsPSAGwtIgzmydMMfHV/YK+rwatlay3dflWqFaZgiUKMyMrrQevHyFnYW1FCPPl2rG3cqwC2cyPNo4",
+	"19fzpK/WxcJmMkYvO/3yr7tBaURoa3+fTTVAVxGlUuS1QINIOsA0E9Eq6ZTRCU0wtAvGvk+wftNWzDKF",
+	"4whTVPgqejVohIWtTxYVkMKDf17/6ktG/ftfev0lkASeBHuxSGnLt18FisbOrmI7NfuVS0YFlWGjLbeq",
+	"OK/H1GqquvZrXmBDw+BasqvEbNxmMqVkTQFVzW3r5VqH6CeAKcoJZrJZ5bVeMLZWjBEpInR1BqAq3yHP",
+	"lAZAph9wUK5624Vat3qB+TXG1v4RS4Tu6JZukysvrRsAHdaRpA7jc5tCbBqk25B61/QM7oYBvMrV2tTE",
+	"TdVcv11LFVjYys6vZPE2tH7YHf5ZK525OVZ9rWU2n/3ea60OKzUFfs0bpEdcS8T4fr91WRF2UGvE7mqE",
+	"q3kxYmTSb5UfrRr01AVcHbmDG4ulNwYLypbaR9vwY7tZvnpfdrjnGEjCvohrB2gar/dWGygmYYu0rQ9r",
+	"izxtcVzvwN/qsPYuYLtjVhcP2255ybY+qL9H2WVr2Z3f2lR09uhayUuLIy/oKbRe1njMncqqUsC+oHG9",
+	"p6uvKaw9qbHxbUnmNeoYrx7zW//UzNU0joNylV2ns1vr0M3yh4nUDf0+6wFmcY8Cn9zniuBygXRFuLbl",
+	"wVL9Z5gjZiO6/xCNCmpJdwtS7VZLpBPODe17clgA9rtT6S4mqBAEHvRRXkqFbgjCCCqtWGuv3Y9jaRqd",
+	"S/bqulBYIfVLD3Fd/2iBGzAoAte+Rdiwul4YF0oV0rVrH/o7rMmzUopcOyXJp7i5fCT7w1rJSPabpSV4",
+	"AkDHjsEWQ93h/e/GQai1K2D9w1I89nLGqdk4bmdvu2SgQxE9LDq3n7vSc83Zv9KkVU+NK5Zx5DzrLMsY",
+	"hN64V549o7VdP3GNqomR075yFux2yij6zKZN4hk/+Rl9VOPSSAVvilsVi1oa85a5cGxj9ZKKGybneja0",
+	"gEV9DXEqfp3PGKPSLsa96ygVX364BXxVlUteHXAtcegHqcnE4Nf1BGP4YVMYup107LLSSBZVlP6Hpuj4",
+	"RusV77SCsLQKbiBlxgs/aVXDfVwJ6jUK8QbbWrtmL4io5o+71vmgfUStCjv8HVMEdqUbmmZyY4frLV3P",
+	"U7P5U6NUKFv056iriqPrquHxutYDYYHmWcezGr01H61FdDMLX7OO5UppAx0i5PhZM7c1SkTmlIW/Hq7j",
+	"edk0Y3lNM8vsadXs+eUb2nmL7HUcBJMJF6oeoMRIzzrwdInmjN/B3ySlJXDgGZ3OAGb2/zmGS4MyUwL3",
+	"+kBh14sS4gsiJKyLqnlkzomghKWZjoASeKoL3a4wqA2QGCtqUsBixx/9rsxzLGoLwaXi5nYkoUHvHK1L",
+	"mkUuWc1D9cijl5/wD9COfFPqWNmv+hh63xR+G2wq3sVK3+AKUpgYJFOyDph0mes3TlFOddtR84rN6eVK",
+	"x67aE4TgRcFzF0YxROc61TAoiGe0ch3+agxTLJyPV7/Xrp0niCyIhpvrHHkjCP6SQiwQlTZylqSmv7Ck",
+	"TAcTZRnR+IRuyBSzU7sgfXVcuo5YrbVHuijp5Y9NalRV+q99V7DwmuGRn1tLZ+PvPcjHjx1JcYWzTT9v",
+	"6v8hUPpRSDe33r2VxtLaBoNmpEkpqJpfgU5ojvcHwe8kEUE4VLOQOU6ND/fGvBm0qZalDyu6Onv3FrrE",
+	"UTZEZ4yzec5LQEycui5yVCKMUlJkfK6D+sw1honPwKgQPDXsD7lFIq25mp69sJKE8y/UR+S97o3HP3Op",
+	"Bs5al83raFxQqHsB5e8/ffr4A8HCSA8zLDAe85P/YKZU0Xt40Ng64W1QvCmFDsYyGZw+jpwy1IxqNgGJ",
+	"GU2I7XFVuc4hGOxvH98OjocjDdZqP397/xmdTSZEcPQ3wojAGfpY3mQ0QW/NQOj2eDjSNB7ehn8w++/1",
+	"ezaJu/e6NxoeDkeabgrCcEF7r3vH+ifTIUwf/AEu6MHt4YFVV+RB5qvZTolahAg+a1zzOYg7IQIFCY5y",
+	"iN64sGzdxi0xETg6FjqFdwUSZCKInKGqOLFuKG5adUlUSmL45uCcMyV4hhgfAPvS6ADsybT6Tnuve38j",
+	"yuqivvBpgQXOiSJCaouhETHE8xwPpAlHIRo/4WPdm1TqyqTatW9wN8vc8wEoh/YORFFzwlADQttGVvZp",
+	"PNWt8apjrdRBWJmxxmo3WUs1xCAM2JYr7QgDjgdkSjXXiALzaOtIODDD7EejkbVElPXjQLFQahxIB/+w",
+	"TrJq2YtMzPoxaEpqBJNbUBtU84gEmzwZHW5tHfW+b5F1fGZQKZsLuGeFyV+Ojp9u8gYQQu/1Q2D5PdVy",
+	"LkzdXKt0fHNydPSij8oAQOibk9Hhiz7yLQ1tm074/fhFX6tEoMwYLQR+PXnR1/HNGU1gxNGrFzqfPdip",
+	"Tq0BHeSbl6PjF8OacNIkG7LsX68f+m1B9ev1w3Wg4vfOSyEIUxWXsfC9mTsK1rN4tsdwNlc0kQf8FswL",
+	"ctfJ+UzQjtbHjOLEJ7a1iIv+tzkQvwJD7Cv+ol/18ddCWaKCCOSjuvqoyEqJErtimyhQRX2eZZkOUJQK",
+	"54VRMj9/Oo9zPreND24XS7gfRE7rggCZaaQpM6ojC+4oS/ndEL0x+Ke7vh6dzE5Rghkw8htQKfOb6lYU",
+	"9nqg+LAXZ3tmvBrHczbY0QnYld8Brzsexd2krUhoZusWo8ufztHx8fGrCkBmOXwykUSdIqtfSdS9NJej",
+	"6Re2ShBoe00/3q+9Ji0wAY8qoGbYRGVjhrAc88kQXWI2JQgrlHOp0PEhSvFcdu1F8S3s5C0HoyDBGWEp",
+	"FmjGSy2jUzw/9ev4Hgpwl8kXojrXYh7X1lP5sWDQwL9m/0zxfLXzP3t/pqH7T86IzrAxk6EbSPnDgkL4",
+	"QUAy1BavsXwvJKEoFO3IHWv//Ol8NYTQETyOylEOJTlOEXelzq2JJ22bnepFwAiwZLuWF4aDVutbq6n9",
+	"buV+iwnFxJ576esR+ydHR08vZ83ZPrnS4aEfSmEuEEg/CBvfhgh+g+XshmORIhw57FD4lmp2ICuTMyp2",
+	"rfHjzU6FFTlFZ/YEzaUqlYhOGRdQl8oB2NiJRmwmGWwgNSJVbGRewIRVqPPOaMjCNpwtcoxghHmIABQJ",
+	"U3Y+A6BnUSGvrDIXolZcsauhywqbCXCmshTNSYWWakstOvcvX5l3d3hyrbkiEHpLpQpT/qrNmCRzIwz2",
+	"+v8jmM+qIA5QKsvyAQ56G0XZ0Bus8A2WVYkDbjOBb+boG1vuIH3Rt0oxzRQR0qgloEJPuLjDIj24wckX",
+	"+AcyUaByiM5NvQDTmwNeZeTO2wCnlW3hfrJBiTbt1S5bqw5VnxHHbKOmwtss942cWkZC3HNhS/NWmNZ0",
+	"2XcpQQmWZCAJkxSGsClJF9CXoMCKAgJocMHvY9vpXy7SfuqKz+L7jZZ2S5V2puk1UVatCpIo9VddS1u0",
+	"Ir/s9ZYWG87FGUVUz5e19izLmtV0TeDjkKPK4/eHr46eU3sMG4x1sc4ape655CO5ZBOaBZcRMWrCsiqu",
+	"0TOXF0SqH3g636b4rAcUPNSvSawXs4F+hztAP9cGMXL8ZpEAuMqZtMfCzX11EXB2yOWD32n6YHhiRhRp",
+	"o+kb/XsDTWu4chIR6vqj/Xlu6Tzj4OxSzhed1ehp6VqbIHss2A4WxIAZUzPhCrJSTkzMc43dRz2a8dsx",
+	"WIEufdvGNBuptmv51QqIW0l+PTGem0XuMX1LmB4D5yL5BQ8GNkPvSSiijHDeejuQ3RBDfY6VKOEkFmqg",
+	"R0GYeTv37OMF5CzusfZR/LkbrIuxt1SzgYuN7ZLq4Ln8ieoUrN1dNLg5ukS5qbtm9oZrnuKJWRoERGvS",
+	"+71XcwDDD90k5+K0nZc4Gnf94yc8XTxM85uHPTY/UttYct4P/edntxVZxJZi8LFazMVk8E6rM4uWtIKv",
+	"ZvusvU57G3D1c85c2LBudGyY0ToUu6ewp7XSNzmwUJIUQVe2P7dv3fef2zvW9471dRzrLaBaTNLI5xHR",
+	"Va1zEVhd8Avz4Bfg1i69+Z4Sulz5ninsWfMj3fghJBe58O2R7NR/7+Z4Yud9bdqoy74I27zuse0x7noP",
+	"yoiIX9FNH6Liij76/QFuzT8fgLLLiu88oNFT0Ky26fYHviXjOADks7vhdyuD6nM8sQN+AT6bde0xensu",
+	"95gMcsXToyam1pQg+vOyNOmUNeSEp2dZZp+tYLrFQ7FjlpqN/o4UXe4vLZTX668Z3d1hnzRqB6+84EZl",
+	"v3UXvLxgX9eCYw0YV151owPtuqt2PTbWX7WvzLTiJUlVS7prRO0H6chGwDIJEinMXwCZjkSK7RrGrtK5",
+	"HeARhvIm5Zl9ZeZdWrCuKWEs0LnUucyTMkMVz4UkhtHTMfQfcOrawD9/AsXo5Okmf88V+gl8f2bmV083",
+	"87kVdnriw+MnnRhmQZ84R2+xMKUrTg5fPuWJy7Kw5TDekZRiU/voqZNnPrNCcCA9rV1YsDx5Eo3tOoM+",
+	"hym7W3LmeBUl1GzCpn0dSfmqFLbliysD6J3p0hzbzdz0C9LJh5lJ9QubAwzRe17LzQ8i5zPOv5Q2BbUg",
+	"AqwA431sGY5XVT/knXFmP0cHjdb7Kcl/sbTyegKNInnBBRY0m6NyB/iaxOBdQ1399RLF/Mq9FVPMg4cL",
+	"U5r/c0bUzLY2qjq/ICpRyVzf7NNG9rJR2ZDuwofO3r/p9Khb13uXLpZloS6m//K3O6755EoZrp986nAp",
+	"bf9DrQSadGGt9yBXr7NrsUDwHQutdxy3613aRmS91OyM3xFhr+cmvHUeSdipJ0iKbk3cnbndenXrqdxl",
+	"UWxlD7CwNVO5I3DYaGt7s/XJzda9AfhnMgDDTj57I3BvBO6NwL0R+DRGoH1au9GP3mq7YfrRC//q6Uoh",
+	"h64HejIf/ELmj+bRzfF2FpFY3+xKtz5H26x1ZpparSghaoGMUHBHRcstfr5865pY+ig120F6vajHf2Fx",
+	"9ITM4Id6TUxpOvTq2oG6viuomt/AX2P459iUwnwx3IvNvdjci82lYjMWhFSx+7av6eB3aaOQOiuYdkpO",
+	"7cJcJDbr4RJy3XgJ10CgK3pi19bM3pLZWzJ7lrxnybu3ZGpstptNH+hGlN33Az+axxE+7Z88NZvu8G3p",
+	"CugdvrpRMOiZfe/ZfXS7FDf6cPaus73A2QucvcB5GoFj5cFSUXMglSA475Q4V/ox6hA85umfVfY0nYJw",
+	"GTnQYBvQtDb+Ji5BaKsz0KAbXKQrCSBodmaObVCd2gKP117S7CXNXtLsJc1uJU1dQiwQOLb5V6eo+dk+",
+	"j1g31aMV0hFsW/rx1x8x8Qyy8Q8f5NAxjW8QHZtmWTeh7mltl+/dmocWu/cG4l5s78X2Xmw/jdh2InWB",
+	"wF6eQ9iZP7h68uA+u203wY173WKfQbcX8HsBvxfw/8rBk5flCoGTWBcnA+JnOqNj6GMukU27MPlBOo5r",
+	"nJeZokVGIC1D/v+6ySsSBNopIzWjEnllwHx0MnqFap+MGVdjPRT0oNJVWCib9pEpkpM2qyYQdksFZznA",
+	"1M0DletM7QY/hVVdxsGnp3b1CIel7swnphGekYa6Hy+5V0N0MUHOaeC6FqOMmz7NKZUJv9WF+Ex3ZxOK",
+	"iFlCTGdLUTI0wTSTCMs5S2aCM17KbG4mtMONMy5hIhcOqkwJwTnEN2IWhDcaVoxEkMtoSlDgrDazIFMs",
+	"0oxICUO4RetOUcOOSNjLkj2jr/5PFmkLwNxH2e6jbPdRtnv9aq9f/amjbA2rX+gtOfhdLA22NeK3dcXx",
+	"vFK5PofYcI7LJw/k9eJ3b1HvLeo9x99z/J0H8a4sBQ4SsNB0E40O61s/j8oD82gvEjayyzTssrh99OEX",
+	"QMZtWmMLp9vLob2FtJeXe3n5p7eQKlG2mmy0MVqyWzpeEQYno19rxx0TllbP/owS8k/nLg2PbO8w3TtM",
+	"9+rAXh3YqwN/TnWgJrtDhUCRvNCVAx/Z/WyIfrKNz7AgVfMzXuDfStLZA+0UsaCoa4KzTA7R+6ALmrsS",
+	"hqtYomPNTLFK3Z/L1IrVV9x2bVVPtZQjxhXCkwlJVCUN/LhcINq88pXRkrGfPISeuGuaIBMiCEu+5tZp",
+	"TtwuXeu+l9pTeFoqXI15WhhBBZ5CFIbeBJpQkqWGYEELRVjZs5QFMVSm6RgLSuTwj9IW5MYqFau0B0lL",
+	"s3LS0R/EcaaDHbVGE2RKpdLMtOLDnbFBl66Mq6w0ZJxRLHXxXYWnrg72ENnZ0Z2gilRM1NTf9hWRPxgQ",
+	"wdf/Nfggihkp5eD86vInZLRtJIkCJn44RGeJZUkAPoluSMJzgipINZpXIprnILMVyeamLyYvYbtSYaF0",
+	"LeOPFzokmIsvRHSFxThs3mlLOD/JE/eEq8/bPOkWXuzJb8udpwyEQa/gd2xQCK7j2M6mhKkf+H0A95iy",
+	"FOkj11CaOJFaAcl5Sifzalwu2spIJ712EmibYkzvtBrFrNa5Lt1j1i6a2GGG7IF5vdkscVFbu+7jGz0X",
+	"3+kjCpXTtUHuKsU7MbDHnO13w8MxpeDJe+M1/B9gazkdA7RFmuelAnAM0Y95oeax7J5gCK8vgJap+3h4",
+	"dmg0lm0wQNN5bccqQ2OSJ27ht4h0zcr2+sKOaNOA10O36nXNRYjpVlso1ewAnBng7lhwn3L27i3oB0R7",
+	"OocIMBVR0w7eHdD94O7ubgCkOyhFRljCUxf7r90h2RxxRhAM5Q5GU8slyfAcEtxI3zd2OETv6A9D9IGZ",
+	"tgw+oh3ed8fAOEuIpnGH1kP0mUme0YSaKHiL2/YdUJpirXYsPM8dEBpUcTw6bsPjnDNZ5jr5gU4ZSfWu",
+	"EJzV4OOHq09IrHkb8HfARU0Upp2QidxHwDSHvWU3AM9GOxkHOpDKovnoBUhg80jDw0HBkRKuN9RJqfZU",
+	"epqBBAmpSQ+QCH1zcnhsCKf+nSeZkJ7i5FO/Zlz1zCrC0Bvsrm5UI4pTxNWMiDsqCToZnehF62wVwvQu",
+	"h4iRe4XyUip0A6swJ41vJM9KRfRZo2+0I7BUMyR4qYh8cYrs6SKn2OuFWXVcC6ifgWC4AJZyP3fmsBKl",
+	"VJ24/lbva7X2nORedbmQjkYn3y93Gh2PjiKwU1godPVxQBlVVGO+BmdmV7YS1egvLtKP6PPl26+YTAJi",
+	"dmSyhBIcu7s1bIFykxxEUieotkYUi8+hRgm8VN0Cwjt81vXbkN9KnFnPTZXYdIqSjGDhhuNfKBkib6gq",
+	"InLKtJCbEY0Ajh4WIDwsfxVT85Lc8i9mZEOhN/Wrv2fVVqzqwQUKYWg1ES7QhliwfM+ACBLn2UFOFE6x",
+	"wgFXbERX4Dx7515aS8OE8d3wf73PszULlGmbxHZOqy5q/Hqf49jOlgi8annrn9jizZpvxW28v9tbfcgp",
+	"uSUZL3KAQ79Xiqz3ujdTqnh9cKCxYMalev39aDTqPVw//L8BAA==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -19,7 +19,7 @@ type browserIdentityKey struct{}
 
 func browserReadable(operation string) bool {
 	switch operation {
-	case "GetServices", "GetProfiles", "GetTemplates", "GetTemplate", "GetAccountLimits", "GetAnalyticsOverview", "ListSessions", "GetSession", "ListAllRuns", "ListRuns", "GetRun", "GetHistory", "GetEvents", "StreamEvents":
+	case "GetLlmAccounts", "GetLlmAccount", "GetAuthFile", "GetCredentialStores", "GetProfile", "GetServices", "GetProfiles", "GetTemplates", "GetTemplate", "GetAccountLimits", "GetAnalyticsOverview", "ListSessions", "GetSession", "ListAllRuns", "ListRuns", "GetRun", "GetHistory", "GetEvents", "StreamEvents":
 		return true
 	default:
 		return false
@@ -27,7 +27,7 @@ func browserReadable(operation string) bool {
 }
 func browserWritable(operation string) bool {
 	switch operation {
-	case "CreateTemplate", "UpdateTemplate", "DeleteTemplate":
+	case "CreateTemplate", "UpdateTemplate", "DeleteTemplate", "CreateLlmAccount", "UpdateLlmAccount", "DeleteLlmAccount", "ReplaceAPIKey", "ReplaceAuthFile", "CreateProfile", "UpdateProfile", "DeleteProfile":
 		return true
 	default:
 		return false

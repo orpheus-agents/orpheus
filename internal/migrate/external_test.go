@@ -14,7 +14,7 @@ import (
 )
 
 func TestExternalInputsMigrationPreservesHistory(t *testing.T) {
-	pool := testutil.Database(t)
+	pool := testutil.DatabaseAt(t, 29)
 	db := stdlib.OpenDB(*pool.Config().ConnConfig)
 	defer func() { _ = db.Close() }()
 	p, err := migrate.Provider(db, "../../migrations")
@@ -62,7 +62,7 @@ func TestExternalInputsMigrationPreservesHistory(t *testing.T) {
 		}
 	}
 	for range 2 {
-		if _, err := p.Up(t.Context()); err != nil {
+		if _, err := p.UpTo(t.Context(), 29); err != nil {
 			t.Fatal(err)
 		}
 		var nulls bool
@@ -78,7 +78,7 @@ func TestExternalInputsMigrationPreservesHistory(t *testing.T) {
 		}
 		checkOld()
 	}
-	if _, err := p.Up(t.Context()); err != nil {
+	if _, err := p.UpTo(t.Context(), 29); err != nil {
 		t.Fatal(err)
 	}
 	// Down also removes actual metadata written after the upgrade, including events.

@@ -35,7 +35,7 @@ func TestHTTPMetricsBoundary(t *testing.T) {
 		name, method, path, body, contentType, token, route, metricMethod string
 		status                                                            int
 	}{
-		{name: "success", method: "GET", path: "/api/v1/profiles", token: "key", route: "/api/v1/profiles", status: 200},
+		{name: "success", method: "GET", path: "/api/v1/services", token: "key", route: "/api/v1/services", status: 200},
 		{name: "openapi", method: "GET", path: "/openapi.json?private=value", route: "/openapi.json", status: 200},
 		{name: "auth session", method: "GET", path: "/api/v1/auth/session", route: "/api/v1/auth/session", status: 200},
 		{name: "login", method: "GET", path: "/auth/login", route: "/auth/login", status: 404},
@@ -49,8 +49,8 @@ func TestHTTPMetricsBoundary(t *testing.T) {
 		{name: "duplicate query", method: "GET", path: "/api/v1/sessions?limit=1&limit=2", token: "key", route: "/api/v1/sessions", status: 422},
 		{name: "unknown route", method: "GET", path: "/private-path?private=value", route: "unmatched", status: 404},
 		{name: "unknown API route", method: "GET", path: "/api/v1/private-path", token: "key", route: "unmatched", status: 404},
-		{name: "wrong method", method: "PUT", path: "/api/v1/profiles", token: "key", route: "unmatched", status: 405},
-		{name: "custom method", method: "PRIVATE-METHOD", path: "/api/v1/profiles", token: "key", route: "unmatched", metricMethod: "OTHER", status: 405},
+		{name: "wrong method", method: "PUT", path: "/api/v1/services", token: "key", route: "unmatched", status: 405},
+		{name: "custom method", method: "PRIVATE-METHOD", path: "/api/v1/services", token: "key", route: "unmatched", metricMethod: "OTHER", status: 405},
 		{name: "public metrics absent", method: "GET", path: "/metrics", route: "unmatched", status: 404},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

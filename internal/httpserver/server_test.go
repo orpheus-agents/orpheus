@@ -34,7 +34,11 @@ import (
 func testServer(t *testing.T) (*httptest.Server, *store.Store) {
 	t.Helper()
 	c, _ := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
-	s := &store.Store{Pool: testutil.Database(t), Cipher: c, Settings: config.DefaultSettings(), Profiles: config.Profiles{Profiles: map[string]config.Profile{"default": {Harness: "codex", Model: new("fixture"), Instructions: "profile instruction", Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
+	s := &store.Store{Pool: testutil.Database(t), Cipher: c, Settings: config.DefaultSettings()}
+	profile := testutil.SeedProfile(t, s.Pool, s.Cipher, "default", "fixture", "fixture-key")
+	if _, err := s.Pool.Exec(t.Context(), "UPDATE model_profiles SET instructions=$2 WHERE id=$1", profile.ID, "profile instruction"); err != nil {
+		t.Fatal(err)
+	}
 	testutil.RegisterTemplate(t, s.Pool, "codex")
 	s.Settings.PublicAPIKeys = []string{"key"}
 	handler, err := Handler(s, t.Context(), NewHTTPMetrics())

@@ -1,30 +1,80 @@
-# Profiles and templates
+# Accounts, profiles and templates
 
-Define agent profiles in `orpheus.toml`. Register sandbox templates through the
-database catalog API or Orpheus Web. A configuration with one profile:
+LLM accounts, model profiles and sandbox templates are PostgreSQL catalogs.
+Create them through Orpheus Web or the API; changes take effect without restarting
+API or worker. Empty catalogs are valid for a new installation. TOML contains
+infrastructure settings such as `credential_stores` and services.
 
-```toml
-[profiles.research]
-description = "Research and analysis"
-harness = "codex"
-model = "your-model"
+## LLM accounts
 
-[profiles.research.auth]
-mode = "api_key"
-api_key_env = "OPENAI_API_KEY"
+`/api/v1/llm-accounts` supports GET (list) and POST (create).
+`/api/v1/llm-accounts/{id}` supports GET, PATCH and DELETE.
+
+An API-key account:
+
+```json
+{"name":"Research budget","harness":"codex","auth_mode":"api_key","api_key":"your-key"}
 ```
 
-Set optional `description` under `[profiles.<name>]` to describe a profile.
-API and worker must use the same configuration file; restart them after changes.
+A file account uses `auth_mode: "account"`, a `credential_store` name from
+`GET /api/v1/credential-stores`, and an `auth_file` JSON object containing Codex
+account authorization. The API generates `llm-accounts/<uuid>/auth.json` in S3;
+clients do not choose paths. Credential store configuration and AWS access must
+be available to both API and worker.
 
-`GET /api/v1/profiles` returns the complete profile catalog as `{"items": [...]}`,
-sorted by name. Profiles expose `name`, `description`, `harness`, `model`, `codex`
-and `instructions`; authentication settings and credentials are excluded.
-Missing, empty or whitespace-only descriptions and missing models are `null`.
-Omitted Codex options stay absent. Descriptions and instructions must not contain secrets.
+PATCH accepts `name` and `active`. Display names need not be unique. Harness,
+authorization mode and file location are immutable. Accounts default to active.
+An account cannot be deleted while any profile or session references it. Deletion
+removes its encrypted API key in the same transaction and leaves S3 files intact.
 
-New sessions validate profile names against TOML and return 422 `unknown_profile`
-for missing entries. Profile descriptions are not part of execution snapshots.
+API keys are encrypted in `secrets` using `ENV_ENCRYPTION_KEY`. Only account
+details include `api_key_mask`; lists never include it. PUT
+`/api/v1/llm-accounts/{id}/api-key` replaces the key with `{"api_key":"new-key"}`.
+Keys cannot be revealed. Whitespace is preserved in storage; only the mask trims it.
+
+GET `/api/v1/llm-accounts/{id}/auth-file` returns the full JSON with `ETag` and
+`Cache-Control: no-store`. PUT to the same path requires that ETag in `If-Match`.
+A concurrent edit or worker token refresh returns 409 `auth_file_changed`; reload
+before editing again. There is no forced overwrite. Unknown JSON fields survive;
+the file is limited to 1 MiB, in addition to the whole-request `MAX_REQUEST_BYTES`
+limit. Raise the request limit if an account creation envelope would exceed it.
+Auth file contents and API keys must not be placed in names or descriptions.
+
+## Model profiles
+
+`/api/v1/profiles` supports GET and POST; `/api/v1/profiles/{id}` supports GET,
+PATCH and DELETE. Create example:
+
+```json
+{"name":"research","account_id":"00000000-0000-0000-0000-000000000001","model":"your-model","description":"Research and analysis","codex":{"effort":"high"}}
+```
+
+The unique `name` is immutable and is the public `agent.profile` selector. `model`
+is required; sessions can override it with `agent.model`. PATCH accepts account,
+model, description, instructions, Codex options and active state. Rebinding to an
+account of the same harness affects new sessions. Authorization modes may differ.
+Null `description` clears it; null Codex option values unset individual options,
+and `codex: null` clears all options. Omitted options remain unspecified.
+
+Responses include `account_id`, `account_name`, `account_active`, `active` and
+`available` (`active && account_active`). Descriptions and instructions are not
+secret fields. New sessions require an available profile and return 422
+`unknown_profile`, with `profile_not_found`, `profile_inactive` or
+`account_inactive` detail codes otherwise.
+
+Admission locks the profile and account in the transaction that accepts the
+session. Sessions retain execution settings and their account UUID; they do not
+store credential paths or keys. Profile edits, deletion and deactivation do not
+change accepted sessions. Continuation and idempotent replay do not revalidate
+the profile. An account's current credentials are used when a harness is launched
+or repaired; replacing credentials does not relogin an already-running process.
+
+Both catalogs use the list parameters and bidirectional cursors described below
+for templates. Profiles additionally accept `available=true|false`, including
+account activity. Resolve selected names using exact `name` lookup without an
+activity filter. Account lists are ordered by `(name, id)` because names may repeat.
+
+For existing installations, follow the [catalog upgrade procedure](llm-catalog-upgrade.md).
 
 ## Database template catalog
 
@@ -48,7 +98,7 @@ sandboxes. Description changes do not affect execution either.
 When upgrading from a TOML catalog, register the required names before switching
 versions. Remove the obsolete `[templates]` section from the new configuration;
 the strict TOML parser rejects it. Coordinate the new binary and configuration
-for both API and worker. Profiles and other TOML sections remain in use.
+for both API and worker. Infrastructure TOML sections remain in use.
 
 | Request | Result |
 | --- | --- |
@@ -110,14 +160,10 @@ shared extension.
 
 ## Codex settings
 
-Optional Codex settings belong under `[profiles.default.codex]`:
+Optional Codex settings belong in the profile's `codex` object:
 
-```toml
-[profiles.default.codex]
-effort = "medium"
-summary = "auto"
-personality = "friendly"
-service_tier = "default"
+```json
+{"effort":"medium","summary":"auto","personality":"friendly","service_tier":"default"}
 ```
 
 | Setting | Values |

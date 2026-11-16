@@ -31,7 +31,9 @@ func fixture(t *testing.T) *Store {
 	}
 	pool := testutil.Database(t)
 	testutil.RegisterTemplate(t, pool, "codex")
-	return &Store{Pool: pool, Settings: config.DefaultSettings(), Cipher: c, Profiles: config.Profiles{Profiles: map[string]config.Profile{"default": {Harness: "codex", Model: new("fixture"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
+	s := &Store{Pool: pool, Settings: config.DefaultSettings(), Cipher: c}
+	testutil.SeedProfile(t, s.Pool, s.Cipher, "default", "fixture", "fixture-key")
+	return s
 }
 func request() Admission {
 	return Admission{Key: uuid.New(), Create: &session.CreateSession{AllowMultipleRuns: true, Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex", Env: map[string]string{"TOKEN": "private"}}, Limits: session.Limits{RunTimeoutSeconds: 3600}}, Messages: []session.TextMessage{{Text: "Hello"}}}}

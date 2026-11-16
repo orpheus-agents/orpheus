@@ -12,7 +12,7 @@ import (
 )
 
 func TestUpDownUpAndConstraints(t *testing.T) {
-	pool := testutil.Database(t)
+	pool := testutil.DatabaseAt(t, 29)
 	db := stdlib.OpenDB(*pool.Config().ConnConfig)
 	defer func() { _ = db.Close() }()
 	p, err := migrate.Provider(db, "../../migrations")
@@ -26,10 +26,10 @@ func TestUpDownUpAndConstraints(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "SELECT count(*) FROM information_schema.tables WHERE table_schema=current_schema() AND table_name!='goose_db_version'").Scan(&tables); err != nil || tables != 0 {
 		t.Fatal(tables, err)
 	}
-	if _, err := p.Up(t.Context()); err != nil {
+	if _, err := p.UpTo(t.Context(), 29); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Up(t.Context()); err != nil {
+	if _, err := p.UpTo(t.Context(), 29); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"secrets", "sessions", "runs", "messages", "tool_calls", "session_events", "operations", "idempotency_keys", "account_limit_observations", "templates"} {

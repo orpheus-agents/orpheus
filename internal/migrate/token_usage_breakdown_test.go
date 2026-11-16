@@ -12,7 +12,7 @@ import (
 )
 
 func TestTokenUsageBreakdownMigrations(t *testing.T) {
-	pool := testutil.Database(t)
+	pool := testutil.DatabaseAt(t, 29)
 	db := stdlib.OpenDB(*pool.Config().ConnConfig)
 	defer func() { _ = db.Close() }()
 	p, err := migrate.Provider(db, "../../migrations")
@@ -32,7 +32,7 @@ func TestTokenUsageBreakdownMigrations(t *testing.T) {
 	if _, err := pool.Exec(t.Context(), `INSERT INTO session_events(session_id,sequence,type,data) VALUES($1,1,'run.updated','{"usage":{"input_tokens":90,"output_tokens":10,"total_tokens":100}}')`, oldSID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Up(t.Context()); err != nil {
+	if _, err := p.UpTo(t.Context(), 29); err != nil {
 		t.Fatal(err)
 	}
 	var cached, reasoning int64
@@ -59,7 +59,7 @@ func TestTokenUsageBreakdownMigrations(t *testing.T) {
 	if _, err := pool.Exec(t.Context(), `UPDATE sessions SET reasoning_output_native_total=-1 WHERE id=$1`, newSID); err == nil {
 		t.Fatal("negative native usage accepted")
 	}
-	if _, err := p.Up(t.Context()); err != nil {
+	if _, err := p.UpTo(t.Context(), 29); err != nil {
 		t.Fatal(err)
 	}
 	var eventCached, eventReasoning int64
