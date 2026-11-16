@@ -1,117 +1,19 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/orpheus-agents/orpheus/internal/llm"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
-func TestCodexProfileOptions(t *testing.T) {
-	const profile = `[profiles.default]
-harness="codex"
-model="model"
-[profiles.default.auth]
-mode="api_key"
-api_key_env="OPENAI_API_KEY"
-`
-	in := session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
-	for _, tc := range []struct {
-		name   string
-		values []string
-	}{
-		{"effort", []string{"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}},
-		{"summary", []string{"auto", "concise", "detailed", "none"}},
-		{"personality", []string{"none", "friendly", "pragmatic"}},
-		{"service_tier", []string{"default", "priority", "provider-specific-tier"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			for _, value := range tc.values {
-				p, err := ReadProfiles(strings.NewReader(profile + fmt.Sprintf("[profiles.default.codex]\n%s=%q\n", tc.name, value)))
-				if err != nil {
-					t.Fatal(value, err)
-				}
-				got, err := Resolve(in, p, nil, DefaultMaxSessionTokens)
-				if err != nil {
-					t.Fatal(err)
-				}
-				data, err := json.Marshal(got.Public.Agent.Codex)
-				if err != nil {
-					t.Fatal(err)
-				}
-				var fields map[string]string
-				if err := json.Unmarshal(data, &fields); err != nil || len(fields) != 1 || fields[tc.name] != value {
-					t.Fatalf("%s=%q: got %s, err %v", tc.name, value, data, err)
-				}
-			}
-			invalid := []string{`""`, `" "`, `" padded "`, `42`, `true`, `[]`}
-			if tc.name != "service_tier" {
-				invalid = append(invalid, `"invalid"`, `"AUTO"`)
-			}
-			for _, value := range invalid {
-				_, err := ReadProfiles(strings.NewReader(profile + fmt.Sprintf("[profiles.default.codex]\n%s=%s\n", tc.name, value)))
-				if err == nil {
-					t.Fatalf("accepted %s=%s", tc.name, value)
-				}
-			}
-			if _, err := ReadProfiles(strings.NewReader(strings.Replace(profile, `model="model"`, fmt.Sprintf("model=\"model\"\n%s=%q", tc.name, tc.values[0]), 1))); err == nil {
-				t.Fatal("accepted option outside codex table")
-			}
-		})
-	}
-	p, err := ReadProfiles(strings.NewReader(profile))
-	if err != nil {
-		t.Fatal(err)
-	}
-	unset, err := Resolve(in, p, nil, DefaultMaxSessionTokens)
-	if err != nil || unset.Public.Agent.Codex != (session.CodexConfiguration{}) {
-		t.Fatal("omitted options", unset, err)
-	}
-	want := session.CodexConfiguration{Effort: "high", Summary: "auto", Personality: "friendly", ServiceTier: "default"}
-	v := p.Profiles["default"]
-	v.Codex = CodexProfile{Effort: want.Effort, Summary: want.Summary, Personality: want.Personality, ServiceTier: want.ServiceTier}
-	p.Profiles["custom"] = v
-	in.Agent.Profile = "custom"
-	in.Agent.Model = new("other-model")
-	in.Agent.Instructions = new("other instructions")
-	got, err := Resolve(in, p, nil, DefaultMaxSessionTokens)
-	if err != nil || got.Public.Agent.Codex != want || got.Public.Agent.Model != "other-model" {
-		t.Fatal("profile options with request overrides", got, err)
-	}
-	for _, invalid := range []CodexProfile{{Effort: "invalid"}, {Summary: "invalid"}, {Personality: "invalid"}, {ServiceTier: " "}} {
-		v.Codex = invalid
-		p.Profiles["custom"] = v
-		if _, err := Resolve(in, p, nil, DefaultMaxSessionTokens); err == nil {
-			t.Fatal("invalid programmatic profile accepted", invalid)
-		}
-	}
-	in.Agent.Profile = "default"
-	stillUnset, err := Resolve(in, p, nil, DefaultMaxSessionTokens)
-	if err != nil || stillUnset.Public.Agent.Codex != (session.CodexConfiguration{}) || got.Public.Agent.Codex != want {
-		t.Fatal("profile settings leaked between profiles or changed an existing snapshot", stillUnset, got, err)
-	}
-}
-
 func TestResolve(t *testing.T) {
-	p, err := ReadProfiles(strings.NewReader(`[profiles.default]
-harness="codex"
-model="model"
-instructions="default instructions"
-[profiles.default.codex]
-effort="medium"
-[profiles.default.auth]
-mode="api_key"
-api_key_env="OPENAI_API_KEY"
-`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	p := llm.ProfileInput{Name: "default", Model: "model", Instructions: "default instructions", Codex: map[string]string{"effort": "medium"}}
 	in := session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex", Env: map[string]string{"TOKEN": "secret"}, EnvFrom: []string{"GITHUB_TOKEN"}}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
-	first, err := Resolve(in, p, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens)
+	first, err := Resolve(in, p, "codex", Deployment{}, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,15 +21,15 @@ api_key_env="OPENAI_API_KEY"
 		t.Fatal(first)
 	}
 	in.Agent.Instructions = new("")
-	next, err := Resolve(in, p, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens)
+	next, err := Resolve(in, p, "codex", Deployment{}, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens)
 	if err != nil || next.Public.Agent.Instructions != "" || next.Public.Agent.Codex.Effort != "medium" {
 		t.Fatal(next, err)
 	}
-	if _, err := Resolve(in, p, nil, DefaultMaxSessionTokens); err == nil {
+	if _, err := Resolve(in, p, "codex", Deployment{}, nil, DefaultMaxSessionTokens); err == nil {
 		t.Fatal("allowlist bypass")
 	}
 	in.Agent.Model = new(" ")
-	if _, err := Resolve(in, p, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens); err == nil {
+	if _, err := Resolve(in, p, "codex", Deployment{}, []string{"GITHUB_TOKEN"}, DefaultMaxSessionTokens); err == nil {
 		t.Fatal("blank model")
 	}
 	t.Setenv("GITHUB_TOKEN", "a")
@@ -142,59 +44,6 @@ api_key_env="OPENAI_API_KEY"
 	}
 	if _, err := Environment(in.Sandbox.Env, first.Public, nil); err == nil {
 		t.Fatal("revoked allowlist accepted")
-	}
-}
-func TestOptionalCodexEffort(t *testing.T) {
-	const profile = `[profiles.default]
-harness="codex"
-model="model"
-[profiles.default.auth]
-mode="api_key"
-api_key_env="OPENAI_API_KEY"
-`
-	p, err := ReadProfiles(strings.NewReader(profile))
-	if err != nil {
-		t.Fatal(err)
-	}
-	in := session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
-	got, err := Resolve(in, p, nil, DefaultMaxSessionTokens)
-	if err != nil || got.Public.Agent.Codex.Effort != "" {
-		t.Fatal(got, err)
-	}
-	profiles, err := ReadProfiles(strings.NewReader(profile + `[profiles.quick]
-harness="codex"
-model="model"
-[profiles.quick.codex]
-effort="low"
-[profiles.quick.auth]
-mode="api_key"
-api_key_env="OPENAI_API_KEY"
-[profiles.deep]
-harness="codex"
-model="model"
-[profiles.deep.codex]
-effort="high"
-[profiles.deep.auth]
-mode="api_key"
-api_key_env="OPENAI_API_KEY"
-`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for name, want := range map[string]string{"quick": "low", "deep": "high"} {
-		in.Agent.Profile = name
-		resolved, err := Resolve(in, profiles, nil, DefaultMaxSessionTokens)
-		if err != nil || resolved.Public.Agent.Codex.Effort != want || resolved.Credentials.APIKeyEnv != "OPENAI_API_KEY" {
-			t.Fatalf("profile %s: %#v %v", name, resolved, err)
-		}
-	}
-	for _, value := range []string{"", " ", "invalid", "HIGH"} {
-		if _, err := ReadProfiles(strings.NewReader(strings.Replace(profile, "[profiles.default.auth]", "[profiles.default.codex]\neffort=\""+value+"\"\n[profiles.default.auth]", 1))); err == nil {
-			t.Fatalf("invalid profile effort %q accepted", value)
-		}
-	}
-	if _, err := ReadProfiles(strings.NewReader(strings.Replace(profile, "model=\"model\"", "model=\"model\"\neffort=\"high\"", 1))); err == nil {
-		t.Fatal("top-level effort accepted")
 	}
 }
 func TestSandboxProxyURL(t *testing.T) {
@@ -243,34 +92,6 @@ func TestSandboxValidation(t *testing.T) {
 		if ValidateText(text, 0) == nil {
 			t.Fatal("invalid text accepted")
 		}
-	}
-}
-func TestAccountProfiles(t *testing.T) {
-	source := `[credential_stores.s]
-bucket="b"
-[profiles.account]
-harness="codex"
-model="m"
-[profiles.account.auth]
-mode="account"
-account_id="team-main"
-store="s"
-key="auth.json"
-`
-	p, err := ReadProfiles(strings.NewReader(source))
-	if err != nil {
-		t.Fatal(err)
-	}
-	in := session.ConfigurationInput{Agent: session.AgentInput{Profile: "account"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
-	got, err := Resolve(in, p, nil, DefaultMaxSessionTokens)
-	if err != nil || got.Credentials.Store.Bucket != "b" || got.Credentials.Store.Region != "us-east-1" {
-		t.Fatal(got, err)
-	}
-	if _, err := ReadProfiles(strings.NewReader(strings.Replace(source, `store="s"`, `store="missing"`, 1))); err == nil {
-		t.Fatal("unknown credential store")
-	}
-	if _, err := ReadProfiles(strings.NewReader(source + "\nunknown=true")); err == nil {
-		t.Fatal("unknown profile field")
 	}
 }
 func TestSettingsValidation(t *testing.T) {

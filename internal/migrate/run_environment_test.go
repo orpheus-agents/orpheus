@@ -14,7 +14,7 @@ import (
 )
 
 func TestRunEnvironmentMigrations(t *testing.T) {
-	pool := testutil.Database(t)
+	pool := testutil.DatabaseAt(t, 29)
 	db := stdlib.OpenDB(*pool.Config().ConnConfig)
 	defer func() { _ = db.Close() }()
 	p, err := migrate.Provider(db, "../../migrations")

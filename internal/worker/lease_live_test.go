@@ -37,7 +37,8 @@ func TestLiveSandboxLeaseLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &store.Store{Pool: testutil.Database(t), Settings: config.DefaultSettings(), Cipher: cipher, Profiles: config.Profiles{Profiles: map[string]config.Profile{"live": {Harness: "codex", Model: new("gpt-6-sol"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
+	s := &store.Store{Pool: testutil.Database(t), Settings: config.DefaultSettings(), Cipher: cipher}
+	testutil.SeedProfile(t, s.Pool, s.Cipher, "live", "gpt-6-sol", os.Getenv("OPENAI_API_KEY"))
 	testutil.RegisterTemplate(t, s.Pool, "codex")
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()

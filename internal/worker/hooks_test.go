@@ -134,7 +134,8 @@ func setupHooksSession(t *testing.T, multiple, autoResult, failAfter bool, initi
 	cipher, _ := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
 	settings := config.DefaultSettings()
 	settings.DatabaseURL = pool.Config().ConnString()
-	s := &store.Store{Pool: pool, Settings: settings, Cipher: cipher, Profiles: config.Profiles{Profiles: map[string]config.Profile{"p": {Harness: "codex", Model: new("model"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}}
+	s := &store.Store{Pool: pool, Settings: settings, Cipher: cipher}
+	testutil.SeedProfile(t, s.Pool, s.Cipher, "p", "model", "fixture-key")
 	hooks := &session.HooksInput{BeforeRemove: new("#!/bin/sh\n# before_remove\n"), AfterCreate: new("#!/bin/sh\n# after_create\n"), BeforeRun: new("#!/bin/sh\n# before_run\n"), AfterRun: new("#!/bin/sh\n# after_run\n")}
 	sandbox := session.SandboxInput{Template: "codex"}
 	var runEnv map[string]string

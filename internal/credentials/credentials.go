@@ -44,6 +44,12 @@ type BlobStore interface {
 	Get(context.Context) (Blob, error)
 	Put(context.Context, []byte, string) (string, error)
 }
+
+// FileStore supports creating a new object without overwriting an existing one.
+type FileStore interface {
+	BlobStore
+	Create(context.Context, []byte) (string, error)
+}
 type Blob struct {
 	Raw  []byte
 	ETag string
@@ -71,17 +77,25 @@ func New(ctx context.Context, sandbox harness.Sandbox, home string, source sessi
 	if source.Store == nil {
 		return nil, errors.New("credential store is required")
 	}
-	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(source.Store.Region), awsconfig.WithRetryMaxAttempts(2))
+	files, err := OpenStore(ctx, *source.Store, source.Key)
+	if err != nil {
+		return nil, err
+	}
+	account := NewWithStore(sandbox, home, files)
+	account.redactor = redactor
+	return account, nil
+}
+
+func OpenStore(ctx context.Context, store session.CredentialStore, key string) (FileStore, error) {
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(store.Region), awsconfig.WithRetryMaxAttempts(2))
 	if err != nil {
 		return nil, err
 	}
 	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = source.Store.EndpointURL
-		o.UsePathStyle = source.Store.EndpointURL != nil
+		o.BaseEndpoint = store.EndpointURL
+		o.UsePathStyle = store.EndpointURL != nil
 	})
-	account := NewWithStore(sandbox, home, &s3Store{client: client, bucket: source.Store.Bucket, key: source.Key})
-	account.redactor = redactor
-	return account, nil
+	return &s3Store{client: client, bucket: store.Bucket, key: key}, nil
 }
 func NewWithStore(sandbox harness.Sandbox, home string, source BlobStore) *Account {
 	a := &Account{sandbox: sandbox, home: home, source: source, redactor: new(diagnostic.Redactor)}
@@ -266,11 +280,22 @@ func (s *s3Store) Get(ctx context.Context) (Blob, error) {
 	return Blob{Raw: raw, ETag: aws.ToString(response.ETag)}, err
 }
 func (s *s3Store) Put(ctx context.Context, raw []byte, etag string) (string, error) {
-	response, err := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(s.key), Body: bytes.NewReader(raw), ContentType: aws.String("application/json"), IfMatch: aws.String(etag)})
+	if etag == "" {
+		return "", errors.New("credential object ETag is required")
+	}
+	return s.put(ctx, raw, new(etag), nil)
+}
+
+func (s *s3Store) Create(ctx context.Context, raw []byte) (string, error) {
+	return s.put(ctx, raw, nil, new("*"))
+}
+
+func (s *s3Store) put(ctx context.Context, raw []byte, match, absent *string) (string, error) {
+	response, err := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(s.key), Body: bytes.NewReader(raw), ContentType: aws.String("application/json"), IfMatch: match, IfNoneMatch: absent})
 	if err != nil {
 		return "", err
 	}
-	etag = aws.ToString(response.ETag)
+	etag := aws.ToString(response.ETag)
 	if etag == "" {
 		return "", errors.New("credential object ETag is unavailable")
 	}

@@ -13,33 +13,16 @@ import (
 
 	"github.com/orpheus-agents/orpheus/internal/accountlimits"
 	"github.com/orpheus-agents/orpheus/internal/config"
+	"github.com/orpheus-agents/orpheus/internal/session"
+	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
 func accountLimitFixture(t *testing.T) (*Store, config.Account) {
 	t.Helper()
 	s := fixture(t)
-	p, err := config.ReadProfiles(strings.NewReader(`[credential_stores.s]
-bucket="test-credentials"
-[profiles.fast]
-harness="codex"
-[profiles.fast.auth]
-mode="account"
-account_id="team-main"
-store="s"
-key="auth.json"
-[profiles.deep]
-harness="codex"
-[profiles.deep.auth]
-mode="account"
-account_id="team-main"
-store="s"
-key="auth.json"
-`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.Profiles = p
-	return s, p.Accounts()[0]
+	metadata := session.CredentialStore{Type: "s3", Region: "us-east-1", Bucket: "test-credentials"}
+	s.Deployment.CredentialStores = map[string]session.CredentialStore{"s": metadata}
+	return s, testutil.SeedFileAccount(t, s.Pool, "s", "auth.json", metadata, "fast", "deep")
 }
 
 func TestAccountLimitObservationStateAndOrdering(t *testing.T) {
@@ -120,12 +103,9 @@ func TestAccountLimitStaleAgeResetAndSource(t *testing.T) {
 	if item.ResetCreditsAvailable == nil || *item.ResetCreditsAvailable != 2 || len(item.Buckets) != 1 || item.Buckets[0].Primary == nil || item.Buckets[0].Primary.RemainingPercent != 70 {
 		t.Fatal("elapsed reset changed observed values", item)
 	}
-	profile := s.Profiles.Profiles["fast"]
-	profile.Auth.Key = "new.json"
-	s.Profiles.Profiles["fast"] = profile
-	profile = s.Profiles.Profiles["deep"]
-	profile.Auth.Key = "new.json"
-	s.Profiles.Profiles["deep"] = profile
+	metadata := s.Deployment.CredentialStores["s"]
+	metadata.Bucket = "new-bucket"
+	s.Deployment.CredentialStores["s"] = metadata
 	response, err = s.AccountLimits(ctx)
 	if err != nil || response.Items[0].State != "unknown" || response.Items[0].ResetCreditsAvailable != nil {
 		t.Fatal(response, err)

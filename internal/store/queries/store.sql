@@ -111,8 +111,8 @@ FROM idempotency_keys
 WHERE operation = $1 AND resource = $2 AND key = $3;
 
 -- name: CreateSession :one
-INSERT INTO sessions AS s(id, configuration, slot_reserved, namespace, external_key, allow_multiple_runs, env_secret_id)
-VALUES($1, $2, false, $3, $4, $5, $6)
+INSERT INTO sessions AS s(id, configuration, slot_reserved, namespace, external_key, allow_multiple_runs, env_secret_id, llm_account_id)
+VALUES($1, $2, false, $3, $4, $5, $6, $7)
 RETURNING s.*;
 
 -- name: CountReserved :one

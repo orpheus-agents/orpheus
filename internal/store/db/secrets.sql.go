@@ -26,6 +26,18 @@ func (q *Queries) CreateSecret(ctx context.Context, arg CreateSecretParams) erro
 	return err
 }
 
+const deleteSecret = `-- name: DeleteSecret :execrows
+DELETE FROM secrets WHERE id=$1
+`
+
+func (q *Queries) DeleteSecret(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSecret, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getSecret = `-- name: GetSecret :one
 SELECT nonce, ciphertext FROM secrets WHERE id = $1
 `
@@ -40,4 +52,22 @@ func (q *Queries) GetSecret(ctx context.Context, id uuid.UUID) (GetSecretRow, er
 	var i GetSecretRow
 	err := row.Scan(&i.Nonce, &i.Ciphertext)
 	return i, err
+}
+
+const updateSecret = `-- name: UpdateSecret :execrows
+UPDATE secrets SET nonce=$2, ciphertext=$3 WHERE id=$1
+`
+
+type UpdateSecretParams struct {
+	ID         uuid.UUID `json:"id"`
+	Nonce      []byte    `json:"nonce"`
+	Ciphertext []byte    `json:"ciphertext"`
+}
+
+func (q *Queries) UpdateSecret(ctx context.Context, arg UpdateSecretParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateSecret, arg.ID, arg.Nonce, arg.Ciphertext)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

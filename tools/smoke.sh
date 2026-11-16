@@ -21,12 +21,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 cat > "$config" <<'TOML'
-[profiles.default]
-harness = "codex"
-model = "fixture"
-[profiles.default.auth]
-mode = "api_key"
-api_key_env = "OPENAI_API_KEY"
+# An empty deployment configuration and catalog are valid.
 TOML
 chmod 644 "$config"
 chmod 755 "$logs"

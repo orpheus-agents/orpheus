@@ -10,7 +10,7 @@ import (
 )
 
 func TestServicesCatalog(t *testing.T) {
-	s := &store.Store{Settings: config.DefaultSettings(), Profiles: config.Profiles{Services: map[string]config.Service{
+	s := &store.Store{Settings: config.DefaultSettings(), Deployment: config.Deployment{Services: map[string]config.Service{
 		"z": {Name: "Last", Description: "Last service", EnvFrom: []string{"Z", "A"}},
 		"a": {Name: "First", Description: "First service", EnvFrom: []string{"A"}},
 	}}}
@@ -38,7 +38,7 @@ func TestServicesCatalog(t *testing.T) {
 		}
 		assertCatalogJSON(t, w.Body.Bytes(), `{"items":[{"code":"a","name":"First","description":"First service","env_from":["A"]},{"code":"z","name":"Last","description":"Last service","env_from":["A","Z"]}]}`)
 	}
-	clear(s.Profiles.Services)
+	clear(s.Deployment.Services)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/services", nil))
 	assertCatalogJSON(t, w.Body.Bytes(), `{"items":[]}`)

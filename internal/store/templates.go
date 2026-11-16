@@ -78,7 +78,7 @@ func (s *Store) DeleteTemplate(ctx context.Context, id uuid.UUID) error {
 	return templateError(err)
 }
 
-type templatePosition struct {
+type catalogPosition struct {
 	Name      string
 	ID        uuid.UUID
 	Direction string
@@ -98,7 +98,7 @@ func (s *Store) Templates(ctx context.Context, filter templates.Filter, limit in
 	}
 	raw, _ := json.Marshal(filter)
 	scope := fmt.Sprintf("templates:%x", sha256.Sum256(raw))
-	var pos templatePosition
+	var pos catalogPosition
 	if cursor != "" {
 		if err := decodeCursor(cursor, scope, &pos); err != nil || pos.Name == "" || strings.ContainsRune(pos.Name, 0) || pos.ID == uuid.Nil || (pos.Direction != "next" && pos.Direction != "prev") {
 			err := session.Problem(422, "invalid_cursor", "Invalid template page cursor.")
@@ -127,7 +127,7 @@ func (s *Store) Templates(ctx context.Context, filter templates.Filter, limit in
 			return nil
 		}
 		for _, direction := range []string{"prev", "next"} {
-			boundary := templatePosition{Name: pos.Name, ID: pos.ID, Direction: direction, Inclusive: direction != pos.Direction}
+			boundary := catalogPosition{Name: pos.Name, ID: pos.ID, Direction: direction, Inclusive: direction != pos.Direction}
 			if len(rows) > 0 {
 				row := rows[0]
 				if direction == "next" {

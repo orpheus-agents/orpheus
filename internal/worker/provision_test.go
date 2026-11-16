@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +20,7 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
 	"github.com/orpheus-agents/orpheus/internal/store/db"
+	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
 type provisionRemote struct {
@@ -292,13 +295,27 @@ func TestProvisionUpgradeOldUnknownCreation(t *testing.T) {
 	for _, scenario := range []string{"cancelling", "starting", "terminal", "lost_reservation"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, r, a, e := setup(t)
+			record, _, err := s.Read(t.Context(), a.SessionID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.Pool = testutil.DatabaseAt(t, 22)
+			if _, err := s.Pool.Exec(t.Context(), `INSERT INTO sessions(id,configuration) VALUES($1,$2::jsonb || '{"credentials":{"mode":"account","account_id":"old","store":{"type":"s3","region":"us-east-1","bucket":"fixture"},"key":"auth.json"}}'::jsonb)`, a.SessionID, record.Configuration); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.Pool.Exec(t.Context(), `INSERT INTO runs(id,session_id,number) VALUES($1,$2,1)`, a.RunID, a.SessionID); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(t.TempDir(), "legacy.toml")
+			if err := os.WriteFile(path, []byte("[credential_stores.s]\nbucket='fixture'\n[profiles.p]\nharness='codex'\nmodel='model'\n[profiles.p.auth]\nmode='account'\naccount_id='old'\nstore='s'\nkey='auth.json'\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("ORPHEUS_MIGRATION_CONFIG_FILE", path)
+			s.Deployment.CredentialStores = map[string]session.CredentialStore{"s": {Type: "s3", Region: "us-east-1", Bucket: "fixture"}}
 			sqlDB := stdlib.OpenDB(*s.Pool.Config().ConnConfig)
 			defer func() { _ = sqlDB.Close() }()
 			provider, err := migrate.Provider(sqlDB, "../../migrations")
 			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := provider.DownTo(t.Context(), 22); err != nil {
 				t.Fatal(err)
 			}
 			status := "cancelling"

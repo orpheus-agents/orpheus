@@ -28,10 +28,10 @@ const CapacityLock int64 = 4857668146151
 const WorkerLock int64 = 4857668146152
 
 type Store struct {
-	Pool     *pgxpool.Pool
-	Settings config.Settings
-	Profiles config.Profiles
-	Cipher   *secret.Cipher
+	Pool       *pgxpool.Pool
+	Settings   config.Settings
+	Deployment config.Deployment
+	Cipher     *secret.Cipher
 }
 type SessionRecord db.Session
 
@@ -695,11 +695,11 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 		var runServices []session.Service
 		var runEnvFrom []string
 		if a.RunID == uuid.Nil {
-			runEnvFrom, runServices, err = config.ResolveServices(a.Env, a.EnvFrom, a.Services, s.Profiles)
+			runEnvFrom, runServices, err = config.ResolveServices(a.Env, a.EnvFrom, a.Services, s.Deployment)
 			if err != nil {
 				return err
 			}
-			if err := config.ValidateRunEnvironment(a.Env, runEnvFrom, s.Profiles.EnvironmentAllowlist(s.Settings.HarnessEnvAllowlist)); err != nil {
+			if err := config.ValidateRunEnvironment(a.Env, runEnvFrom, s.Deployment.EnvironmentAllowlist(s.Settings.HarnessEnvAllowlist)); err != nil {
 				return err
 			}
 		}
@@ -710,7 +710,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 		}
 		var record SessionRecord
 		if a.Create != nil {
-			resolved, err := config.Resolve(a.Create.Configuration, s.Profiles, s.Settings.HarnessEnvAllowlist, s.Settings.DefaultMaxSessionTokens)
+			resolved, accountID, err := s.resolveProfile(ctx, tx, a.Create.Configuration)
 			if err != nil {
 				return err
 			}
@@ -726,7 +726,7 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 			if err != nil {
 				return err
 			}
-			record, err = sessionRecord(db.New(tx).CreateSession(ctx, db.CreateSessionParams{AllowMultipleRuns: a.Create.AllowMultipleRuns, Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, ID: id, Configuration: resolved, EnvSecretID: secretID}))
+			record, err = sessionRecord(db.New(tx).CreateSession(ctx, db.CreateSessionParams{AllowMultipleRuns: a.Create.AllowMultipleRuns, Namespace: a.Create.Namespace, ExternalKey: a.Create.ExternalKey, ID: id, Configuration: resolved, LlmAccountID: new(accountID), EnvSecretID: secretID}))
 			if err != nil {
 				return err
 			}

@@ -15,7 +15,7 @@ import (
 
 func TestServiceRequests(t *testing.T) {
 	server, s := testServer(t)
-	s.Profiles.Services = map[string]config.Service{"gitlab": {Name: "GitLab", Description: "Repositories", EnvFrom: []string{"GITLAB_TOKEN"}}}
+	s.Deployment.Services = map[string]config.Service{"gitlab": {Name: "GitLab", Description: "Repositories", EnvFrom: []string{"GITLAB_TOKEN"}}}
 	for _, tc := range []struct {
 		body string
 		path []any

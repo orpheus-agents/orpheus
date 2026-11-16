@@ -5,7 +5,6 @@ package worker
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,10 +12,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/accountlimits"
-	"github.com/orpheus-agents/orpheus/internal/config"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
 type limitTestDriver struct {
@@ -89,35 +88,13 @@ func (d *limitTestDriver) count() int                           { d.mu.Lock(); d
 
 func TestCollectorSingleDonorFailoverAndUnregister(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader(`[credential_stores.s]
-bucket="test-credentials"
-[profiles.a]
-harness="codex"
-[profiles.a.auth]
-mode="account"
-account_id="team-main"
-store="s"
-key="auth.json"
-[profiles.b]
-harness="codex"
-[profiles.b.auth]
-mode="account"
-account_id="team-main"
-store="s"
-key="auth.json"
-`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.Profiles = p
-	account := p.Accounts()[0]
-	cfg := session.ResolvedConfiguration{Harness: "codex", Credentials: session.Credentials{Mode: "account", AccountID: account.ID, Store: new(p.CredentialStores["s"]), Key: "auth.json"}}
+	source := limitSource(t, s)
 	ctx, cancel := context.WithCancel(t.Context())
 	c := newAccountLimitsCollector(ctx, s)
 	defer func() { cancel(); c.Wait() }()
 	a := &limitTestDriver{events: make(chan struct{}, 1), started: make(chan struct{}, 1)}
 	b := &limitTestDriver{events: make(chan struct{}, 1), started: make(chan struct{}, 1)}
-	unregisterA := c.Register(uuid.MustParse("00000000-0000-0000-0000-000000000001"), cfg, a)
+	unregisterA := c.Register(uuid.MustParse("00000000-0000-0000-0000-000000000001"), "codex", source, a)
 	defer unregisterA()
 	select {
 	case <-a.started:
@@ -138,7 +115,7 @@ key="auth.json"
 		}
 		time.Sleep(time.Millisecond)
 	}
-	unregisterB := c.Register(uuid.MustParse("00000000-0000-0000-0000-000000000002"), cfg, b)
+	unregisterB := c.Register(uuid.MustParse("00000000-0000-0000-0000-000000000002"), "codex", source, b)
 	defer unregisterB()
 	time.Sleep(20 * time.Millisecond)
 	if a.count() != 1 || b.count() != 0 {
@@ -157,17 +134,12 @@ key="auth.json"
 
 func TestCollectorUnregisterCancelsInFlightRPC(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.Profiles = p
-	cfg := session.ResolvedConfiguration{Harness: "codex", Credentials: session.Credentials{Mode: "account", AccountID: "a", Store: new(p.CredentialStores["s"]), Key: "auth"}}
+	source := limitSource(t, s)
 	ctx, cancel := context.WithCancel(t.Context())
 	c := newAccountLimitsCollector(ctx, s)
 	defer func() { cancel(); c.Wait() }()
 	d := &limitTestDriver{events: make(chan struct{}, 1), started: make(chan struct{}, 1), block: true}
-	unregister := c.Register(uuid.New(), cfg, d)
+	unregister := c.Register(uuid.New(), "codex", source, d)
 	select {
 	case <-d.started:
 	case <-time.After(time.Second):
@@ -184,12 +156,7 @@ func TestCollectorUnregisterCancelsInFlightRPC(t *testing.T) {
 
 func TestCollectorUnregisterDoesNotWaitForStorage(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.Profiles = p
-	cfg := session.ResolvedConfiguration{Harness: "codex", Credentials: session.Credentials{Mode: "account", AccountID: "a", Store: new(p.CredentialStores["s"]), Key: "auth"}}
+	source := limitSource(t, s)
 	ctx, cancel := context.WithCancel(t.Context())
 	c := newAccountLimitsCollector(ctx, s)
 	release := make(chan struct{})
@@ -201,7 +168,7 @@ func TestCollectorUnregisterDoesNotWaitForStorage(t *testing.T) {
 		return nil
 	}
 	d := &limitTestDriver{events: make(chan struct{}, 1)}
-	unregister := c.Register(uuid.New(), cfg, d)
+	unregister := c.Register(uuid.New(), "codex", source, d)
 	select {
 	case <-started:
 	case <-time.After(time.Second):
@@ -240,12 +207,7 @@ func TestCollectorFailoverAfterDonorErrorAndReconnect(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, _, _, _ := setup(t)
-			p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			s.Profiles = p
-			cfg := session.ResolvedConfiguration{Harness: "codex", Credentials: session.Credentials{Mode: "account", AccountID: "a", Store: new(p.CredentialStores["s"]), Key: "auth"}}
+			source := limitSource(t, s)
 			ctx, cancel := context.WithCancel(t.Context())
 			c := newAccountLimitsCollector(ctx, s)
 			defer func() { cancel(); c.Wait() }()
@@ -260,9 +222,9 @@ func TestCollectorFailoverAfterDonorErrorAndReconnect(t *testing.T) {
 			primaryID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 			reserveID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 			primary := &limitTestDriver{events: make(chan struct{}, 1), results: []error{nil, tc.err}}
-			unregisterPrimary := c.Register(primaryID, cfg, primary)
+			unregisterPrimary := c.Register(primaryID, "codex", source, primary)
 			defer unregisterPrimary()
-			a := c.accounts["a"]
+			a := c.accounts[source.AccountID]
 			waitForLimit(t, func() bool {
 				response, err := s.AccountLimits(t.Context())
 				a.mu.Lock()
@@ -270,7 +232,7 @@ func TestCollectorFailoverAfterDonorErrorAndReconnect(t *testing.T) {
 				return err == nil && len(response.Items) == 1 && response.Items[0].State == "fresh" && a.pending == nil
 			})
 			reserve := &limitTestDriver{events: make(chan struct{}, 1)}
-			unregisterReserve := c.Register(reserveID, cfg, reserve)
+			unregisterReserve := c.Register(reserveID, "codex", source, reserve)
 			defer unregisterReserve()
 			a.mu.Lock()
 			a.next = time.Now()
@@ -296,7 +258,7 @@ func TestCollectorFailoverAfterDonorErrorAndReconnect(t *testing.T) {
 				t.Fatal("recovered lower-ID donor displaced the healthy reserve", primary.count(), errorWrites.Load())
 			}
 			reconnected := &limitTestDriver{events: make(chan struct{}, 1), started: make(chan struct{}, 1)}
-			unregisterReconnected := c.Register(primaryID, cfg, reconnected)
+			unregisterReconnected := c.Register(primaryID, "codex", source, reconnected)
 			defer unregisterReconnected()
 			unregisterReserve()
 			select {
@@ -318,12 +280,7 @@ func TestCollectorProviderFailureBacksOffWholeAccount(t *testing.T) {
 	} {
 		t.Run(failure.name, func(t *testing.T) {
 			s, _, _, _ := setup(t)
-			p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			s.Profiles = p
-			cfg := session.ResolvedConfiguration{Harness: "codex", Credentials: session.Credentials{Mode: "account", AccountID: "a", Store: new(p.CredentialStores["s"]), Key: "auth"}}
+			source := limitSource(t, s)
 			ctx, cancel := context.WithCancel(t.Context())
 			c := newAccountLimitsCollector(ctx, s)
 			defer func() { cancel(); c.Wait() }()
@@ -335,13 +292,13 @@ func TestCollectorProviderFailureBacksOffWholeAccount(t *testing.T) {
 			}
 			primary := &limitTestDriver{results: []error{failure.err}}
 			reserve := make([]*limitTestDriver, 0, 49)
-			unregister := []func(){c.Register(uuid.MustParse("00000000-0000-0000-0000-000000000001"), cfg, primary)}
+			unregister := []func(){c.Register(uuid.MustParse("00000000-0000-0000-0000-000000000001"), "codex", source, primary)}
 			defer func() {
 				for _, stop := range unregister {
 					stop()
 				}
 			}()
-			a := c.accounts["a"]
+			a := c.accounts[source.AccountID]
 			waitForLimit(t, func() bool {
 				a.mu.Lock()
 				defer a.mu.Unlock()
@@ -350,7 +307,7 @@ func TestCollectorProviderFailureBacksOffWholeAccount(t *testing.T) {
 			for range 49 {
 				donor := &limitTestDriver{}
 				reserve = append(reserve, donor)
-				unregister = append(unregister, c.Register(uuid.New(), cfg, donor))
+				unregister = append(unregister, c.Register(uuid.New(), "codex", source, donor))
 			}
 			a.mu.Lock()
 			a.next = time.Now()
@@ -371,12 +328,7 @@ func TestCollectorProviderFailureBacksOffWholeAccount(t *testing.T) {
 
 func TestCollectorStopsAfterTwoTransportFailures(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.Profiles = p
-	cfg := session.ResolvedConfiguration{Harness: "codex", Credentials: session.Credentials{Mode: "account", AccountID: "a", Store: new(p.CredentialStores["s"]), Key: "auth"}}
+	source := limitSource(t, s)
 	ctx, cancel := context.WithCancel(t.Context())
 	c := newAccountLimitsCollector(ctx, s)
 	defer func() { cancel(); c.Wait() }()
@@ -400,7 +352,7 @@ func TestCollectorStopsAfterTwoTransportFailures(t *testing.T) {
 		if drivers[i] == nil {
 			drivers[i] = &limitTestDriver{}
 		}
-		unregister = append(unregister, c.Register(uuid.UUID{15: byte(i + 1)}, cfg, drivers[i]))
+		unregister = append(unregister, c.Register(uuid.UUID{15: byte(i + 1)}, "codex", source, drivers[i]))
 		if i == 0 {
 			select {
 			case <-drivers[0].started:
@@ -410,7 +362,7 @@ func TestCollectorStopsAfterTwoTransportFailures(t *testing.T) {
 		}
 	}
 	close(release)
-	a := c.accounts["a"]
+	a := c.accounts[source.AccountID]
 	waitForLimit(t, func() bool {
 		a.mu.Lock()
 		defer a.mu.Unlock()
@@ -443,12 +395,7 @@ func TestCollectorStopsAfterTwoTransportFailures(t *testing.T) {
 
 func TestCollectorLimitsInvalidDonorChain(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.Profiles = p
-	cfg := session.ResolvedConfiguration{Harness: "codex", Credentials: session.Credentials{Mode: "account", AccountID: "a", Store: new(p.CredentialStores["s"]), Key: "auth"}}
+	source := limitSource(t, s)
 	ctx, cancel := context.WithCancel(t.Context())
 	c := newAccountLimitsCollector(ctx, s)
 	defer func() { cancel(); c.Wait() }()
@@ -462,7 +409,7 @@ func TestCollectorLimitsInvalidDonorChain(t *testing.T) {
 	}
 	release := make(chan struct{})
 	first := &limitTestDriver{started: make(chan struct{}, 1), release: release, results: []error{accountlimits.ErrInvalidResponse}}
-	unregisterFirst := c.Register(uuid.UUID{15: 1}, cfg, first)
+	unregisterFirst := c.Register(uuid.UUID{15: 1}, "codex", source, first)
 	defer unregisterFirst()
 	select {
 	case <-first.started:
@@ -470,13 +417,13 @@ func TestCollectorLimitsInvalidDonorChain(t *testing.T) {
 		t.Fatal("first donor did not start")
 	}
 	second := &limitTestDriver{results: []error{accountlimits.ErrInvalidResponse}}
-	unregisterSecond := c.Register(uuid.UUID{15: 2}, cfg, second)
+	unregisterSecond := c.Register(uuid.UUID{15: 2}, "codex", source, second)
 	defer unregisterSecond()
 	third := &limitTestDriver{}
-	unregisterThird := c.Register(uuid.UUID{15: 3}, cfg, third)
+	unregisterThird := c.Register(uuid.UUID{15: 3}, "codex", source, third)
 	defer unregisterThird()
 	close(release)
-	a := c.accounts["a"]
+	a := c.accounts[source.AccountID]
 	waitForLimit(t, func() bool {
 		a.mu.Lock()
 		defer a.mu.Unlock()
@@ -504,20 +451,15 @@ func TestCollectorLimitsInvalidDonorChain(t *testing.T) {
 
 func TestCollectorAcceptsReserveReadWhenPrimaryRetryExpires(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.Profiles = p
-	cfg := session.ResolvedConfiguration{Harness: "codex", Credentials: session.Credentials{Mode: "account", AccountID: "a", Store: new(p.CredentialStores["s"]), Key: "auth"}}
+	source := limitSource(t, s)
 	ctx, cancel := context.WithCancel(t.Context())
 	c := newAccountLimitsCollector(ctx, s)
 	defer func() { cancel(); c.Wait() }()
 	primaryID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	primary := &limitTestDriver{results: []error{harness.ErrUncertain}}
-	unregisterPrimary := c.Register(primaryID, cfg, primary)
+	unregisterPrimary := c.Register(primaryID, "codex", source, primary)
 	defer unregisterPrimary()
-	a := c.accounts["a"]
+	a := c.accounts[source.AccountID]
 	waitForLimit(t, func() bool {
 		a.mu.Lock()
 		defer a.mu.Unlock()
@@ -528,7 +470,7 @@ func TestCollectorAcceptsReserveReadWhenPrimaryRetryExpires(t *testing.T) {
 	a.mu.Unlock()
 	release := make(chan struct{})
 	reserve := &limitTestDriver{started: make(chan struct{}, 1), release: release}
-	unregisterReserve := c.Register(uuid.MustParse("00000000-0000-0000-0000-000000000002"), cfg, reserve)
+	unregisterReserve := c.Register(uuid.MustParse("00000000-0000-0000-0000-000000000002"), "codex", source, reserve)
 	defer unregisterReserve()
 	select {
 	case <-reserve.started:
@@ -573,11 +515,7 @@ func TestCollectorBackoffAndLeadingEdgeDebounce(t *testing.T) {
 
 func TestExecutorRunsWithBlockedAccountLimitRead(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\nmodel='model'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.Profiles = p
+	_ = limitSource(t, s)
 	accepted, err := s.Accept(t.Context(), store.Admission{Key: uuid.New(), Create: &session.CreateSession{
 		Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "a"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 3600}},
 		Messages:      []session.TextMessage{{Text: "task"}},
@@ -616,4 +554,12 @@ func TestExecutorRunsWithBlockedAccountLimitRead(t *testing.T) {
 	if r.cancels != 1 {
 		t.Fatal("blocked limit read delayed cancellation", r.cancels)
 	}
+}
+
+func limitSource(t *testing.T, s *store.Store) session.Credentials {
+	t.Helper()
+	metadata := session.CredentialStore{Type: "s3", Region: "us-east-1", Bucket: "test-credentials"}
+	s.Deployment.CredentialStores = map[string]session.CredentialStore{"s": metadata}
+	account := testutil.SeedFileAccount(t, s.Pool, "s", "auth.json", metadata, "a", "b")
+	return session.Credentials{Mode: "account", AccountID: account.ID, Store: &metadata, Key: "auth.json"}
 }

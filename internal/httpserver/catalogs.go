@@ -8,36 +8,10 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/api"
 )
 
-// Map only public fields; authentication and credential sources never enter DTOs.
-func (s *Server) GetProfiles(_ context.Context, _ api.GetProfilesRequestObject) (api.GetProfilesResponseObject, error) {
-	items := make([]api.Profile, 0, len(s.Store.Profiles.Profiles))
-	for _, name := range slices.Sorted(maps.Keys(s.Store.Profiles.Profiles)) {
-		profile := s.Store.Profiles.Profiles[name]
-		options := api.CodexProfile{}
-		if profile.Codex.Effort != "" {
-			options.Effort = new(api.CodexProfileEffort(profile.Codex.Effort))
-		}
-		if profile.Codex.Summary != "" {
-			options.Summary = new(api.CodexProfileSummary(profile.Codex.Summary))
-		}
-		if profile.Codex.Personality != "" {
-			options.Personality = new(api.CodexProfilePersonality(profile.Codex.Personality))
-		}
-		if profile.Codex.ServiceTier != "" {
-			options.ServiceTier = new(profile.Codex.ServiceTier)
-		}
-		items = append(items, api.Profile{
-			Name: name, Description: profile.Description, Harness: api.ProfileHarness(profile.Harness),
-			Model: profile.Model, Codex: options, Instructions: profile.Instructions,
-		})
-	}
-	return api.GetProfiles200JSONResponse{Items: items}, nil
-}
-
 func (s *Server) GetServices(_ context.Context, _ api.GetServicesRequestObject) (api.GetServicesResponseObject, error) {
-	items := make([]api.Service, 0, len(s.Store.Profiles.Services))
-	for _, code := range slices.Sorted(maps.Keys(s.Store.Profiles.Services)) {
-		service := s.Store.Profiles.Services[code]
+	items := make([]api.Service, 0, len(s.Store.Deployment.Services))
+	for _, code := range slices.Sorted(maps.Keys(s.Store.Deployment.Services)) {
+		service := s.Store.Deployment.Services[code]
 		items = append(items, api.Service{Code: code, Name: service.Name, Description: service.Description, EnvFrom: slices.Sorted(slices.Values(service.EnvFrom))})
 	}
 	return api.GetServices200JSONResponse{Items: items}, nil

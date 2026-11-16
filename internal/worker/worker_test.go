@@ -262,7 +262,8 @@ func setupSession(t *testing.T, multiple bool, sandbox session.SandboxInput, run
 	settings := config.DefaultSettings()
 	settings.DatabaseURL = pool.Config().ConnString()
 	settings.WorkerPoll = time.Millisecond
-	s := &store.Store{Pool: pool, Settings: settings, Cipher: c, Profiles: config.Profiles{Profiles: map[string]config.Profile{"p": {Harness: "codex", Model: new("model"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}}
+	s := &store.Store{Pool: pool, Settings: settings, Cipher: c}
+	testutil.SeedProfile(t, s.Pool, s.Cipher, "p", "model", "fixture-key")
 	message := session.TextMessage{Text: "task"}
 	if len(metadata) > 0 {
 		message.Metadata = metadata[0]
@@ -869,14 +870,7 @@ func TestSingleOwner(t *testing.T) {
 
 func TestAccountRepairAcrossPreparationFailure(t *testing.T) {
 	s, r, a, e := setup(t)
-	record, _, err := s.Read(t.Context(), a.SessionID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	record.Configuration.Credentials = session.Credentials{Mode: "account", Store: &session.CredentialStore{Type: "s3", Bucket: "fixture", Region: "us-east-1"}, Key: "auth.json"}
-	if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET configuration=$2 WHERE id=$1", a.SessionID, record.Configuration); err != nil {
-		t.Fatal(err)
-	}
+	linkFileSession(t, s, a.SessionID)
 	r.initializeError = harness.Failure("authentication_failed", "Invalid account credentials.")
 	tick(t, e)
 	tick(t, e)
@@ -907,14 +901,7 @@ func TestAccountRepairAcrossPreparationFailure(t *testing.T) {
 }
 func TestAccountRelaunchSeedsCurrentCredentials(t *testing.T) {
 	s, r, a, e := setup(t)
-	record, _, err := s.Read(t.Context(), a.SessionID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	record.Configuration.Credentials = session.Credentials{Mode: "account", Store: &session.CredentialStore{Type: "s3", Bucket: "fixture", Region: "us-east-1"}, Key: "auth.json"}
-	if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET configuration=$2 WHERE id=$1", a.SessionID, record.Configuration); err != nil {
-		t.Fatal(err)
-	}
+	linkFileSession(t, s, a.SessionID)
 	tick(t, e)
 	complete(r)
 	tick(t, e)
@@ -934,14 +921,7 @@ func TestRestartBeforeCleanupKeepsAuthSyncPolicy(t *testing.T) {
 			t.Run(fmt.Sprintf("multiple=%t/account=%t", multiple, account), func(t *testing.T) {
 				s, r, a, e := setupSession(t, multiple, session.SandboxInput{Template: "codex"}, nil)
 				if account {
-					record, _, err := s.Read(t.Context(), a.SessionID)
-					if err != nil {
-						t.Fatal(err)
-					}
-					record.Configuration.Credentials = session.Credentials{Mode: "account", Store: &session.CredentialStore{Type: "s3", Bucket: "fixture"}, Key: "auth.json"}
-					if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET configuration=$2 WHERE id=$1", a.SessionID, record.Configuration); err != nil {
-						t.Fatal(err)
-					}
+					linkFileSession(t, s, a.SessionID)
 				}
 				tick(t, e)
 				complete(r)

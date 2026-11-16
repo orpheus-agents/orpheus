@@ -1,32 +1,382 @@
 components:
     schemas:
-        Profile:
-            type: object
-            additionalProperties: false
-            required: [name, description, harness, model, codex, instructions]
-            properties:
-                name: {type: string}
-                description: {type: [string, 'null']}
-                harness: {type: string, enum: [codex]}
-                model: {type: [string, 'null']}
-                codex: {$ref: '#/components/schemas/CodexProfile'}
-                instructions: {type: string}
         CodexProfile:
-            type: object
-            additionalProperties: false
-            properties:
-                effort: {type: string, enum: [none, minimal, low, medium, high, xhigh, max, ultra]}
-                summary: {type: string, enum: [auto, concise, detailed, none]}
-                personality: {type: string, enum: [none, friendly, pragmatic]}
-                service_tier: {type: string, minLength: 1}
+          type: object
+          additionalProperties: false
+          properties:
+            effort:
+              type: string
+              enum:
+              - none
+              - minimal
+              - low
+              - medium
+              - high
+              - xhigh
+              - max
+              - ultra
+            summary:
+              type: string
+              enum:
+              - auto
+              - concise
+              - detailed
+              - none
+            personality:
+              type: string
+              enum:
+              - none
+              - friendly
+              - pragmatic
+            service_tier:
+              type: string
+              minLength: 1
+        Profile:
+          type: object
+          additionalProperties: false
+          required:
+          - id
+          - name
+          - description
+          - harness
+          - account_id
+          - account_name
+          - account_active
+          - active
+          - available
+          - model
+          - codex
+          - instructions
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+              minLength: 1
+              maxLength: 255
+            description:
+              type:
+              - string
+              - 'null'
+              maxLength: 4096
+            harness:
+              type: string
+              enum:
+              - codex
+            account_id:
+              type: string
+              format: uuid
+            account_name:
+              type: string
+              minLength: 1
+              maxLength: 255
+            account_active:
+              type: boolean
+            active:
+              type: boolean
+            available:
+              type: boolean
+            model:
+              type: string
+              minLength: 1
+              maxLength: 255
+            codex:
+              $ref: '#/components/schemas/CodexProfile'
+            instructions:
+              type: string
         Profiles:
-            type: object
-            additionalProperties: false
-            required: [items]
-            properties:
-                items:
-                    type: array
-                    items: {$ref: '#/components/schemas/Profile'}
+          type: object
+          additionalProperties: false
+          required:
+          - items
+          - next_cursor
+          - prev_cursor
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Profile'
+            next_cursor:
+              type:
+              - string
+              - 'null'
+            prev_cursor:
+              type:
+              - string
+              - 'null'
+        CreateProfile:
+          type: object
+          additionalProperties: false
+          required:
+          - name
+          - account_id
+          - model
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 255
+            account_id:
+              type: string
+              format: uuid
+            description:
+              type:
+              - string
+              - 'null'
+              maxLength: 4096
+            model:
+              type: string
+              minLength: 1
+              maxLength: 255
+            instructions:
+              type: string
+              maxLength: 65536
+            codex:
+              $ref: '#/components/schemas/CodexProfile'
+            active:
+              type: boolean
+              default: true
+        UpdateProfile:
+          type: object
+          additionalProperties: false
+          required: []
+          properties:
+            account_id:
+              type: string
+              format: uuid
+            description:
+              type:
+              - string
+              - 'null'
+              maxLength: 4096
+            model:
+              type: string
+              minLength: 1
+              maxLength: 255
+            instructions:
+              type: string
+              maxLength: 65536
+            codex:
+              type:
+              - object
+              - 'null'
+              additionalProperties: false
+              properties:
+                effort:
+                  type:
+                  - string
+                  - 'null'
+                  enum:
+                  - none
+                  - minimal
+                  - low
+                  - medium
+                  - high
+                  - xhigh
+                  - max
+                  - ultra
+                  - null
+                summary:
+                  type:
+                  - string
+                  - 'null'
+                  enum:
+                  - auto
+                  - concise
+                  - detailed
+                  - none
+                  - null
+                personality:
+                  type:
+                  - string
+                  - 'null'
+                  enum:
+                  - none
+                  - friendly
+                  - pragmatic
+                  - null
+                service_tier:
+                  type:
+                  - string
+                  - 'null'
+                  minLength: 1
+            active:
+              type: boolean
+          x-go-type: json.RawMessage
+          minProperties: 1
+        LLMAccount:
+          type: object
+          additionalProperties: false
+          required:
+          - id
+          - name
+          - harness
+          - auth_mode
+          - active
+          - credential_store
+          - profiles
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+              minLength: 1
+              maxLength: 255
+            harness:
+              type: string
+              enum:
+              - codex
+            auth_mode:
+              type: string
+              enum:
+              - account
+              - api_key
+            active:
+              type: boolean
+            credential_store:
+              type:
+              - string
+              - 'null'
+            profiles:
+              type: array
+              items:
+                type: string
+        LLMAccountDetails:
+          type: object
+          additionalProperties: false
+          required:
+          - id
+          - name
+          - harness
+          - auth_mode
+          - active
+          - credential_store
+          - profiles
+          - api_key_mask
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+              minLength: 1
+              maxLength: 255
+            harness:
+              type: string
+              enum:
+              - codex
+            auth_mode:
+              type: string
+              enum:
+              - account
+              - api_key
+            active:
+              type: boolean
+            credential_store:
+              type:
+              - string
+              - 'null'
+            profiles:
+              type: array
+              items:
+                type: string
+            api_key_mask:
+              type:
+              - string
+              - 'null'
+        LLMAccounts:
+          type: object
+          additionalProperties: false
+          required:
+          - items
+          - next_cursor
+          - prev_cursor
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/LLMAccount'
+            next_cursor:
+              type:
+              - string
+              - 'null'
+            prev_cursor:
+              type:
+              - string
+              - 'null'
+        AuthFile:
+          type: object
+          additionalProperties: true
+          x-go-type: json.RawMessage
+        CreateLLMAccount:
+          type: object
+          additionalProperties: false
+          required:
+          - name
+          - harness
+          - auth_mode
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 255
+            harness:
+              type: string
+              enum:
+              - codex
+            auth_mode:
+              type: string
+              enum:
+              - account
+              - api_key
+            active:
+              type: boolean
+              default: true
+            credential_store:
+              type: string
+              minLength: 1
+            auth_file:
+              $ref: '#/components/schemas/AuthFile'
+            api_key:
+              type: string
+              minLength: 1
+              writeOnly: true
+          x-go-type: json.RawMessage
+        UpdateLLMAccount:
+          type: object
+          additionalProperties: false
+          required: []
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 255
+            active:
+              type: boolean
+          x-go-type: json.RawMessage
+          minProperties: 1
+        ReplaceAPIKey:
+          type: object
+          additionalProperties: false
+          required:
+          - api_key
+          properties:
+            api_key:
+              type: string
+              minLength: 1
+              writeOnly: true
+        CredentialStores:
+          type: object
+          additionalProperties: false
+          required:
+          - items
+          properties:
+            items:
+              type: array
+              items:
+                type: string
         Template:
             type: object
             additionalProperties: false
@@ -466,7 +816,7 @@ components:
             description: Validation paths start with body, header, query, or path. Hook execution errors identify configuration.hooks.<name>; codes never contain input values or native validator messages.
             properties:
                 code:
-                    enum: [required, invalid_type, invalid_value, unknown_field, template_not_found, template_inactive, template_forbidden, tag_not_found]
+                    enum: [required, invalid_type, invalid_value, unknown_field, template_not_found, template_inactive, template_forbidden, tag_not_found, profile_not_found, profile_inactive, account_inactive]
                     title: Code
                     type: string
                 path:
@@ -1539,32 +1889,431 @@ info:
 openapi: 3.1.0
 paths:
     /api/v1/profiles:
-        get:
-            operationId: get_profiles
-            summary: List configured profiles
-            description: Returns the complete catalog sorted by name from local configuration. No provider or credential lookups are performed.
-            responses:
-                '200':
-                    description: Configured profiles
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Profiles'
-                '401':
-                    description: Unauthorized
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-                '503':
-                    description: Authentication temporarily unavailable
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorResponse'
-            security:
-                - HTTPBearer: []
-                - BrowserSession: []
+      get:
+        operationId: get_profiles
+        summary: List profiles
+        responses:
+          '200':
+            description: List profiles
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Profiles'
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+        parameters:
+        - in: query
+          name: active
+          schema:
+            type: boolean
+        - in: query
+          name: name
+          description: Exact case-sensitive name. Incompatible with name_contains.
+          schema:
+            type: string
+            minLength: 1
+        - in: query
+          name: name_contains
+          description: Literal case-insensitive substring. Incompatible with name.
+          schema:
+            type: string
+            minLength: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - in: query
+          name: cursor
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 8192
+        - in: query
+          name: available
+          schema:
+            type: boolean
+          description: Profile and account activity combined.
+        description: Database catalog ordered by (name, id), with filters bound to forward/backward cursors.
+          Changes apply to new sessions; accepted sessions retain their account and execution snapshot.
+      post:
+        operationId: create_profile
+        summary: Create profile
+        responses:
+          '201':
+            description: Create profile
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Profile'
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateProfile'
+    /api/v1/profiles/{id}:
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      get:
+        operationId: get_profile
+        summary: Read profile
+        responses:
+          '200':
+            description: Read profile
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Profile'
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+      patch:
+        operationId: update_profile
+        summary: Update profile
+        responses:
+          '200':
+            description: Update profile
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Profile'
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateProfile'
+      delete:
+        operationId: delete_profile
+        summary: Delete profile
+        responses:
+          '204':
+            description: Delete profile
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+    /api/v1/llm-accounts:
+      get:
+        operationId: get_llm_accounts
+        summary: List llm-accounts
+        responses:
+          '200':
+            description: List llm-accounts
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/LLMAccounts'
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+        parameters:
+        - in: query
+          name: active
+          schema:
+            type: boolean
+        - in: query
+          name: name
+          description: Exact case-sensitive name. Incompatible with name_contains.
+          schema:
+            type: string
+            minLength: 1
+        - in: query
+          name: name_contains
+          description: Literal case-insensitive substring. Incompatible with name.
+          schema:
+            type: string
+            minLength: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - in: query
+          name: cursor
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 8192
+        description: Database catalog ordered by (name, id), with filters bound to forward/backward cursors.
+          Changes apply to new sessions; accepted sessions retain their account and execution snapshot.
+      post:
+        operationId: create_llm_account
+        summary: Create llm account
+        responses:
+          '201':
+            description: Create llm account
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/LLMAccountDetails'
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateLLMAccount'
+    /api/v1/llm-accounts/{id}:
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      get:
+        operationId: get_llm_account
+        summary: Read llm account
+        responses:
+          '200':
+            description: Read llm account
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/LLMAccountDetails'
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+      patch:
+        operationId: update_llm_account
+        summary: Update llm account
+        responses:
+          '200':
+            description: Update llm account
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/LLMAccountDetails'
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateLLMAccount'
+      delete:
+        operationId: delete_llm_account
+        summary: Delete llm account
+        responses:
+          '204':
+            description: Delete llm account
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+    /api/v1/credential-stores:
+      get:
+        operationId: get_credential_stores
+        summary: List configured credential store names
+        responses:
+          '200':
+            description: List configured credential store names
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/CredentialStores'
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+    /api/v1/llm-accounts/{id}/api-key:
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      put:
+        operationId: replace_api_key
+        summary: Replace an account API key
+        responses:
+          '204':
+            description: Replace an account API key
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplaceAPIKey'
+    /api/v1/llm-accounts/{id}/auth-file:
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      get:
+        operationId: get_auth_file
+        summary: Read the account authorization file
+        responses:
+          '200':
+            description: Read the account authorization file
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AuthFile'
+            headers:
+              ETag:
+                required: true
+                schema:
+                  type: string
+              Cache-Control:
+                required: true
+                schema:
+                  type: string
+                  const: no-store
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+      put:
+        operationId: replace_auth_file
+        summary: Conditionally replace the account authorization file
+        responses:
+          '204':
+            description: Conditionally replace the account authorization file
+            headers:
+              ETag:
+                required: true
+                schema:
+                  type: string
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthFile'
+        parameters:
+        - in: header
+          name: If-Match
+          required: true
+          schema:
+            type: string
+            minLength: 1
     /api/v1/templates:
         get:
             operationId: get_templates
@@ -1714,29 +2463,54 @@ paths:
                 - HTTPBearer: []
                 - BrowserSession: []
     /api/v1/accounts/limits:
-        get:
-            operationId: get_account_limits
-            summary: Current provider limits by configured account
-            description: Read-only snapshot from worker observations. Does not contact the provider or refresh credentials. Responses use Cache-Control no-store.
-            responses:
-                '200':
-                    description: Account limits snapshot
-                    content:
-                        application/json:
-                            schema: {$ref: '#/components/schemas/AccountLimits'}
-                '401':
-                    description: Unauthorized
-                    content:
-                        application/json:
-                            schema: {$ref: '#/components/schemas/ErrorResponse'}
-                '503':
-                    description: Account limits unavailable
-                    content:
-                        application/json:
-                            schema: {$ref: '#/components/schemas/ErrorResponse'}
-            security:
-                - HTTPBearer: []
-                - BrowserSession: []
+      get:
+        operationId: get_account_limits
+        summary: Current provider limits by account
+        description: Read-only snapshot from worker observations. Does not contact the provider or refresh
+          credentials. Responses use Cache-Control no-store.
+        responses:
+          '200':
+            description: Account limits snapshot
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AccountLimits'
+          '401':
+            description: Unauthorized
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+          '503':
+            description: Account limits unavailable
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+          default:
+            description: Invalid input (422), unauthorized (401), forbidden origin (403), missing record (404),
+              conflict (409), or unavailable storage (503).
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        security:
+        - HTTPBearer: []
+        - BrowserSession: []
+        parameters:
+        - in: query
+          name: account_ids
+          style: form
+          explode: false
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 200
+            uniqueItems: true
+            items:
+              type: string
+              format: uuid
+          description: Comma-separated account UUIDs. Omit to read all account-file identities.
     /api/v1/analytics/overview:
         get:
             operationId: get_analytics_overview

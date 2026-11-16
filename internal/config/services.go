@@ -35,7 +35,7 @@ func validateServices(services map[string]Service) error {
 
 // EnvironmentAllowlist authorizes catalog references without duplicating them
 // in deployment ENV. Selection still determines which references are forwarded.
-func (p Profiles) EnvironmentAllowlist(explicit []string) []string {
+func (p Deployment) EnvironmentAllowlist(explicit []string) []string {
 	names := slices.Clone(explicit)
 	for _, service := range p.Services {
 		names = append(names, service.EnvFrom...)
@@ -46,7 +46,7 @@ func (p Profiles) EnvironmentAllowlist(explicit []string) []string {
 
 // ResolveServices freezes public service metadata and merges references. It must
 // run only after idempotent replay, never when restoring accepted execution.
-func ResolveServices(env map[string]string, from, codes []string, p Profiles, prefix ...any) ([]string, []session.Service, error) {
+func ResolveServices(env map[string]string, from, codes []string, p Deployment, prefix ...any) ([]string, []session.Service, error) {
 	if err := validateEnvironment(env, from, prefix); err != nil {
 		return nil, nil, err
 	}

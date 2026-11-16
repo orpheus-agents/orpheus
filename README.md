@@ -21,8 +21,7 @@ cp .env.dist .env
 cp orpheus.toml.dist orpheus.toml
 ```
 
-Set `AGENTBOX_API_KEY` and `OPENAI_API_KEY` in `.env`.
-Add `model = "your-model"` under `[profiles.default]` in `orpheus.toml`.
+Set `AGENTBOX_API_KEY` in `.env`.
 ```sh
 make start
 curl -fsS http://localhost:9100/ready
@@ -30,8 +29,8 @@ curl -fsS http://localhost:9100/ready
 
 The API is available at `http://localhost:8000`. By default, session requests require
 `Authorization: Bearer <key>` using a key from `PUBLIC_API_KEYS` in `.env`.
-Before creating sessions, register an active AgentBox template through the
-[template API](docs/profiles-and-templates.md#database-template-catalog) or Orpheus Web.
+Before creating sessions, add an LLM account, a model profile and an active
+AgentBox template through the [catalog APIs](docs/profiles-and-templates.md) or Orpheus Web.
 For browser access, see [browser authentication](docs/browser-auth.md).
 For the dashboard snapshot and session filters, see [dashboard analytics](docs/dashboard-analytics.md).
 For profile settings, template registration and catalog APIs, see

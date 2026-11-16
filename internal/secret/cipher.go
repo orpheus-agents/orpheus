@@ -1,4 +1,4 @@
-// Package secret encrypts explicit sandbox environment values at rest.
+// Package secret encrypts environment values and account API keys at rest.
 package secret
 
 import (
@@ -48,6 +48,26 @@ func runAAD(sessionID, runID uuid.UUID) []byte {
 
 func (c *Cipher) EncryptRun(sessionID, runID uuid.UUID, env map[string]string) (*Value, error) {
 	return c.encrypt(runAAD(sessionID, runID), env)
+}
+
+func accountAAD(id uuid.UUID) []byte {
+	return append([]byte("orpheus-llm-account-v1\x00"), id[:]...)
+}
+
+func (c *Cipher) EncryptAccount(id uuid.UUID, key string) (*Value, error) {
+	return c.encrypt(accountAAD(id), map[string]string{"api_key": key})
+}
+
+func (c *Cipher) DecryptAccount(id uuid.UUID, value *Value) (string, error) {
+	values, err := c.decrypt(accountAAD(id), value)
+	if err != nil {
+		return "", err
+	}
+	key, ok := values["api_key"]
+	if !ok || key == "" {
+		return "", errors.New("account key is unavailable")
+	}
+	return key, nil
 }
 
 func (c *Cipher) encrypt(aad []byte, env map[string]string) (*Value, error) {

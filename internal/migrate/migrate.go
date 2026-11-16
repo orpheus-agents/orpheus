@@ -5,17 +5,30 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/orpheus-agents/orpheus/internal/diagnostic"
+	"github.com/orpheus-agents/orpheus/internal/migrate/llmlegacy"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 )
 
 func Provider(db *sql.DB, directory string, opts ...goose.ProviderOption) (*goose.Provider, error) {
-	return goose.NewProvider(goose.DialectPostgres, db, os.DirFS(directory), opts...)
+	source := os.DirFS(directory)
+	if _, err := fs.Stat(source, "00031_llm_import.go"); err == nil {
+		opts = append(opts, goose.WithGoMigrations(goose.NewGoMigration(31,
+			&goose.GoFunc{RunTx: llmlegacy.Up},
+			&goose.GoFunc{RunTx: func(context.Context, *sql.Tx) error {
+				return errors.New("LLM import cannot be reversed; restore the pre-upgrade database to roll back")
+			}},
+		)))
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	return goose.NewProvider(goose.DialectPostgres, db, source, opts...)
 }
 func Run(ctx context.Context, url, command, directory string) error {
 	db, err := sql.Open("pgx", url)

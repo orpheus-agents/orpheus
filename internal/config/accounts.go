@@ -7,46 +7,20 @@ import (
 	"errors"
 	"net"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
-// Account is a configured credential identity. Fingerprint is never exposed by HTTP.
+// Account identifies a file-backed account for limit observations. Fingerprint is never exposed by HTTP.
 type Account struct {
 	ID          string
 	Profiles    []string
 	Fingerprint string
 }
 
-func (p Profiles) Accounts() []Account {
-	byID := map[string]*Account{}
-	for name, profile := range p.Profiles {
-		if profile.Auth.Mode != "account" {
-			continue
-		}
-		account := byID[profile.Auth.AccountID]
-		if account == nil {
-			credentials := session.Credentials{Mode: "account", AccountID: profile.Auth.AccountID, Store: new(p.CredentialStores[profile.Auth.Store]), Key: profile.Auth.Key}
-			fingerprint, _ := SourceFingerprint(profile.Harness, credentials) // ReadProfiles validated the source.
-			account = &Account{ID: profile.Auth.AccountID, Fingerprint: fingerprint}
-			byID[account.ID] = account
-		}
-		account.Profiles = append(account.Profiles, name)
-	}
-	accounts := make([]Account, 0, len(byID))
-	for _, account := range byID {
-		slices.Sort(account.Profiles)
-		accounts = append(accounts, *account)
-	}
-	slices.SortFunc(accounts, func(a, b Account) int { return strings.Compare(a.ID, b.ID) })
-	return accounts
-}
-
-// SourceFingerprint binds an immutable session snapshot to the current profile
-// catalogue without exposing credential locations or provider identities.
+// SourceFingerprint identifies a file source without exposing its location.
 func SourceFingerprint(harness string, credentials session.Credentials) (string, error) {
 	if credentials.Mode != "account" || credentials.Store == nil || harness == "" {
 		return "", errors.New("invalid account credential source")

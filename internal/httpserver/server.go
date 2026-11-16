@@ -181,8 +181,8 @@ func (s *Server) GetAnalyticsOverview(ctx context.Context, r api.GetAnalyticsOve
 	}
 	return mapResponse[api.GetAnalyticsOverview200JSONResponse](v)
 }
-func (s *Server) GetAccountLimits(ctx context.Context, _ api.GetAccountLimitsRequestObject) (api.GetAccountLimitsResponseObject, error) {
-	v, err := s.Store.AccountLimits(ctx)
+func (s *Server) GetAccountLimits(ctx context.Context, r api.GetAccountLimitsRequestObject) (api.GetAccountLimitsResponseObject, error) {
+	v, err := s.Store.AccountLimitsFor(ctx, value(r.Params.AccountIds, nil))
 	if err != nil {
 		return nil, err
 	}

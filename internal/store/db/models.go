@@ -69,6 +69,19 @@ type IdempotencyKey struct {
 	MessageID   uuid.UUID `json:"message_id"`
 }
 
+type LlmAccount struct {
+	ID              uuid.UUID  `json:"id"`
+	Name            string     `json:"name"`
+	Harness         string     `json:"harness"`
+	AuthMode        string     `json:"auth_mode"`
+	Active          bool       `json:"active"`
+	ApiKeySecretID  *uuid.UUID `json:"api_key_secret_id"`
+	CredentialStore *string    `json:"credential_store"`
+	CredentialKey   *string    `json:"credential_key"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
 type Message struct {
 	ID                 uuid.UUID         `json:"id"`
 	SessionID          uuid.UUID         `json:"session_id"`
@@ -85,6 +98,19 @@ type Message struct {
 	CreatedAt          time.Time         `json:"created_at"`
 	ExternalKey        *string           `json:"external_key"`
 	Metadata           json.RawMessage   `json:"metadata"`
+}
+
+type ModelProfile struct {
+	ID           uuid.UUID       `json:"id"`
+	Name         string          `json:"name"`
+	Description  *string         `json:"description"`
+	LlmAccountID uuid.UUID       `json:"llm_account_id"`
+	Model        string          `json:"model"`
+	Instructions string          `json:"instructions"`
+	Codex        json.RawMessage `json:"codex"`
+	Active       bool            `json:"active"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
 type Operation struct {
@@ -174,6 +200,7 @@ type Session struct {
 	ReasoningOutputNativeTotal *int64                        `json:"reasoning_output_native_total"`
 	AllowMultipleRuns          bool                          `json:"allow_multiple_runs"`
 	EnvSecretID                *uuid.UUID                    `json:"env_secret_id"`
+	LlmAccountID               *uuid.UUID                    `json:"llm_account_id"`
 }
 
 type SessionEvent struct {

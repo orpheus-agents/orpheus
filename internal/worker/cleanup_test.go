@@ -9,10 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/credentials"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/testutil"
 )
 
 type cleanupPlatform struct {
@@ -39,14 +41,11 @@ func (p *cleanupPlatform) Connect(ctx context.Context, id string, timeout time.D
 
 func cleanupAccount(t *testing.T, s *store.Store, a session.Acceptance, home *string) {
 	t.Helper()
-	record, _, err := s.Read(t.Context(), a.SessionID)
-	if err != nil {
+	linkFileSession(t, s, a.SessionID)
+	if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET harness_home=$2 WHERE id=$1", a.SessionID, home); err != nil {
 		t.Fatal(err)
 	}
-	record.Configuration.Credentials = session.Credentials{Mode: "account"}
-	if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET configuration=$2, harness_home=$3 WHERE id=$1", a.SessionID, record.Configuration, home); err != nil {
-		t.Fatal(err)
-	}
+
 }
 
 func TestDeleteAuthPreparationIsBestEffort(t *testing.T) {
@@ -202,5 +201,15 @@ func TestReleasedSandboxLossIsNotSettledAgain(t *testing.T) {
 				t.Fatalf("extra tick contacted sandbox: info=%d connect=%d delete=%d pause=%d", p.infos, p.connects, box.deletes, box.pauses)
 			}
 		})
+	}
+}
+
+func linkFileSession(t *testing.T, s *store.Store, id uuid.UUID) {
+	t.Helper()
+	metadata := session.CredentialStore{Type: "s3", Region: "us-east-1", Bucket: "fixture"}
+	s.Deployment.CredentialStores = map[string]session.CredentialStore{"s": metadata}
+	account := testutil.SeedFileAccount(t, s.Pool, "s", "auth.json", metadata)
+	if _, err := s.Pool.Exec(t.Context(), "UPDATE sessions SET llm_account_id=$2 WHERE id=$1", id, account.ID); err != nil {
+		t.Fatal(err)
 	}
 }

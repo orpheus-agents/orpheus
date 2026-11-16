@@ -12,7 +12,7 @@ import (
 )
 
 func TestSingleRunMigration(t *testing.T) {
-	pool := testutil.Database(t)
+	pool := testutil.DatabaseAt(t, 29)
 	db := stdlib.OpenDB(*pool.Config().ConnConfig)
 	defer func() { _ = db.Close() }()
 	p, err := migrate.Provider(db, "../../migrations")
@@ -26,7 +26,7 @@ func TestSingleRunMigration(t *testing.T) {
 	if _, err := pool.Exec(t.Context(), `INSERT INTO sessions(id,configuration,sandbox_state,sandbox_id) VALUES($1,'{}','paused','retained')`, old); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Up(t.Context()); err != nil {
+	if _, err := p.UpTo(t.Context(), 29); err != nil {
 		t.Fatal(err)
 	}
 	var multiple bool
@@ -56,7 +56,7 @@ func TestSingleRunMigration(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM session_events WHERE data->>'state'='unavailable' AND data->>'last_known_state'='unavailable' AND data->>'id'='diagnostic-id'`).Scan(&count); err != nil || count != 2 {
 		t.Fatal("rollback left unsupported events", count, err)
 	}
-	if _, err := p.Up(t.Context()); err != nil {
+	if _, err := p.UpTo(t.Context(), 29); err != nil {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM sessions WHERE allow_multiple_runs`).Scan(&count); err != nil || count != 3 {

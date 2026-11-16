@@ -1,29 +1,9 @@
-[profiles.default]
-description = "Default Codex profile"
-harness = "codex"
-# Set the model here or provide agent.model when creating a session.
+# Infrastructure configuration shared by API and worker.
+# Create LLM accounts, model profiles and sandbox templates through the API or UI.
 
-# Optional Codex options for this profile (omitted values use Codex defaults):
-# [profiles.default.codex]
-# effort = "medium"
-# summary = "auto"
-# personality = "friendly"
-# service_tier = "default"
-
-[profiles.default.auth]
-mode = "api_key"
-api_key_env = "OPENAI_API_KEY"
-
-# Account profile example:
+# Optional S3 store for account authorization files:
 # [credential_stores.main]
 # type = "s3"
 # bucket = "orpheus-credentials"
 # region = "us-east-1"
-# [profiles.account]
-# harness = "codex"
-# model = "your-model"
-# [profiles.account.auth]
-# mode = "account"
-# account_id = "team-main"
-# store = "main"
-# key = "codex/team/auth.json"
+# endpoint_url = "https://s3.example.com"

@@ -1,11 +1,9 @@
-package config
+package llmlegacy
 
 import (
 	"fmt"
 	"strings"
 	"testing"
-
-	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
 func TestAccountCatalogAndImmutableCredentials(t *testing.T) {
@@ -36,18 +34,8 @@ key="auth.json"
 	if err != nil {
 		t.Fatal(err)
 	}
-	accounts := p.Accounts()
-	if len(accounts) != 1 || accounts[0].ID != "team-main" || strings.Join(accounts[0].Profiles, ",") != "deep,fast" || len(accounts[0].Fingerprint) != 64 {
-		t.Fatal(accounts)
-	}
-	in := session.ConfigurationInput{Agent: session.AgentInput{Profile: "fast"}, Sandbox: session.SandboxInput{Template: "codex"}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
-	resolved, err := Resolve(in, p, nil, DefaultMaxSessionTokens)
-	if err != nil || resolved.Credentials.AccountID != "team-main" {
-		t.Fatal(resolved, err)
-	}
-	fingerprint, err := SourceFingerprint(resolved.Harness, resolved.Credentials)
-	if err != nil || fingerprint != accounts[0].Fingerprint {
-		t.Fatal(fingerprint, err)
+	if p.Profiles["fast"].Auth.AccountID != "team-main" || p.Profiles["deep"].Auth.AccountID != "team-main" {
+		t.Fatal("legacy identity changed")
 	}
 	for name, changed := range map[string]string{
 		"source changed": strings.Replace(source, "key=\"auth.json\"\n[profiles.fast]", "key=\"other.json\"\n[profiles.fast]", 1),
