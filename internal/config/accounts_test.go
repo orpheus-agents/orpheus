@@ -9,8 +9,7 @@ import (
 )
 
 func TestAccountCatalogAndImmutableCredentials(t *testing.T) {
-	const source = `[templates.codex]
-[credential_stores.one]
+	const source = `[credential_stores.one]
 bucket="b"
 endpoint_url="HTTPS://S3.EXAMPLE:443/path"
 [credential_stores.two]
@@ -68,8 +67,7 @@ key="auth.json"
 }
 
 func TestAccountIDsCannotBeUsedByAPIKeys(t *testing.T) {
-	source := `[templates.codex]
-[profiles.p]
+	source := `[profiles.p]
 harness="codex"
 [profiles.p.auth]
 mode="api_key"
@@ -83,7 +81,7 @@ account_id="team-main"
 
 func TestAccountCatalogCap(t *testing.T) {
 	var source strings.Builder
-	source.WriteString("[templates.codex]\n[credential_stores.s]\nbucket='b'\n")
+	source.WriteString("[credential_stores.s]\nbucket='b'\n")
 	for i := range 1001 {
 		fmt.Fprintf(&source, "[profiles.p%d]\nharness='codex'\n[profiles.p%d.auth]\nmode='account'\naccount_id='a%d'\nstore='s'\nkey='k%d'\n", i, i, i, i)
 	}

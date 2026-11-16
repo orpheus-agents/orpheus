@@ -18,9 +18,9 @@ func TestCatalogValidationAndExistingSessions(t *testing.T) {
 		// requestHTTP validates successful responses against OpenAPI.
 		externalRequest(t, server, "GET", path, "", "", 200)
 	}
-	for _, tc := range []struct{ body, code, field string }{
-		{strings.Replace(externalBody, "\"template\":\"codex\"", "\"template\":\"missing\"", 1), "unknown_template", "sandbox"},
-		{strings.Replace(externalBody, "\"profile\":\"default\"", "\"profile\":\"missing\"", 1), "unknown_profile", "agent"},
+	for _, tc := range []struct{ body, code, field, detail string }{
+		{strings.Replace(externalBody, "\"template\":\"codex\"", "\"template\":\"missing\"", 1), "unknown_template", "sandbox", "template_not_found"},
+		{strings.Replace(externalBody, "\"profile\":\"default\"", "\"profile\":\"missing\"", 1), "unknown_profile", "agent", "invalid_value"},
 	} {
 		raw := externalRequest(t, server, "POST", "/api/v1/sessions", tc.body, uuid.NewString(), 422)
 		var response struct{ Error session.Error }
@@ -31,16 +31,18 @@ func TestCatalogValidationAndExistingSessions(t *testing.T) {
 		if tc.field == "agent" {
 			leaf = "profile"
 		}
-		want := []session.Detail{{Path: []any{"body", "configuration", tc.field, leaf}, Code: "invalid_value"}}
+		want := []session.Detail{{Path: []any{"body", "configuration", tc.field, leaf}, Code: tc.detail}}
 		if response.Error.Code != tc.code || !reflect.DeepEqual(response.Error.Details, want) {
 			t.Fatalf("%s", raw)
 		}
 	}
 	key := uuid.NewString()
 	first := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", "/api/v1/sessions", externalBody, key, 202))
-	// Simulate a restart after removing both entries from the configuration.
+	// Catalog removal does not affect replay or continuation of accepted sessions.
 	delete(storage.Profiles.Profiles, "default")
-	delete(storage.Profiles.Templates, "codex")
+	if _, err := storage.Pool.Exec(t.Context(), "DELETE FROM templates"); err != nil {
+		t.Fatal(err)
+	}
 	again := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", "/api/v1/sessions", externalBody, key, 202))
 	if again != first {
 		t.Fatal("replay changed accepted run", again, first)

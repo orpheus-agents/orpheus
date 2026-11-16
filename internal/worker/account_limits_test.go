@@ -89,8 +89,7 @@ func (d *limitTestDriver) count() int                           { d.mu.Lock(); d
 
 func TestCollectorSingleDonorFailoverAndUnregister(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader(`[templates.codex]
-[credential_stores.s]
+	p, err := config.ReadProfiles(strings.NewReader(`[credential_stores.s]
 bucket="test-credentials"
 [profiles.a]
 harness="codex"
@@ -158,7 +157,7 @@ key="auth.json"
 
 func TestCollectorUnregisterCancelsInFlightRPC(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[templates.codex]\n[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
+	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +184,7 @@ func TestCollectorUnregisterCancelsInFlightRPC(t *testing.T) {
 
 func TestCollectorUnregisterDoesNotWaitForStorage(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[templates.codex]\n[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
+	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +240,7 @@ func TestCollectorFailoverAfterDonorErrorAndReconnect(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, _, _, _ := setup(t)
-			p, err := config.ReadProfiles(strings.NewReader("[templates.codex]\n[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
+			p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -319,7 +318,7 @@ func TestCollectorProviderFailureBacksOffWholeAccount(t *testing.T) {
 	} {
 		t.Run(failure.name, func(t *testing.T) {
 			s, _, _, _ := setup(t)
-			p, err := config.ReadProfiles(strings.NewReader("[templates.codex]\n[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
+			p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -372,7 +371,7 @@ func TestCollectorProviderFailureBacksOffWholeAccount(t *testing.T) {
 
 func TestCollectorStopsAfterTwoTransportFailures(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[templates.codex]\n[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
+	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -444,7 +443,7 @@ func TestCollectorStopsAfterTwoTransportFailures(t *testing.T) {
 
 func TestCollectorLimitsInvalidDonorChain(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[templates.codex]\n[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
+	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -505,7 +504,7 @@ func TestCollectorLimitsInvalidDonorChain(t *testing.T) {
 
 func TestCollectorAcceptsReserveReadWhenPrimaryRetryExpires(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[templates.codex]\n[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
+	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -574,7 +573,7 @@ func TestCollectorBackoffAndLeadingEdgeDebounce(t *testing.T) {
 
 func TestExecutorRunsWithBlockedAccountLimitRead(t *testing.T) {
 	s, _, _, _ := setup(t)
-	p, err := config.ReadProfiles(strings.NewReader("[templates.codex]\n[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\nmodel='model'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
+	p, err := config.ReadProfiles(strings.NewReader("[credential_stores.s]\nbucket='b'\n[profiles.a]\nharness='codex'\nmodel='model'\n[profiles.a.auth]\nmode='account'\naccount_id='a'\nstore='s'\nkey='auth'\n"))
 	if err != nil {
 		t.Fatal(err)
 	}

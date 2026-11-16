@@ -1,7 +1,3 @@
-# Register every AgentBox template that new sessions may select.
-[templates.orpheus-codex]
-description = "Codex sandbox"
-
 [profiles.default]
 description = "Default Codex profile"
 harness = "codex"

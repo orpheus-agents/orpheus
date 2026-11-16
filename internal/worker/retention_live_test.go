@@ -33,7 +33,8 @@ func TestLiveRetainedSandboxDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &store.Store{Pool: testutil.Database(t), Settings: config.DefaultSettings(), Cipher: cipher, Profiles: config.Profiles{Templates: map[string]config.Template{"codex": {}}, Profiles: map[string]config.Profile{"live": {Harness: "codex", Model: new("fixture"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
+	s := &store.Store{Pool: testutil.Database(t), Settings: config.DefaultSettings(), Cipher: cipher, Profiles: config.Profiles{Profiles: map[string]config.Profile{"live": {Harness: "codex", Model: new("fixture"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "OPENAI_API_KEY"}}}}}
+	testutil.RegisterTemplate(t, s.Pool, "codex")
 	s.Settings.WorkerPoll = 50 * time.Millisecond
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()

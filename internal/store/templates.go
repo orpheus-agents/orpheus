@@ -21,6 +21,23 @@ func templateView(row db.Template) templates.Template {
 	return templates.Template{ID: row.ID, Name: row.Name, TemplateName: row.TemplateName, Tag: row.Tag, Description: row.Description, Active: row.Active}
 }
 
+func validateTemplateForAdmission(ctx context.Context, tx pgx.Tx, name string) error {
+	active, err := db.New(tx).GetTemplateForAdmission(ctx, name)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if active {
+		return nil
+	}
+	code, message := "template_inactive", "Sandbox template is inactive."
+	if errors.Is(err, pgx.ErrNoRows) {
+		code, message = "template_not_found", "Unknown sandbox template."
+	}
+	problem := session.Problem(422, "unknown_template", message)
+	problem.Problem.Details = []session.Detail{{Path: []any{"body", "configuration", "sandbox", "template"}, Code: code}}
+	return problem
+}
+
 func templateError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return session.Problem(404, "template_not_found", "Template not found.")

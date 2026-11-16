@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/browserauth"
+	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store/db"
 	"github.com/orpheus-agents/orpheus/internal/templates"
 	"github.com/orpheus-agents/orpheus/internal/testutil"
@@ -37,9 +38,22 @@ func TestTemplateHTTP(t *testing.T) {
 	t.Cleanup(provider.Close)
 	t.Setenv("AGENTBOX_API_URL", provider.URL)
 	t.Setenv("AGENTBOX_API_KEY", "provider-key")
-	server, _ := testServer(t)
+	server, storage := testServer(t)
+	if _, err := storage.Pool.Exec(t.Context(), "DELETE FROM templates"); err != nil {
+		t.Fatal(err)
+	}
 	empty := externalRequest(t, server, "GET", "/api/v1/templates", "", "", 200)
 	assertCatalogJSON(t, empty, `{"items":[],"next_cursor":null,"prev_cursor":null}`)
+	key := uuid.NewString()
+	checkUnavailable := func(code string) {
+		t.Helper()
+		raw := externalRequest(t, server, "POST", "/api/v1/sessions", externalBody, key, 422)
+		response := decodeHTTP[struct{ Error session.Error }](t, raw)
+		if response.Error.Code != "unknown_template" || len(response.Error.Details) != 1 || response.Error.Details[0].Code != code {
+			t.Fatalf("%s", raw)
+		}
+	}
+	checkUnavailable("template_not_found")
 	raw := externalRequest(t, server, "POST", "/api/v1/templates", `{"template_name":"CODEX","description":" \n "}`, "", 201)
 	created := decodeHTTP[templates.Template](t, raw)
 	if !created.Active || created.Name != "codex" || created.Tag != nil || created.Description != nil || strings.Contains(string(raw), "provider-id") {
@@ -74,13 +88,24 @@ func TestTemplateHTTP(t *testing.T) {
 	if len(page.Items) != 1 || page.Items[0].ID != created.ID {
 		t.Fatal(page)
 	}
-	// The DB active flag still has no effect on stage-2 core session admission.
-	externalRequest(t, server, "POST", "/api/v1/sessions", externalBody, uuid.NewString(), 202)
+	checkUnavailable("template_inactive")
+	externalRequest(t, server, "PATCH", path, `{"active":true}`, "", 200)
+	accepted := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", "/api/v1/sessions", externalBody, key, 202))
+	externalRequest(t, server, "PATCH", path, `{"active":false}`, "", 200)
+	replay := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", "/api/v1/sessions", externalBody, key, 202))
+	if replay != accepted {
+		t.Fatal("deactivation changed replay", replay, accepted)
+	}
 	externalRequest(t, server, "DELETE", path, "", "", 204)
 	externalRequest(t, server, "GET", path, "", "", 404)
 	externalRequest(t, server, "DELETE", path, "", "", 404)
 	externalRequest(t, server, "PATCH", path, `{"active":true}`, "", 404)
-	externalRequest(t, server, "POST", "/api/v1/sessions", externalBody, uuid.NewString(), 202)
+	replay = decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", "/api/v1/sessions", externalBody, key, 202))
+	if replay != accepted {
+		t.Fatal("deletion changed replay", replay, accepted)
+	}
+	key = uuid.NewString()
+	checkUnavailable("template_not_found")
 	if providerCalls != 4 {
 		t.Fatal("read/update/delete called provider", providerCalls)
 	}

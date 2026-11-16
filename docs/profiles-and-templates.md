@@ -1,7 +1,7 @@
 # Profiles and templates
 
-Define agent profiles and allowed sandbox templates in `orpheus.toml`.
-For example, a complete configuration with one profile and one template:
+Define agent profiles in `orpheus.toml`. Register sandbox templates through the
+database catalog API or Orpheus Web. A configuration with one profile:
 
 ```toml
 [profiles.research]
@@ -12,13 +12,8 @@ model = "your-model"
 [profiles.research.auth]
 mode = "api_key"
 api_key_env = "OPENAI_API_KEY"
-
-[templates.orpheus-codex]
-description = "Codex sandbox"
 ```
 
-At least one template is required. Each key is the exact AgentBox template name,
-including any tag; registration does not create or check the template in AgentBox.
 Set optional `description` under `[profiles.<name>]` to describe a profile.
 API and worker must use the same configuration file; restart them after changes.
 
@@ -28,17 +23,32 @@ and `instructions`; authentication settings and credentials are excluded.
 Missing, empty or whitespace-only descriptions and missing models are `null`.
 Omitted Codex options stay absent. Descriptions and instructions must not contain secrets.
 
-New sessions still validate profile and template names against TOML and return
-422 (`unknown_profile` or `unknown_template`) for missing entries. Removing a
-name does not change accepted sessions or their idempotent replays. Descriptions
-are not part of execution snapshots.
+New sessions validate profile names against TOML and return 422 `unknown_profile`
+for missing entries. Profile descriptions are not part of execution snapshots.
 
 ## Database template catalog
 
-The template management API reads PostgreSQL. During this rollout, session
-admission and workers still use TOML: registering, disabling or deleting a
-catalog record does not change which names new sessions accept. Keep the TOML
-entries until the separate runtime switch. There is no automatic import or seed.
+The template catalog is stored in PostgreSQL. New sessions require an exact,
+active catalog name, including any team slug and tag. Changes take effect without
+restarting API or worker. An empty catalog is valid at startup and rejects new
+sessions. There is no automatic import or seed.
+
+Missing and inactive names both return 422 `unknown_template` at
+`body.configuration.sandbox.template`. The detail code is `template_not_found`
+or `template_inactive`, respectively. Admission does not normalize the selected
+name, resolve aliases or call AgentBox. It checks and locks the catalog row in the
+same transaction that accepts the session, so concurrent deletion or deactivation
+cannot overtake an admission that has already selected an active record.
+
+Accepted sessions retain their exact template name. Workers, continuation runs
+and idempotent replays do not read the catalog again. Disabling or deleting a
+record does not cancel queued work, change snapshots or affect existing
+sandboxes. Description changes do not affect execution either.
+
+When upgrading from a TOML catalog, register the required names before switching
+versions. Remove the obsolete `[templates]` section from the new configuration;
+the strict TOML parser rejects it. Coordinate the new binary and configuration
+for both API and worker. Profiles and other TOML sections remain in use.
 
 | Request | Result |
 | --- | --- |

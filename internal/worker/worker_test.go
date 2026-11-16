@@ -257,11 +257,12 @@ func setupWithEnvironment(t *testing.T, sandbox session.SandboxInput, runEnv map
 func setupSession(t *testing.T, multiple bool, sandbox session.SandboxInput, runEnv map[string]string, metadata ...json.RawMessage) (*store.Store, *remote, session.Acceptance, *Executor) {
 	t.Helper()
 	pool := testutil.Database(t)
+	testutil.RegisterTemplate(t, pool, sandbox.Template)
 	c, _ := secret.New(base64.URLEncoding.EncodeToString(make([]byte, 32)))
 	settings := config.DefaultSettings()
 	settings.DatabaseURL = pool.Config().ConnString()
 	settings.WorkerPoll = time.Millisecond
-	s := &store.Store{Pool: pool, Settings: settings, Cipher: c, Profiles: config.Profiles{Templates: map[string]config.Template{sandbox.Template: {}}, Profiles: map[string]config.Profile{"p": {Harness: "codex", Model: new("model"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}}
+	s := &store.Store{Pool: pool, Settings: settings, Cipher: c, Profiles: config.Profiles{Profiles: map[string]config.Profile{"p": {Harness: "codex", Model: new("model"), Auth: config.Auth{Mode: "api_key", APIKeyEnv: "KEY"}}}}}
 	message := session.TextMessage{Text: "task"}
 	if len(metadata) > 0 {
 		message.Metadata = metadata[0]
@@ -319,6 +320,29 @@ func TestFullCyclePauseResume(t *testing.T) {
 	tick(t, e)
 	if r.creates != 1 || r.launches != 1 || r.starts != 2 || r.opens != 1 {
 		t.Fatalf("cycle create=%d launch=%d starts=%d opens=%d", r.creates, r.launches, r.starts, r.opens)
+	}
+}
+
+func TestAcceptedSessionDoesNotReadTemplateCatalog(t *testing.T) {
+	s, r, a, e := setup(t)
+	// An unavailable catalog must not prevent execution of an accepted snapshot,
+	// creation of its first sandbox, or continuation of its reusable session.
+	if _, err := s.Pool.Exec(t.Context(), "DROP TABLE templates"); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, e)
+	if r.creates != 1 || r.starts != 1 {
+		t.Fatalf("accepted session did not start: creates=%d starts=%d", r.creates, r.starts)
+	}
+	complete(r)
+	tick(t, e)
+	tick(t, e)
+	if _, err := s.Accept(t.Context(), store.Admission{SessionID: a.SessionID, Key: uuid.New(), Messages: []session.TextMessage{{Text: "continue"}}}); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, e)
+	if r.creates != 1 || r.starts != 2 || r.opens != 1 {
+		t.Fatalf("continuation failed: creates=%d starts=%d opens=%d", r.creates, r.starts, r.opens)
 	}
 }
 func TestMessageMetadataDoesNotReachHarness(t *testing.T) {

@@ -5,6 +5,9 @@ VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
 -- name: GetTemplate :one
 SELECT * FROM templates WHERE id = $1;
 
+-- name: GetTemplateForAdmission :one
+SELECT active FROM templates WHERE name = $1 FOR SHARE;
+
 -- name: UpdateTemplate :one
 UPDATE templates SET
     active = COALESCE(sqlc.narg(active)::boolean, active),
