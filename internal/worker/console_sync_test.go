@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -146,11 +147,15 @@ func TestWorkerOpenCodeConsoleRotationAcrossSandboxes(t *testing.T) {
 		t.Fatal("missing worker credential conflict", err)
 	}
 	saved, err := s.ReadAccountFile(ctx, a.ID)
-	if err != nil || !bytes.Equal(saved.Raw, nativeA.native) {
+	equalCredential := func(left, right []byte) bool {
+		var a, b any
+		return json.Unmarshal(left, &a) == nil && json.Unmarshal(right, &b) == nil && reflect.DeepEqual(a, b)
+	}
+	if err != nil || !equalCredential(saved.Raw, nativeA.native) {
 		t.Fatal("stale worker replaced the winning credential", err)
 	}
 	_, third := start()
-	if !bytes.Equal(third.native, nativeA.native) {
+	if !equalCredential(third.native, nativeA.native) {
 		t.Fatal("fresh sandbox received an old credential")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -47,6 +48,11 @@ func (n *nativeConsole) ImportCredential(_ context.Context, raw json.RawMessage,
 	return nil
 }
 
+func sameConsoleJSON(a, b []byte) bool {
+	var left, right any
+	return json.Unmarshal(a, &left) == nil && json.Unmarshal(b, &right) == nil && reflect.DeepEqual(left, right)
+}
+
 func TestConsoleRecovery(t *testing.T) {
 	ctx := t.Context()
 	source := &fakeStore{raw: []byte(consoleA)}
@@ -68,7 +74,7 @@ func TestConsoleRecovery(t *testing.T) {
 	}
 	rotated := strings.Replace(consoleA, "access-before", "access-after", 1)
 	native.raw = []byte(rotated)
-	if err := newSync().Flush(ctx); err != nil || source.puts != 1 || string(source.raw) != rotated {
+	if err := newSync().Flush(ctx); err != nil || source.puts != 1 || !sameConsoleJSON(source.raw, []byte(rotated)) {
 		t.Fatal("failed to resume pending rotation", err)
 	}
 	replacement := strings.Replace(consoleA, "cred_xyz", "cred_abc", 1)
@@ -80,7 +86,7 @@ func TestConsoleRecovery(t *testing.T) {
 		t.Fatal("replacement was not interrupted")
 	}
 	native.breakAfterDelete = false
-	if err := newSync().Seed(ctx); err != nil || string(native.raw) != replacement {
+	if err := newSync().Seed(ctx); err != nil || !sameConsoleJSON(native.raw, []byte(replacement)) {
 		t.Fatal("failed to recover replacement", err)
 	}
 }
@@ -106,7 +112,7 @@ func TestConsoleConcurrentRotations(t *testing.T) {
 	if err := b.Flush(ctx); err == nil {
 		t.Fatal("lost competing rotation")
 	}
-	if err := b.Seed(ctx); err == nil || string(source.raw) != string(first.raw) {
+	if err := b.Seed(ctx); err == nil || !sameConsoleJSON(source.raw, first.raw) {
 		t.Fatal("conflict replaced remote credential")
 	}
 	for _, token := range []string{"access-before", "winner-access", "refresh-private"} {
@@ -141,5 +147,37 @@ func TestConsoleValidation(t *testing.T) {
 		if err := ValidateFile("opencode", []byte(invalid)); err == nil {
 			t.Fatal("accepted invalid Console record")
 		}
+	}
+}
+
+func TestConsoleKeepsFieldsMissingFromNativeExport(t *testing.T) {
+	ctx := t.Context()
+	raw := strings.Replace(consoleA, `"active":true`, `"future":{"precise":9007199254740997},"active":true`, 1)
+	raw = strings.Replace(raw, `"methodID":"device"`, `"futureValue":"preserve","methodID":"device"`, 1)
+	raw = strings.Replace(raw, `"accountID":"acct-id"`, `"nativeFutureMetadata":{"amount":9007199254740997},"accountID":"acct-id"`, 1)
+	source := &fakeStore{raw: []byte(raw)}
+	box := &consoleBox{}
+	native := &nativeConsole{}
+	restart := func() *ConsoleSync {
+		return &ConsoleSync{box: box, source: source, client: native, marker: "version", redactor: &diagnostic.Redactor{}}
+	}
+	if err := restart().Seed(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(native.raw), "futureValue") || !strings.Contains(string(native.raw), "nativeFutureMetadata") {
+		t.Fatal("incorrect native projection")
+	}
+	if err := restart().Seed(ctx); err != nil || source.puts != 0 || string(source.raw) != raw {
+		t.Fatal("a no-op seed rewrote the account file", err)
+	}
+	native.raw = []byte(strings.Replace(string(native.raw), "access-before", "access-after", 1))
+	if err := restart().Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if source.puts != 1 || !strings.Contains(string(source.raw), `"future":{"precise":9007199254740997}`) || !strings.Contains(string(source.raw), `"futureValue":"preserve"`) || !strings.Contains(string(source.raw), `"access":"access-after"`) {
+		t.Fatal("rotation lost uploaded fields")
+	}
+	if err := restart().Seed(ctx); err != nil || source.puts != 1 {
+		t.Fatal("rotation was repeated", err)
 	}
 }

@@ -132,9 +132,7 @@ class Server:
             or not rows[0]["active"]
         ):
             raise Failure("credential_conflict")
-        return {
-            k: rows[0][k] for k in ("id", "integrationID", "label", "active", "value")
-        }
+        return rows[0]
 
     def seed(self, entry, expected_id):
         data = dict(entry)

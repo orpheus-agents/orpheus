@@ -1,7 +1,6 @@
 package credentials
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -51,23 +50,19 @@ func NewOpenCode(ctx context.Context, box harness.Sandbox, stateDir string, driv
 	return &ConsoleSync{client: driver, source: store, box: box, marker: path.Join(stateDir, "orpheus-credential-version.json"), redactor: redactor}, nil
 }
 
-func (c *ConsoleSync) describe(raw []byte) (consoleBaseline, error) {
+func (c *ConsoleSync) describe(raw []byte) (consoleBaseline, json.RawMessage, error) {
 	entry, err := ParseConsole(raw)
 	if err != nil {
-		return consoleBaseline{}, err
+		return consoleBaseline{}, nil, err
 	}
 	c.redactor.Add(entry.Value.Access, entry.Value.Refresh)
-	var value map[string]any
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	if err := decoder.Decode(&value); err != nil {
-		return consoleBaseline{}, err
-	}
-	canonical, err := json.Marshal(value)
+	// Hash only fields represented by this native schema. The uploaded S3
+	// object may carry additional fields that OpenCode omits on export.
+	canonical, err := json.Marshal(entry)
 	if err != nil {
-		return consoleBaseline{}, err
+		return consoleBaseline{}, nil, err
 	}
-	return consoleBaseline{ID: entry.ID, Digest: sha256.Sum256(canonical)}, nil
+	return consoleBaseline{ID: entry.ID, Digest: sha256.Sum256(canonical)}, canonical, nil
 }
 
 func (c *ConsoleSync) remember(ctx context.Context, version consoleBaseline) error {
@@ -110,7 +105,7 @@ func (c *ConsoleSync) Seed(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	remote, err := c.describe(blob.Raw)
+	remote, exported, err := c.describe(blob.Raw)
 	if err != nil {
 		return err
 	}
@@ -126,7 +121,7 @@ func (c *ConsoleSync) Seed(ctx context.Context) error {
 	if fresh {
 		// A crash between the import and marker write can leave the row
 		// present. ImportCredential requires matching data for that ID.
-		if err = c.client.ImportCredential(ctx, blob.Raw, ""); err != nil {
+		if err = c.client.ImportCredential(ctx, exported, ""); err != nil {
 			return err
 		}
 		return c.remember(ctx, remote)
@@ -136,12 +131,12 @@ func (c *ConsoleSync) Seed(ctx context.Context) error {
 		return err
 	}
 	if len(native) == 0 && ((base.ID == remote.ID && base.ETag == remote.ETag) || base.ReplacingETag == remote.ETag) {
-		if err = c.client.ImportCredential(ctx, blob.Raw, ""); err != nil {
+		if err = c.client.ImportCredential(ctx, exported, ""); err != nil {
 			return err
 		}
 		return c.remember(ctx, remote)
 	}
-	local, err := c.describe(native)
+	local, _, err := c.describe(native)
 	if err != nil {
 		return err
 	}
@@ -156,7 +151,7 @@ func (c *ConsoleSync) Seed(ctx context.Context) error {
 		if err = c.remember(ctx, base); err != nil {
 			return err
 		}
-		if err = c.client.ImportCredential(ctx, blob.Raw, base.ID); err != nil {
+		if err = c.client.ImportCredential(ctx, exported, base.ID); err != nil {
 			return err
 		}
 		return c.remember(ctx, remote)
@@ -168,19 +163,30 @@ func (c *ConsoleSync) Seed(ctx context.Context) error {
 }
 
 func (c *ConsoleSync) upload(ctx context.Context, raw []byte, version consoleBaseline, previous string) error {
-	etag, err := c.source.Put(ctx, raw, previous)
+	blob, err := c.source.Get(ctx)
 	if err != nil {
-		// A lost PUT acknowledgement or marker write leaves the old ETag in
-		// the sandbox. Accept the remote version only if its contents match.
-		blob, readErr := c.source.Get(ctx)
-		if readErr != nil {
-			return err
-		}
-		saved, parseErr := c.describe(blob.Raw)
-		if parseErr != nil || saved.Digest != version.Digest {
-			return err
-		}
-		etag = blob.ETag
+		return err
+	}
+	saved, _, err := c.describe(blob.Raw)
+	if err != nil {
+		return err
+	}
+	// This also reconciles a successful PUT whose acknowledgement or marker
+	// write was lost. A stale writer accepts only the same native version.
+	if saved.Digest == version.Digest {
+		version.ETag = blob.ETag
+		return c.remember(ctx, version)
+	}
+	if blob.ETag != previous {
+		return errors.New("concurrent account credential update")
+	}
+	merged, err := mergeConsoleExport(blob.Raw, raw)
+	if err != nil {
+		return err
+	}
+	etag, err := c.source.Put(ctx, merged, previous)
+	if err != nil {
+		return err
 	}
 	version.ETag = etag
 	return c.remember(ctx, version)
@@ -191,7 +197,7 @@ func (c *ConsoleSync) sync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	local, err := c.describe(raw)
+	local, _, err := c.describe(raw)
 	if err != nil {
 		return err
 	}
