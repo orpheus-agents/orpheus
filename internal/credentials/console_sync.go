@@ -186,7 +186,17 @@ func (c *ConsoleSync) upload(ctx context.Context, raw []byte, version consoleBas
 	}
 	etag, err := c.source.Put(ctx, merged, previous)
 	if err != nil {
-		return err
+		// A final Flush may have no retry. Verify the result of an
+		// unacknowledged write before reporting a credential failure.
+		current, readErr := c.source.Get(ctx)
+		if readErr != nil {
+			return err
+		}
+		actual, _, parseErr := c.describe(current.Raw)
+		if parseErr != nil || actual.Digest != version.Digest {
+			return err
+		}
+		etag = current.ETag
 	}
 	version.ETag = etag
 	return c.remember(ctx, version)

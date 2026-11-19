@@ -122,6 +122,29 @@ func TestConsoleConcurrentRotations(t *testing.T) {
 	}
 }
 
+type lostAckStore struct{ *fakeStore }
+
+func (s *lostAckStore) Put(ctx context.Context, raw []byte, etag string) (string, error) {
+	if _, err := s.fakeStore.Put(ctx, raw, etag); err != nil {
+		return "", err
+	}
+	return "", errors.New("lost PUT acknowledgement")
+}
+
+func TestConsoleFinalFlushHandlesLostPutAcknowledgement(t *testing.T) {
+	ctx := t.Context()
+	source := &lostAckStore{&fakeStore{raw: []byte(consoleA)}}
+	native := &nativeConsole{}
+	c := &ConsoleSync{box: &consoleBox{}, source: source, client: native, marker: "version", redactor: &diagnostic.Redactor{}}
+	if err := c.Seed(ctx); err != nil {
+		t.Fatal(err)
+	}
+	native.raw = []byte(strings.Replace(consoleA, "access-before", "rotated", 1))
+	if err := c.Flush(ctx); err != nil || source.puts != 1 || c.base.ETag != source.etag {
+		t.Fatal("final flush failed after committed update", err)
+	}
+}
+
 func TestConsoleFlushRecoversCommittedPut(t *testing.T) {
 	ctx := t.Context()
 	source := &fakeStore{raw: []byte(consoleA)}
