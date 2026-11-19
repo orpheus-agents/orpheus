@@ -1,6 +1,6 @@
 -- name: CreateLLMAccount :one
-INSERT INTO llm_accounts (id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *;
+INSERT INTO llm_accounts (id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, provider)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *;
 
 -- name: ReadLLMAccount :one
 SELECT * FROM llm_accounts WHERE id=$1;
@@ -27,8 +27,10 @@ SELECT a.*, ARRAY(SELECT p.name FROM model_profiles p WHERE p.llm_account_id=a.i
 FROM llm_accounts a WHERE a.id=$1;
 
 -- name: AccountSources :many
-SELECT a.*, ARRAY(SELECT p.name FROM model_profiles p WHERE p.llm_account_id=a.id ORDER BY p.name)::text[] AS profiles
-FROM llm_accounts a WHERE auth_mode='account'
+SELECT a.*, COALESCE(encode(k.nonce,'hex'),'')::text AS key_version,
+    ARRAY(SELECT p.name FROM model_profiles p WHERE p.llm_account_id=a.id ORDER BY p.name)::text[] AS profiles
+FROM llm_accounts a LEFT JOIN secrets k ON k.id=a.api_key_secret_id
+WHERE (a.auth_mode='account' OR (a.auth_mode='api_key' AND a.provider='kimi-code-plan-global'))
 AND (sqlc.narg(account_ids)::uuid[] IS NULL OR a.id=ANY(sqlc.narg(account_ids)::uuid[])) ORDER BY a.id;
 
 -- name: AccountStoreNames :many
@@ -110,3 +112,9 @@ SELECT EXISTS (
           (NOT sqlc.arg(backward)::boolean AND (a.name, a.id) > (sqlc.arg(position_name)::text COLLATE "C", sqlc.arg(position_id)::uuid)) OR
           (sqlc.arg(inclusive)::boolean AND (a.name, a.id) = (sqlc.arg(position_name)::text COLLATE "C", sqlc.arg(position_id)::uuid)))
 ) AS available;
+
+-- name: KimiLimitCredentials :many
+SELECT a.id, a.harness, k.nonce, k.ciphertext
+FROM llm_accounts a JOIN secrets k ON k.id = a.api_key_secret_id
+WHERE a.active AND a.auth_mode='api_key' AND a.provider='kimi-code-plan-global'
+ORDER BY a.id;

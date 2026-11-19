@@ -14,8 +14,10 @@ import (
 )
 
 const accountSources = `-- name: AccountSources :many
-SELECT a.id, a.name, a.harness, a.auth_mode, a.active, a.api_key_secret_id, a.credential_store, a.credential_key, a.created_at, a.updated_at, ARRAY(SELECT p.name FROM model_profiles p WHERE p.llm_account_id=a.id ORDER BY p.name)::text[] AS profiles
-FROM llm_accounts a WHERE auth_mode='account'
+SELECT a.id, a.name, a.harness, a.auth_mode, a.active, a.api_key_secret_id, a.credential_store, a.credential_key, a.created_at, a.updated_at, a.provider, COALESCE(encode(k.nonce,'hex'),'')::text AS key_version,
+    ARRAY(SELECT p.name FROM model_profiles p WHERE p.llm_account_id=a.id ORDER BY p.name)::text[] AS profiles
+FROM llm_accounts a LEFT JOIN secrets k ON k.id=a.api_key_secret_id
+WHERE (a.auth_mode='account' OR (a.auth_mode='api_key' AND a.provider='kimi-code-plan-global'))
 AND ($1::uuid[] IS NULL OR a.id=ANY($1::uuid[])) ORDER BY a.id
 `
 
@@ -30,6 +32,8 @@ type AccountSourcesRow struct {
 	CredentialKey   *string    `json:"credential_key"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+	Provider        string     `json:"provider"`
+	KeyVersion      string     `json:"key_version"`
 	Profiles        []string   `json:"profiles"`
 }
 
@@ -53,6 +57,8 @@ func (q *Queries) AccountSources(ctx context.Context, accountIds []uuid.UUID) ([
 			&i.CredentialKey,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Provider,
+			&i.KeyVersion,
 			&i.Profiles,
 		); err != nil {
 			return nil, err
@@ -90,8 +96,8 @@ func (q *Queries) AccountStoreNames(ctx context.Context) ([]string, error) {
 }
 
 const createLLMAccount = `-- name: CreateLLMAccount :one
-INSERT INTO llm_accounts (id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, created_at, updated_at
+INSERT INTO llm_accounts (id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, provider)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, created_at, updated_at, provider
 `
 
 type CreateLLMAccountParams struct {
@@ -103,6 +109,7 @@ type CreateLLMAccountParams struct {
 	ApiKeySecretID  *uuid.UUID `json:"api_key_secret_id"`
 	CredentialStore *string    `json:"credential_store"`
 	CredentialKey   *string    `json:"credential_key"`
+	Provider        string     `json:"provider"`
 }
 
 func (q *Queries) CreateLLMAccount(ctx context.Context, arg CreateLLMAccountParams) (LlmAccount, error) {
@@ -115,6 +122,7 @@ func (q *Queries) CreateLLMAccount(ctx context.Context, arg CreateLLMAccountPara
 		arg.ApiKeySecretID,
 		arg.CredentialStore,
 		arg.CredentialKey,
+		arg.Provider,
 	)
 	var i LlmAccount
 	err := row.Scan(
@@ -128,6 +136,7 @@ func (q *Queries) CreateLLMAccount(ctx context.Context, arg CreateLLMAccountPara
 		&i.CredentialKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Provider,
 	)
 	return i, err
 }
@@ -205,7 +214,7 @@ func (q *Queries) DeleteModelProfile(ctx context.Context, id uuid.UUID) (int64, 
 }
 
 const getLLMAccount = `-- name: GetLLMAccount :one
-SELECT a.id, a.name, a.harness, a.auth_mode, a.active, a.api_key_secret_id, a.credential_store, a.credential_key, a.created_at, a.updated_at, ARRAY(SELECT p.name FROM model_profiles p WHERE p.llm_account_id=a.id ORDER BY p.name)::text[] AS profiles
+SELECT a.id, a.name, a.harness, a.auth_mode, a.active, a.api_key_secret_id, a.credential_store, a.credential_key, a.created_at, a.updated_at, a.provider, ARRAY(SELECT p.name FROM model_profiles p WHERE p.llm_account_id=a.id ORDER BY p.name)::text[] AS profiles
 FROM llm_accounts a WHERE a.id=$1
 `
 
@@ -220,6 +229,7 @@ type GetLLMAccountRow struct {
 	CredentialKey   *string    `json:"credential_key"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+	Provider        string     `json:"provider"`
 	Profiles        []string   `json:"profiles"`
 }
 
@@ -237,6 +247,7 @@ func (q *Queries) GetLLMAccount(ctx context.Context, id uuid.UUID) (GetLLMAccoun
 		&i.CredentialKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Provider,
 		&i.Profiles,
 	)
 	return i, err
@@ -284,6 +295,45 @@ func (q *Queries) GetModelProfile(ctx context.Context, id uuid.UUID) (GetModelPr
 	return i, err
 }
 
+const kimiLimitCredentials = `-- name: KimiLimitCredentials :many
+SELECT a.id, a.harness, k.nonce, k.ciphertext
+FROM llm_accounts a JOIN secrets k ON k.id = a.api_key_secret_id
+WHERE a.active AND a.auth_mode='api_key' AND a.provider='kimi-code-plan-global'
+ORDER BY a.id
+`
+
+type KimiLimitCredentialsRow struct {
+	ID         uuid.UUID `json:"id"`
+	Harness    string    `json:"harness"`
+	Nonce      []byte    `json:"nonce"`
+	Ciphertext []byte    `json:"ciphertext"`
+}
+
+func (q *Queries) KimiLimitCredentials(ctx context.Context) ([]KimiLimitCredentialsRow, error) {
+	rows, err := q.db.Query(ctx, kimiLimitCredentials)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KimiLimitCredentialsRow{}
+	for rows.Next() {
+		var i KimiLimitCredentialsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Harness,
+			&i.Nonce,
+			&i.Ciphertext,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lLMAccountsPageBoundary = `-- name: LLMAccountsPageBoundary :one
 SELECT EXISTS (
     SELECT 1 FROM llm_accounts a
@@ -322,7 +372,7 @@ func (q *Queries) LLMAccountsPageBoundary(ctx context.Context, arg LLMAccountsPa
 }
 
 const listLLMAccounts = `-- name: ListLLMAccounts :many
-SELECT a.id, a.name, a.harness, a.auth_mode, a.active, a.api_key_secret_id, a.credential_store, a.credential_key, a.created_at, a.updated_at, ARRAY(SELECT p.name FROM model_profiles p WHERE p.llm_account_id=a.id ORDER BY p.name)::text[] AS profiles FROM llm_accounts a
+SELECT a.id, a.name, a.harness, a.auth_mode, a.active, a.api_key_secret_id, a.credential_store, a.credential_key, a.created_at, a.updated_at, a.provider, ARRAY(SELECT p.name FROM model_profiles p WHERE p.llm_account_id=a.id ORDER BY p.name)::text[] AS profiles FROM llm_accounts a
 WHERE ($1::boolean IS NULL OR a.active = $1)
   AND ($2::text IS NULL OR a.name = $2)
   AND ($3::text IS NULL OR a.name ILIKE $3 ESCAPE '\')
@@ -361,6 +411,7 @@ type ListLLMAccountsRow struct {
 	CredentialKey   *string    `json:"credential_key"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+	Provider        string     `json:"provider"`
 	Profiles        []string   `json:"profiles"`
 }
 
@@ -394,6 +445,7 @@ func (q *Queries) ListLLMAccounts(ctx context.Context, arg ListLLMAccountsParams
 			&i.CredentialKey,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Provider,
 			&i.Profiles,
 		); err != nil {
 			return nil, err
@@ -499,7 +551,7 @@ func (q *Queries) ListModelProfiles(ctx context.Context, arg ListModelProfilesPa
 }
 
 const lockLLMAccount = `-- name: LockLLMAccount :one
-SELECT id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, created_at, updated_at FROM llm_accounts WHERE id=$1 FOR UPDATE
+SELECT id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, created_at, updated_at, provider FROM llm_accounts WHERE id=$1 FOR UPDATE
 `
 
 func (q *Queries) LockLLMAccount(ctx context.Context, id uuid.UUID) (LlmAccount, error) {
@@ -516,6 +568,7 @@ func (q *Queries) LockLLMAccount(ctx context.Context, id uuid.UUID) (LlmAccount,
 		&i.CredentialKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Provider,
 	)
 	return i, err
 }
@@ -605,7 +658,7 @@ func (q *Queries) ModelProfilesPageBoundary(ctx context.Context, arg ModelProfil
 }
 
 const readLLMAccount = `-- name: ReadLLMAccount :one
-SELECT id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, created_at, updated_at FROM llm_accounts WHERE id=$1
+SELECT id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, created_at, updated_at, provider FROM llm_accounts WHERE id=$1
 `
 
 func (q *Queries) ReadLLMAccount(ctx context.Context, id uuid.UUID) (LlmAccount, error) {
@@ -622,12 +675,13 @@ func (q *Queries) ReadLLMAccount(ctx context.Context, id uuid.UUID) (LlmAccount,
 		&i.CredentialKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Provider,
 	)
 	return i, err
 }
 
 const shareLLMAccount = `-- name: ShareLLMAccount :one
-SELECT id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, created_at, updated_at FROM llm_accounts WHERE id=$1 FOR SHARE
+SELECT id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, created_at, updated_at, provider FROM llm_accounts WHERE id=$1 FOR SHARE
 `
 
 func (q *Queries) ShareLLMAccount(ctx context.Context, id uuid.UUID) (LlmAccount, error) {
@@ -644,12 +698,13 @@ func (q *Queries) ShareLLMAccount(ctx context.Context, id uuid.UUID) (LlmAccount
 		&i.CredentialKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Provider,
 	)
 	return i, err
 }
 
 const updateLLMAccount = `-- name: UpdateLLMAccount :one
-UPDATE llm_accounts SET name=$2, active=$3, updated_at=clock_timestamp() WHERE id=$1 RETURNING id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, created_at, updated_at
+UPDATE llm_accounts SET name=$2, active=$3, updated_at=clock_timestamp() WHERE id=$1 RETURNING id, name, harness, auth_mode, active, api_key_secret_id, credential_store, credential_key, created_at, updated_at, provider
 `
 
 type UpdateLLMAccountParams struct {
@@ -672,6 +727,7 @@ func (q *Queries) UpdateLLMAccount(ctx context.Context, arg UpdateLLMAccountPara
 		&i.CredentialKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Provider,
 	)
 	return i, err
 }

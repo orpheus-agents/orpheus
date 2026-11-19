@@ -30,8 +30,12 @@ func (s *Store) CreateProfile(ctx context.Context, input llm.ProfileInput) (llm.
 	id := uuid.New()
 	err = pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
 		q := db.New(tx)
-		if _, err := q.ShareLLMAccount(ctx, in.AccountID); err != nil {
+		account, err := q.ShareLLMAccount(ctx, in.AccountID)
+		if err != nil {
 			return catalogError(err, "account")
+		}
+		if account.Harness != "codex" && len(in.Codex) > 0 {
+			return llm.Invalid("codex")
 		}
 		options, err := json.Marshal(in.Codex)
 		if err != nil {
@@ -70,6 +74,9 @@ func (s *Store) UpdateProfile(ctx context.Context, id uuid.UUID, raw []byte) (ll
 		}
 		if account.Harness != previous.Harness {
 			return llm.Invalid("account_id")
+		}
+		if account.Harness != "codex" && len(in.Codex) > 0 {
+			return llm.Invalid("codex")
 		}
 		options, err := json.Marshal(in.Codex)
 		if err != nil {

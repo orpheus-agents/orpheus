@@ -140,3 +140,17 @@ func (r *Redactor) Clean(value string) (string, bool) {
 	}
 	return value, true
 }
+
+// RedactValues removes registered sandbox secrets from user-visible model and
+// tool output while preserving ordinary URLs, formatting, and citations.
+func (r *Redactor) RedactValues(value string) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.blocked {
+		return redacted
+	}
+	if r.replacer == nil {
+		return value
+	}
+	return r.replacer.Replace(value)
+}

@@ -22,7 +22,7 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/store/db"
 )
 
-type DriverFactory func(harness.Sandbox) harness.Driver
+type DriverFactory func(harness.Sandbox, store.SessionRecord, uuid.UUID, session.Credentials) harness.Driver
 
 var errStoreAccess = errors.New("session database access failed")
 
@@ -37,6 +37,7 @@ type Executor struct {
 	Limits           *AccountLimitsCollector
 	unregisterLimits func()
 	sandbox          harness.Sandbox
+	driverRunID      uuid.UUID
 	driver           harness.Driver
 	account          credentials.Sync
 	snapshot         harness.Snapshot
@@ -53,7 +54,10 @@ type Executor struct {
 
 func NewExecutor(id uuid.UUID, s *store.Store, p harness.Platform) *Executor {
 	e := &Executor{ID: id, Store: s, Platform: p, RunnerBinary: os.ReadFile, settleRetryDelay: 5 * time.Second, redactor: new(diagnostic.Redactor)}
-	e.NewDriver = func(box harness.Sandbox) harness.Driver {
+	e.NewDriver = func(box harness.Sandbox, record store.SessionRecord, run uuid.UUID, source session.Credentials) harness.Driver {
+		if record.Configuration.Harness == "opencode" {
+			return e.consoleDriver(record, run, source)
+		}
 		return codex.New(box, s.Settings.RPCTimeout, s.Settings.MaxToolResultBytes, e.redactor)
 	}
 	e.NewAccount = func(ctx context.Context, box harness.Sandbox, home string, source session.Credentials) (credentials.Sync, error) {

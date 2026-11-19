@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/accountlimits"
 	"github.com/orpheus-agents/orpheus/internal/config"
 	"github.com/orpheus-agents/orpheus/internal/diagnostic"
+	"github.com/orpheus-agents/orpheus/internal/secret"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store/db"
 )
@@ -53,6 +55,13 @@ func (s *Store) SaveAccountLimitObservation(ctx context.Context, id, fingerprint
 	source, err := s.credentialSource(row)
 	if err != nil {
 		return err
+	}
+	if row.Provider == "kimi-code-plan-global" && row.AuthMode == "api_key" {
+		k, err := db.New(s.Pool).GetSecret(ctx, *row.ApiKeySecretID)
+		if err != nil {
+			return err
+		}
+		source.KeyVersion = hex.EncodeToString(k.Nonce)
 	}
 	expected, err := config.SourceFingerprint(row.Harness, source)
 	valid := err == nil && expected == fingerprint
@@ -150,15 +159,49 @@ func (s *Store) accountSources(ctx context.Context, q db.DBTX, selected []uuid.U
 	}
 	out := make([]config.Account, 0, len(rows))
 	for _, row := range rows {
-		source, err := s.credentialSource(db.LlmAccount{ID: row.ID, AuthMode: row.AuthMode, CredentialStore: row.CredentialStore, CredentialKey: row.CredentialKey})
+		source, err := s.credentialSource(db.LlmAccount{ID: row.ID, Harness: row.Harness, Provider: row.Provider, AuthMode: row.AuthMode, CredentialStore: row.CredentialStore, CredentialKey: row.CredentialKey})
 		if err != nil {
 			return nil, err
 		}
+		source.KeyVersion = row.KeyVersion
 		fingerprint, err := config.SourceFingerprint(row.Harness, source)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, config.Account{ID: row.ID.String(), Profiles: row.Profiles, Fingerprint: fingerprint})
+	}
+	return out, nil
+}
+
+// KimiLimitCredential is consumed only by the worker. It must never be returned in API responses.
+type KimiLimitCredential struct {
+	AccountID   string
+	Fingerprint string
+	Key         string
+}
+
+func (s *Store) KimiLimitCredentials(ctx context.Context) ([]KimiLimitCredential, error) {
+	rows, err := db.New(s.Pool).KimiLimitCredentials(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]KimiLimitCredential, 0, len(rows))
+	for _, r := range rows {
+		source := session.Credentials{AccountID: r.ID.String(), Provider: "kimi-code-plan-global", Mode: "api_key", KeyVersion: hex.EncodeToString(r.Nonce)}
+		fp, err := config.SourceFingerprint(r.Harness, source)
+		if err != nil {
+			return nil, err
+		}
+		var key string
+		if s.Cipher != nil {
+			// Return an unavailable credential as an empty key so one unreadable
+			// account cannot suppress observations for the rest of the catalog.
+			key, err = s.Cipher.DecryptAccount(r.ID, &secret.Value{Nonce: r.Nonce, Ciphertext: r.Ciphertext})
+			if err != nil {
+				key = ""
+			}
+		}
+		out = append(out, KimiLimitCredential{AccountID: source.AccountID, Fingerprint: fp, Key: key})
 	}
 	return out, nil
 }

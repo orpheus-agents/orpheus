@@ -19,6 +19,7 @@ type Account struct {
 	ID              uuid.UUID `json:"id"`
 	Name            string    `json:"name"`
 	Harness         string    `json:"harness"`
+	Provider        string    `json:"provider"`
 	AuthMode        string    `json:"auth_mode"`
 	Active          bool      `json:"active"`
 	CredentialStore *string   `json:"credential_store"`
@@ -31,6 +32,7 @@ type AccountDetails struct {
 type AccountInput struct {
 	Name            string          `json:"name"`
 	Harness         string          `json:"harness"`
+	Provider        string          `json:"provider"`
 	AuthMode        string          `json:"auth_mode"`
 	Active          *bool           `json:"active"`
 	CredentialStore *string         `json:"credential_store"`
@@ -96,7 +98,23 @@ func NormalizeAccount(in AccountInput) (AccountInput, error) {
 	if !validText(in.Name, 255, true) {
 		return in, Invalid("name")
 	}
-	if in.Harness != "codex" {
+	switch in.Harness {
+	case "codex":
+		if in.Provider != "" && in.Provider != "openai" {
+			return in, Invalid("provider")
+		}
+		in.Provider = "openai"
+	case "opencode":
+		if in.AuthMode == "account" {
+			if in.Provider != "" && in.Provider != "opencode" {
+				return in, Invalid("provider")
+			}
+			in.Provider = "opencode"
+		}
+		if !validText(in.Provider, 128, true) || strings.ContainsAny(in.Provider, "/\\\r\n\t ") {
+			return in, Invalid("provider")
+		}
+	default:
 		return in, Invalid("harness")
 	}
 	switch in.AuthMode {

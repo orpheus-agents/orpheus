@@ -387,13 +387,16 @@ func (e LLMAccountAuthMode) Valid() bool {
 
 // Defines values for LLMAccountHarness.
 const (
-	LLMAccountHarnessCodex LLMAccountHarness = "codex"
+	LLMAccountHarnessCodex    LLMAccountHarness = "codex"
+	LLMAccountHarnessOpencode LLMAccountHarness = "opencode"
 )
 
 // Valid indicates whether the value is a known member of the LLMAccountHarness enum.
 func (e LLMAccountHarness) Valid() bool {
 	switch e {
 	case LLMAccountHarnessCodex:
+		return true
+	case LLMAccountHarnessOpencode:
 		return true
 	default:
 		return false
@@ -420,13 +423,16 @@ func (e LLMAccountDetailsAuthMode) Valid() bool {
 
 // Defines values for LLMAccountDetailsHarness.
 const (
-	LLMAccountDetailsHarnessCodex LLMAccountDetailsHarness = "codex"
+	LLMAccountDetailsHarnessCodex    LLMAccountDetailsHarness = "codex"
+	LLMAccountDetailsHarnessOpencode LLMAccountDetailsHarness = "opencode"
 )
 
 // Valid indicates whether the value is a known member of the LLMAccountDetailsHarness enum.
 func (e LLMAccountDetailsHarness) Valid() bool {
 	switch e {
 	case LLMAccountDetailsHarnessCodex:
+		return true
+	case LLMAccountDetailsHarnessOpencode:
 		return true
 	default:
 		return false
@@ -528,13 +534,16 @@ func (e MessageItemType) Valid() bool {
 
 // Defines values for ProfileHarness.
 const (
-	ProfileHarnessCodex ProfileHarness = "codex"
+	ProfileHarnessCodex    ProfileHarness = "codex"
+	ProfileHarnessOpencode ProfileHarness = "opencode"
 )
 
 // Valid indicates whether the value is a known member of the ProfileHarness enum.
 func (e ProfileHarness) Valid() bool {
 	switch e {
 	case ProfileHarnessCodex:
+		return true
+	case ProfileHarnessOpencode:
 		return true
 	default:
 		return false
@@ -1462,6 +1471,9 @@ type LLMAccount struct {
 	ID              openapi_types.UUID `json:"id"`
 	Name            string             `json:"name"`
 	Profiles        []string           `json:"profiles"`
+
+	// Provider Native model integration ID. Required for OpenCode API keys and inferred from the OpenCode Console account file for OAuth.
+	Provider string `json:"provider"`
 }
 
 // LLMAccountAuthMode defines model for LLMAccount.AuthMode.
@@ -1480,6 +1492,9 @@ type LLMAccountDetails struct {
 	ID              openapi_types.UUID        `json:"id"`
 	Name            string                    `json:"name"`
 	Profiles        []string                  `json:"profiles"`
+
+	// Provider Native model integration ID. Required for OpenCode API keys and inferred from the OpenCode Console account file for OAuth.
+	Provider string `json:"provider"`
 }
 
 // LLMAccountDetailsAuthMode defines model for LLMAccountDetails.AuthMode.
@@ -1928,7 +1943,7 @@ type Usage struct {
 
 // GetAccountLimitsParams defines parameters for GetAccountLimits.
 type GetAccountLimitsParams struct {
-	// AccountIds Comma-separated account UUIDs. Omit to read all account-file identities.
+	// AccountIds Comma-separated account UUIDs. Omit to read all accounts with supported quota sources.
 	AccountIds *[]openapi_types.UUID `form:"account_ids,omitempty" json:"account_ids,omitempty"`
 }
 

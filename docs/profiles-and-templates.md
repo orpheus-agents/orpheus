@@ -18,9 +18,31 @@ An API-key account:
 
 A file account uses `auth_mode: "account"`, a `credential_store` name from
 `GET /api/v1/credential-stores`, and an `auth_file` JSON object containing Codex
-account authorization. The API generates `llm-accounts/<uuid>/auth.json` in S3;
+account authorization or an active OpenCode Console export. For OpenCode, run
+`opencode auth login opencode`, then prepare the file in a private directory:
+
+```sh
+(umask 077
+ set -C
+ opencode auth export opencode |
+   jq -e 'map(select(.active and .integrationID == "opencode" and .value.type == "oauth" and .value.methodID == "device")) | if length == 1 then .[0] else error("Expected one active Console credential") end' > opencode-account.json
+)
+```
+
+Upload the resulting JSON object in the account editor.
+The API generates `llm-accounts/<uuid>/auth.json` in S3;
 clients do not choose paths. Credential store configuration and AWS access must
 be available to both API and worker.
+
+For an OpenCode key, specify the integration ID in `provider`:
+
+```json
+{"name":"Kimi plan","harness":"opencode","provider":"kimi-code-plan-global","auth_mode":"api_key","api_key":"your-key"}
+```
+
+A custom provider ID must match a provider configured in the OpenCode template.
+The provider is immutable. Codex accounts default to `openai`. OpenCode Console
+file accounts use `opencode`.
 
 PATCH accepts `name` and `active`. Display names need not be unique. Harness,
 authorization mode and file location are immutable. Accounts default to active.
@@ -55,6 +77,12 @@ model, description, instructions, Codex options and active state. Rebinding to a
 account of the same harness affects new sessions. Authorization modes may differ.
 Null `description` clears it; null Codex option values unset individual options,
 and `codex: null` clears all options. Omitted options remain unspecified.
+
+OpenCode profiles inherit the account provider. Use the model ID from the
+template or provider catalog, such as `k3.1-pro` on global Kimi Coding Plan.
+For Console OAuth, use `opencode-go/<model-id>` for the Go subscription.
+An unqualified Console model uses the `opencode` provider and its billing.
+Codex options apply only to Codex profiles.
 
 Responses include `account_id`, `account_name`, `account_active`, `active` and
 `available` (`active && account_active`). Descriptions and instructions are not

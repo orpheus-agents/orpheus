@@ -80,6 +80,7 @@ type LlmAccount struct {
 	CredentialKey   *string    `json:"credential_key"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+	Provider        string     `json:"provider"`
 }
 
 type Message struct {

@@ -13,15 +13,19 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
-// Account identifies a file-backed account for limit observations. Fingerprint is never exposed by HTTP.
+// Account identifies an account for limit observations. Fingerprint is never exposed by HTTP.
 type Account struct {
 	ID          string
 	Profiles    []string
 	Fingerprint string
 }
 
-// SourceFingerprint identifies a file source without exposing its location.
+// SourceFingerprint identifies a credential source without exposing its location.
 func SourceFingerprint(harness string, credentials session.Credentials) (string, error) {
+	if credentials.Provider == "kimi-code-plan-global" && credentials.Mode == "api_key" && credentials.KeyVersion != "" {
+		sum := sha256.Sum256([]byte(credentials.Provider + "\x00" + credentials.AccountID + "\x00" + credentials.KeyVersion))
+		return hex.EncodeToString(sum[:]), nil
+	}
 	if credentials.Mode != "account" || credentials.Store == nil || harness == "" {
 		return "", errors.New("invalid account credential source")
 	}
