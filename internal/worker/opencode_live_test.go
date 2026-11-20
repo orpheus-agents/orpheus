@@ -58,7 +58,7 @@ func TestLiveOpenCodeDeliveryAndHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := s.CreateProfile(ctx, llm.ProfileInput{Name: "fixture", AccountID: account.ID, Model: "fixture", Instructions: "Use tools when requested."})
+	profile, err := s.CreateProfile(ctx, llm.ProfileInput{Name: "fixture", AccountID: account.ID, Model: "fixture", OpenCode: session.OpenCodeConfiguration{Variant: new("thorough")}, Instructions: "Use tools when requested."})
 	if err != nil {
 		t.Fatal(err)
 	}

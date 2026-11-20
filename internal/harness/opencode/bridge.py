@@ -340,12 +340,15 @@ class Server:
                     raise
                 self.clean_inbox(None)
             else:
+                model = {"providerID": p["provider"], "id": p["model"]}
+                if p.get("variant"):
+                    model["variant"] = p["variant"]
                 self.request(
                     "/api/session",
                     "POST",
                     {
                         "id": self.session,
-                        "model": {"providerID": p["provider"], "id": p["model"]},
+                        "model": model,
                         "location": {"directory": p["cwd"]},
                         "agent": "build",
                     },

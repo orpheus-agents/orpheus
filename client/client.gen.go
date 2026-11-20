@@ -1124,9 +1124,10 @@ type AccountLimits struct {
 
 // AgentConfiguration defines model for AgentConfiguration.
 type AgentConfiguration struct {
-	Instructions string `json:"instructions"`
-	Model        string `json:"model"`
-	Profile      string `json:"profile"`
+	Instructions string           `json:"instructions"`
+	Model        string           `json:"model"`
+	Opencode     *OpenCodeProfile `json:"opencode,omitempty"`
+	Profile      string           `json:"profile"`
 }
 
 // AgentInput defines model for AgentInput.
@@ -1262,6 +1263,7 @@ type CreateProfile struct {
 	Instructions *string            `json:"instructions,omitempty"`
 	Model        string             `json:"model"`
 	Name         string             `json:"name"`
+	Opencode     *OpenCodeProfile   `json:"opencode,omitempty"`
 }
 
 // CreateRun defines model for CreateRun.
@@ -1579,6 +1581,12 @@ type MessageItem struct {
 // MessageItemType defines model for MessageItem.Type.
 type MessageItemType string
 
+// OpenCodeProfile defines model for OpenCodeProfile.
+type OpenCodeProfile struct {
+	// Variant Native variant ID supported by the selected OpenCode model.
+	Variant *string `json:"variant,omitempty"`
+}
+
 // Position defines model for Position.
 type Position struct {
 	ItemIndex int `json:"item_index"`
@@ -1599,6 +1607,7 @@ type Profile struct {
 	Instructions  string             `json:"instructions"`
 	Model         string             `json:"model"`
 	Name          string             `json:"name"`
+	Opencode      *OpenCodeProfile   `json:"opencode,omitempty"`
 }
 
 // ProfileHarness defines model for Profile.Harness.

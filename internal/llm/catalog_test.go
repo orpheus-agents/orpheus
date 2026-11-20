@@ -40,6 +40,29 @@ func TestProfileValidationAndPatch(t *testing.T) {
 		t.Fatal("Unicode limit counted bytes", err)
 	}
 }
+func TestPatchOpenCodeVariant(t *testing.T) {
+	in := ProfileInput{Name: "profile", AccountID: uuid.New(), Model: "k3.1-pro"}
+	in.OpenCode.Variant = new("high")
+	for _, tc := range []struct{ patch, want string }{
+		{`{"description":"text"}`, "high"}, {`{"opencode":{}}`, "high"},
+		{`{"opencode":{"variant":"custom-mode"}}`, "custom-mode"},
+		{`{"opencode":{"variant":null}}`, ""}, {`{"opencode":null}`, ""},
+	} {
+		got, err := PatchProfile(in, []byte(tc.patch))
+		if err != nil || (tc.want == "" && got.OpenCode.Variant != nil) || (tc.want != "" && (got.OpenCode.Variant == nil || *got.OpenCode.Variant != tc.want)) {
+			t.Fatal(tc, got, err)
+		}
+	}
+	for _, patch := range []string{`{"opencode":{"variant":""}}`, `{"opencode":{"variant":" padded"}}`, `{"opencode":{"variant":4}}`, `{"opencode":{"typo":null}}`, `{"opencode":[]}`} {
+		if _, err := PatchProfile(in, []byte(patch)); err == nil {
+			t.Fatal("accepted", patch)
+		}
+	}
+	if *in.OpenCode.Variant != "high" {
+		t.Fatal("patch changed input")
+	}
+}
+
 func TestCodexOptionsMatchSchemaAndRemainOptional(t *testing.T) {
 	spec, err := api.GetSpec()
 	if err != nil {

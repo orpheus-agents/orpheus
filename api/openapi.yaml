@@ -1,5 +1,14 @@
 components:
     schemas:
+        OpenCodeProfile:
+          type: object
+          additionalProperties: false
+          properties:
+            variant:
+              type: string
+              minLength: 1
+              maxLength: 255
+              description: Native variant ID supported by the selected OpenCode model.
         CodexProfile:
           type: object
           additionalProperties: false
@@ -84,6 +93,8 @@ components:
               maxLength: 255
             codex:
               $ref: '#/components/schemas/CodexProfile'
+            opencode:
+              $ref: '#/components/schemas/OpenCodeProfile'
             instructions:
               type: string
         Profiles:
@@ -135,6 +146,8 @@ components:
               maxLength: 65536
             codex:
               $ref: '#/components/schemas/CodexProfile'
+            opencode:
+              $ref: '#/components/schemas/OpenCodeProfile'
             active:
               type: boolean
               default: true
@@ -158,6 +171,18 @@ components:
             instructions:
               type: string
               maxLength: 65536
+            opencode:
+              type:
+              - object
+              - 'null'
+              additionalProperties: false
+              properties:
+                variant:
+                  type:
+                  - string
+                  - 'null'
+                  minLength: 1
+                  maxLength: 255
             codex:
               type:
               - object
@@ -666,6 +691,8 @@ components:
         AgentConfiguration:
             additionalProperties: false
             properties:
+                opencode:
+                    $ref: '#/components/schemas/OpenCodeProfile'
                 instructions:
                     title: Instructions
                     type: string

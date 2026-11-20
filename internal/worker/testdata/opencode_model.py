@@ -22,6 +22,13 @@ class Model(BaseHTTPRequestHandler):
         ]
         latest = user_messages[-1] if user_messages else ""
         summary = "## Objective" in history and "<template>" in history
+        if (
+            not summary
+            and any(tag in latest for tag in ("SHELL_GATE", "SECOND_RUN"))
+            and req.get("reasoning_effort") != "high"
+        ):
+            self.send_error(400, "Expected the selected profile variant")
+            return
         if "FAIL_AUTH_CASE" in latest and not summary and "BUDGET_CASE" not in latest:
             self.send_response(401)
             self.send_header("Content-Type", "application/json")
@@ -135,6 +142,9 @@ Path("opencode.json").write_text(
                     "models": {
                         "fixture": {
                             "name": "Fixture",
+                            "variants": [
+                                {"id": "thorough", "body": {"reasoning_effort": "high"}}
+                            ],
                             "capabilities": {
                                 "tools": True,
                                 "input": ["text"],

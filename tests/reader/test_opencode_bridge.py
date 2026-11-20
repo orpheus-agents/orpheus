@@ -3,6 +3,7 @@ import json
 import pathlib
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 location = (
     pathlib.Path(__file__).resolve().parents[2] / "internal/harness/opencode/bridge.py"
@@ -74,6 +75,38 @@ class Stub(bridge.Server):
 
 
 class BridgeTest(unittest.TestCase):
+    def test_open_selects_optional_model_variant(self):
+        for variant in ("", "max"):
+            with self.subTest(variant=variant):
+                server = Stub()
+                server.session = "ses_1"
+                server.request = Mock()
+                server.call(
+                    "open",
+                    {
+                        "run": "A",
+                        "existing": False,
+                        "provider": "kimi-code-plan-global",
+                        "model": "k3.1-pro",
+                        "variant": variant,
+                        "cwd": "/work",
+                        "instructions": "",
+                    },
+                )
+                model = {"providerID": "kimi-code-plan-global", "id": "k3.1-pro"}
+                if variant:
+                    model["variant"] = variant
+                server.request.assert_called_once_with(
+                    "/api/session",
+                    "POST",
+                    {
+                        "id": "ses_1",
+                        "model": model,
+                        "location": {"directory": "/work"},
+                        "agent": "build",
+                    },
+                )
+
     def test_lost_ack_partial_batch_and_late_input(self):
         s = Stub()
         p = {

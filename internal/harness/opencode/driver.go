@@ -141,7 +141,7 @@ func (d *Driver) OpenContext(ctx context.Context, agent session.AgentConfigurati
 		return harness.Context{}, harness.Failure("context_lost", "OpenCode session identity changed.")
 	}
 	provider, model := modelRef(d.provider, agent.Model)
-	err := d.call(ctx, "open", map[string]any{"provider": provider, "model": model, "instructions": agent.Instructions, "cwd": cwd, "existing": existing != nil}, nil)
+	err := d.call(ctx, "open", map[string]any{"provider": provider, "model": model, "variant": agent.OpenCode.Variant, "instructions": agent.Instructions, "cwd": cwd, "existing": existing != nil}, nil)
 	return harness.Context{NativeID: d.session}, err
 }
 func (d *Driver) Deliver(ctx context.Context, _ session.AgentConfiguration, thread string, turn *string, v harness.Delivery) (string, error) {

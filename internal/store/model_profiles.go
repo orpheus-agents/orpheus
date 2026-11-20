@@ -7,11 +7,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/orpheus-agents/orpheus/internal/llm"
+	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store/db"
 )
 
 func profileView(row db.GetModelProfileRow) (llm.Profile, error) {
-	out := llm.Profile{ID: row.ID, Name: row.Name, Description: row.Description, Harness: row.Harness, AccountID: row.LlmAccountID, AccountName: row.AccountName, AccountActive: row.AccountActive, Active: row.Active, Available: row.Active && row.AccountActive, Model: row.Model, Instructions: row.Instructions}
+	out := llm.Profile{OpenCode: session.OpenCodeConfiguration{Variant: row.OpencodeVariant}, ID: row.ID, Name: row.Name, Description: row.Description, Harness: row.Harness, AccountID: row.LlmAccountID, AccountName: row.AccountName, AccountActive: row.AccountActive, Active: row.Active, Available: row.Active && row.AccountActive, Model: row.Model, Instructions: row.Instructions}
 	err := json.Unmarshal(row.Codex, &out.Codex)
 	return out, err
 }
@@ -34,14 +35,14 @@ func (s *Store) CreateProfile(ctx context.Context, input llm.ProfileInput) (llm.
 		if err != nil {
 			return catalogError(err, "account")
 		}
-		if account.Harness != "codex" && len(in.Codex) > 0 {
-			return llm.Invalid("codex")
+		if err := in.ValidateHarness(account.Harness); err != nil {
+			return err
 		}
 		options, err := json.Marshal(in.Codex)
 		if err != nil {
 			return err
 		}
-		_, err = q.CreateModelProfile(ctx, db.CreateModelProfileParams{ID: id, Name: in.Name, Description: in.Description, LlmAccountID: in.AccountID, Model: in.Model, Instructions: in.Instructions, Codex: options, Active: *in.Active})
+		_, err = q.CreateModelProfile(ctx, db.CreateModelProfileParams{ID: id, Name: in.Name, Description: in.Description, LlmAccountID: in.AccountID, Model: in.Model, Instructions: in.Instructions, Codex: options, OpencodeVariant: in.OpenCode.Variant, Active: *in.Active})
 		return err
 	})
 	if err != nil {
@@ -56,7 +57,7 @@ func (s *Store) UpdateProfile(ctx context.Context, id uuid.UUID, raw []byte) (ll
 		if err != nil {
 			return err
 		}
-		in := llm.ProfileInput{Name: old.Name, Description: old.Description, AccountID: old.LlmAccountID, Active: new(old.Active), Model: old.Model, Instructions: old.Instructions}
+		in := llm.ProfileInput{OpenCode: session.OpenCodeConfiguration{Variant: old.OpencodeVariant}, Name: old.Name, Description: old.Description, AccountID: old.LlmAccountID, Active: new(old.Active), Model: old.Model, Instructions: old.Instructions}
 		if err = json.Unmarshal(old.Codex, &in.Codex); err != nil {
 			return err
 		}
@@ -75,14 +76,14 @@ func (s *Store) UpdateProfile(ctx context.Context, id uuid.UUID, raw []byte) (ll
 		if account.Harness != previous.Harness {
 			return llm.Invalid("account_id")
 		}
-		if account.Harness != "codex" && len(in.Codex) > 0 {
-			return llm.Invalid("codex")
+		if err := in.ValidateHarness(account.Harness); err != nil {
+			return err
 		}
 		options, err := json.Marshal(in.Codex)
 		if err != nil {
 			return err
 		}
-		_, err = q.UpdateModelProfile(ctx, db.UpdateModelProfileParams{ID: id, Description: in.Description, LlmAccountID: in.AccountID, Model: in.Model, Instructions: in.Instructions, Codex: options, Active: *in.Active})
+		_, err = q.UpdateModelProfile(ctx, db.UpdateModelProfileParams{ID: id, Description: in.Description, LlmAccountID: in.AccountID, Model: in.Model, Instructions: in.Instructions, Codex: options, OpencodeVariant: in.OpenCode.Variant, Active: *in.Active})
 		return err
 	})
 	if err != nil {

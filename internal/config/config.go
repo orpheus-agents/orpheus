@@ -199,7 +199,7 @@ func Resolve(in session.ConfigurationInput, profile llm.ProfileInput, harness st
 	if names == nil {
 		names = []string{}
 	}
-	out = session.ResolvedConfiguration{Version: 1, Harness: harness, Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Codex: profile.Options(), Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs, Services: services}, Limits: in.Limits, Hooks: hooks}}
+	out = session.ResolvedConfiguration{Version: 1, Harness: harness, Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Codex: profile.Options(), OpenCode: profile.OpenCode, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs, Services: services}, Limits: in.Limits, Hooks: hooks}}
 	return out, nil
 }
 func Environment(env map[string]string, cfg session.Configuration, allowlist []string) (map[string]string, error) {
