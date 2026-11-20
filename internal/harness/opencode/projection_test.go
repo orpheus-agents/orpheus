@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/diagnostic"
+	"github.com/orpheus-agents/orpheus/internal/harness/codex"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
@@ -24,10 +25,25 @@ func TestModelRef(t *testing.T) {
 func TestProjectionUsesNativeMessageIDsAndCumulativeUsage(t *testing.T) {
 	sid, run, mid, op := uuid.New(), uuid.New(), uuid.NewString(), uuid.NewString()
 	redactor := new(diagnostic.Redactor)
-	redactor.Add("sensitive-key")
+	redactor.Add("https://artifacts.example", "sensitive-key")
 	d := New(nil, time.Second, 16, redactor, sid, run, "template-fixture", "provider-fixture", "model-fixture")
 	var raw projection
-	if err := json.Unmarshal([]byte(`{"run":"`+run.String()+`","fenced":true,"tokens":{"input":7,"output":8,"reasoning":2,"cache":{"read":4,"write":1}},"messages":[{"id":"msg_`+mid+`","type":"user","metadata":{"orpheus_run_id":"`+run.String()+`","orpheus_operation_id":"`+op+`"},"text":"same"},{"id":"step","type":"assistant","finish":"tool-calls","content":[{"type":"reasoning","text":"private reasoning"},{"type":"text","text":"Checking the logs."},{"type":"tool","id":"call1","name":"shell","state":{"status":"completed","input":{"env":"sensitive-key"},"content":["0123456789ABCDEFGHIJKLMN"]}},{"type":"tool","id":"call2","name":"shell","state":{"status":"running","input":{"x":1}}}]},{"id":"auto","type":"compaction","status":"completed"},{"id":"final","type":"assistant","finish":"stop","content":[{"type":"text","text":"answer sensitive-key https://example.com"}]},{"id":"idle","type":"idle","outcome":"succeeded"}]}`), &raw); err != nil {
+	if err := json.Unmarshal([]byte(`{
+        "run":"`+run.String()+`","fenced":true,
+        "tokens":{"input":7,"output":8,"reasoning":2,"cache":{"read":4,"write":1}},
+        "messages":[
+            {"id":"msg_`+mid+`","type":"user","metadata":{"orpheus_run_id":"`+run.String()+`","orpheus_operation_id":"`+op+`"},"text":"same"},
+            {"id":"step","type":"assistant","finish":"tool-calls","content":[
+                {"type":"reasoning","text":"private reasoning"},
+                {"type":"text","text":"Uploading to https://artifacts.example"},
+                {"type":"tool","id":"call1","name":"shell","state":{"status":"completed","input":{"url":"https://artifacts.example/report.html"},"content":["https://artifacts.example/report.html"]}},
+                {"type":"tool","id":"call2","name":"shell","state":{"status":"running","input":{"x":1}}}
+            ]},
+            {"id":"auto","type":"compaction","status":"completed"},
+            {"id":"final","type":"assistant","finish":"stop","content":[{"type":"text","text":"[Report](https://artifacts.example/report.html)"}]},
+            {"id":"idle","type":"idle","outcome":"succeeded"}
+        ]
+    }`), &raw); err != nil {
 		t.Fatal(err)
 	}
 	snap, err := d.normalize(raw)
@@ -39,10 +55,17 @@ func TestProjectionUsesNativeMessageIDsAndCumulativeUsage(t *testing.T) {
 	if snap.FencedRun != run.String() || turn.Status != session.Completed || turn.Items[0].InputID != mid || turn.Items[0].OperationID != op || len(turn.Items) != 5 {
 		t.Fatalf("projection: %+v", turn)
 	}
-	if turn.Items[2].NativeID == turn.Items[3].NativeID || turn.Items[2].Completeness != "truncated" || strings.Contains(string(turn.Items[2].Input), "sensitive-key") || turn.Items[3].Status != "running" {
+	if turn.Items[2].NativeID == turn.Items[3].NativeID || turn.Items[2].Completeness != "truncated" || string(turn.Items[2].Input) != `{"url":"https://artifacts.example/report.html"}` || turn.Items[3].Status != "running" {
 		t.Fatal(turn.Items)
 	}
-	if turn.Items[1].NativeID != "step/1" || turn.Items[1].Index != 2 || turn.Items[1].Text != "Checking the logs." || *turn.Items[1].Kind != "progress" || *turn.Items[4].Kind != "answer" || turn.Items[4].Text != "answer [REDACTED] https://example.com" {
+	var result codex.Result
+	if err := json.Unmarshal(turn.Items[2].Result, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Head == nil || *result.Head != "https://" || result.OriginalBytes == nil || *result.OriginalBytes != len("https://artifacts.example/report.html") {
+		t.Fatalf("unexpected truncated tool result: %s", turn.Items[2].Result)
+	}
+	if turn.Items[1].NativeID != "step/1" || turn.Items[1].Index != 2 || turn.Items[1].Text != "Uploading to https://artifacts.example" || *turn.Items[1].Kind != "progress" || *turn.Items[4].Kind != "answer" || turn.Items[4].Text != "[Report](https://artifacts.example/report.html)" {
 		t.Fatal(turn.Items)
 	}
 	if u.ContextID != d.session || u.TurnID != run.String() || u.Total.InputTokens != 12 || u.Total.OutputTokens != 10 || u.Total.TotalTokens != 22 || *u.CachedInputTokens != 4 || *u.ReasoningOutputTokens != 2 {

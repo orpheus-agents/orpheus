@@ -44,35 +44,6 @@ type projection struct {
 	}
 }
 
-func (d *Driver) safeJSON(raw json.RawMessage) json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	var value any
-	dec := json.NewDecoder(strings.NewReader(string(raw)))
-	dec.UseNumber()
-	if dec.Decode(&value) != nil {
-		return nil
-	}
-	var clean func(any) any
-	clean = func(v any) any {
-		switch x := v.(type) {
-		case string:
-			return d.redactor.RedactValues(x)
-		case []any:
-			for i, item := range x {
-				x[i] = clean(item)
-			}
-		case map[string]any:
-			for k, item := range x {
-				x[k] = clean(item)
-			}
-		}
-		return v
-	}
-	out, _ := json.Marshal(clean(value))
-	return out
-}
 func (d *Driver) normalize(p projection) (harness.Snapshot, error) {
 	var snapshot harness.Snapshot
 	if p.Fenced {
@@ -103,14 +74,14 @@ func (d *Driver) normalize(p projection) (harness.Snapshot, error) {
 					if m.Finish == "stop" {
 						item.Kind = new("answer")
 					}
-					item.Text = d.redactor.RedactValues(c.Text)
+					item.Text = c.Text
 				case "tool":
 					item.NativeID = m.ID + "/" + c.ID
 					item.Type = "tool"
 					item.Name = c.Name
 					item.Status = cmp.Or(map[string]string{"running": "running", "streaming": "running", "completed": "completed", "error": "failed"}[c.State.Status], "unknown")
 					item.Completeness = "unknown"
-					item.Input = d.safeJSON(c.State.Input)
+					item.Input = c.State.Input
 					var raw json.RawMessage
 					switch {
 					case len(c.State.Content) == 1:
@@ -121,7 +92,7 @@ func (d *Driver) normalize(p projection) (harness.Snapshot, error) {
 						raw, _ = json.Marshal(c.State.Error.Message)
 					}
 					if len(raw) > 0 {
-						o := codex.Bounded(d.safeJSON(raw), d.limit, nil, false)
+						o := codex.Bounded(raw, d.limit, nil, false)
 						item.Result = o.Result
 						item.TruncationReason = o.Reason
 						item.Completeness = o.Completeness
