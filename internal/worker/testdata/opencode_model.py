@@ -22,6 +22,13 @@ class Model(BaseHTTPRequestHandler):
         ]
         latest = user_messages[-1] if user_messages else ""
         summary = "## Objective" in history and "<template>" in history
+        if (
+            not summary
+            and any(tag in latest for tag in ("SHELL_GATE", "SECOND_RUN"))
+            and req.get("reasoning_effort") != "high"
+        ):
+            self.send_error(400, "Expected the selected profile variant")
+            return
         if "FAIL_AUTH_CASE" in latest and not summary and "BUDGET_CASE" not in latest:
             self.send_response(401)
             self.send_header("Content-Type", "application/json")
@@ -65,7 +72,7 @@ class Model(BaseHTTPRequestHandler):
                 break
         if "LATE_CASE" in latest and not call and Path("late.started").exists():
             Path("late.answered").touch()
-        msg = {"role": "assistant"}
+        msg = {"role": "assistant", "reasoning_content": "PRIVATE_REASONING_FIXTURE"}
         if call:
             msg["tool_calls"] = [call]
         else:
@@ -91,7 +98,18 @@ class Model(BaseHTTPRequestHandler):
         self.end_headers()
         meta = {"id": "fixture", "model": "fixture", "created": 1}
         if req.get("stream"):
+            reasoning = msg.pop("reasoning_content")
             for choices, stats in [
+                (
+                    [
+                        {
+                            "index": 0,
+                            "delta": {"reasoning_content": reasoning},
+                            "finish_reason": None,
+                        }
+                    ],
+                    None,
+                ),
                 ([{"index": 0, "delta": msg, "finish_reason": None}], None),
                 ([{"index": 0, "delta": {}, "finish_reason": finish}], None),
                 ([], usage),
@@ -135,6 +153,9 @@ Path("opencode.json").write_text(
                     "models": {
                         "fixture": {
                             "name": "Fixture",
+                            "variants": [
+                                {"id": "thorough", "body": {"reasoning_effort": "high"}}
+                            ],
                             "capabilities": {
                                 "tools": True,
                                 "input": ["text"],

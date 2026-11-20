@@ -142,19 +142,20 @@ func (q *Queries) CreateLLMAccount(ctx context.Context, arg CreateLLMAccountPara
 }
 
 const createModelProfile = `-- name: CreateModelProfile :one
-INSERT INTO model_profiles (id, name, description, llm_account_id, model, instructions, codex, active)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, name, description, llm_account_id, model, instructions, codex, active, created_at, updated_at
+INSERT INTO model_profiles (id, name, description, llm_account_id, model, instructions, codex, active, opencode_variant)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, name, description, llm_account_id, model, instructions, codex, active, created_at, updated_at, opencode_variant
 `
 
 type CreateModelProfileParams struct {
-	ID           uuid.UUID       `json:"id"`
-	Name         string          `json:"name"`
-	Description  *string         `json:"description"`
-	LlmAccountID uuid.UUID       `json:"llm_account_id"`
-	Model        string          `json:"model"`
-	Instructions string          `json:"instructions"`
-	Codex        json.RawMessage `json:"codex"`
-	Active       bool            `json:"active"`
+	ID              uuid.UUID       `json:"id"`
+	Name            string          `json:"name"`
+	Description     *string         `json:"description"`
+	LlmAccountID    uuid.UUID       `json:"llm_account_id"`
+	Model           string          `json:"model"`
+	Instructions    string          `json:"instructions"`
+	Codex           json.RawMessage `json:"codex"`
+	Active          bool            `json:"active"`
+	OpencodeVariant *string         `json:"opencode_variant"`
 }
 
 func (q *Queries) CreateModelProfile(ctx context.Context, arg CreateModelProfileParams) (ModelProfile, error) {
@@ -167,6 +168,7 @@ func (q *Queries) CreateModelProfile(ctx context.Context, arg CreateModelProfile
 		arg.Instructions,
 		arg.Codex,
 		arg.Active,
+		arg.OpencodeVariant,
 	)
 	var i ModelProfile
 	err := row.Scan(
@@ -180,6 +182,7 @@ func (q *Queries) CreateModelProfile(ctx context.Context, arg CreateModelProfile
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OpencodeVariant,
 	)
 	return i, err
 }
@@ -254,24 +257,25 @@ func (q *Queries) GetLLMAccount(ctx context.Context, id uuid.UUID) (GetLLMAccoun
 }
 
 const getModelProfile = `-- name: GetModelProfile :one
-SELECT p.id, p.name, p.description, p.llm_account_id, p.model, p.instructions, p.codex, p.active, p.created_at, p.updated_at, a.name AS account_name, a.active AS account_active, a.harness
+SELECT p.id, p.name, p.description, p.llm_account_id, p.model, p.instructions, p.codex, p.active, p.created_at, p.updated_at, p.opencode_variant, a.name AS account_name, a.active AS account_active, a.harness
 FROM model_profiles p JOIN llm_accounts a ON a.id=p.llm_account_id WHERE p.id=$1
 `
 
 type GetModelProfileRow struct {
-	ID            uuid.UUID       `json:"id"`
-	Name          string          `json:"name"`
-	Description   *string         `json:"description"`
-	LlmAccountID  uuid.UUID       `json:"llm_account_id"`
-	Model         string          `json:"model"`
-	Instructions  string          `json:"instructions"`
-	Codex         json.RawMessage `json:"codex"`
-	Active        bool            `json:"active"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
-	AccountName   string          `json:"account_name"`
-	AccountActive bool            `json:"account_active"`
-	Harness       string          `json:"harness"`
+	ID              uuid.UUID       `json:"id"`
+	Name            string          `json:"name"`
+	Description     *string         `json:"description"`
+	LlmAccountID    uuid.UUID       `json:"llm_account_id"`
+	Model           string          `json:"model"`
+	Instructions    string          `json:"instructions"`
+	Codex           json.RawMessage `json:"codex"`
+	Active          bool            `json:"active"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	OpencodeVariant *string         `json:"opencode_variant"`
+	AccountName     string          `json:"account_name"`
+	AccountActive   bool            `json:"account_active"`
+	Harness         string          `json:"harness"`
 }
 
 func (q *Queries) GetModelProfile(ctx context.Context, id uuid.UUID) (GetModelProfileRow, error) {
@@ -288,6 +292,7 @@ func (q *Queries) GetModelProfile(ctx context.Context, id uuid.UUID) (GetModelPr
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OpencodeVariant,
 		&i.AccountName,
 		&i.AccountActive,
 		&i.Harness,
@@ -459,7 +464,7 @@ func (q *Queries) ListLLMAccounts(ctx context.Context, arg ListLLMAccountsParams
 }
 
 const listModelProfiles = `-- name: ListModelProfiles :many
-SELECT a.id, a.name, a.description, a.llm_account_id, a.model, a.instructions, a.codex, a.active, a.created_at, a.updated_at, b.name AS account_name, b.active AS account_active, b.harness FROM model_profiles a JOIN llm_accounts b ON b.id=a.llm_account_id
+SELECT a.id, a.name, a.description, a.llm_account_id, a.model, a.instructions, a.codex, a.active, a.created_at, a.updated_at, a.opencode_variant, b.name AS account_name, b.active AS account_active, b.harness FROM model_profiles a JOIN llm_accounts b ON b.id=a.llm_account_id
 WHERE ($1::boolean IS NULL OR (a.active AND b.active) = $1)
   AND ($2::boolean IS NULL OR a.active = $2)
   AND ($3::text IS NULL OR a.name = $3)
@@ -490,19 +495,20 @@ type ListModelProfilesParams struct {
 }
 
 type ListModelProfilesRow struct {
-	ID            uuid.UUID       `json:"id"`
-	Name          string          `json:"name"`
-	Description   *string         `json:"description"`
-	LlmAccountID  uuid.UUID       `json:"llm_account_id"`
-	Model         string          `json:"model"`
-	Instructions  string          `json:"instructions"`
-	Codex         json.RawMessage `json:"codex"`
-	Active        bool            `json:"active"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
-	AccountName   string          `json:"account_name"`
-	AccountActive bool            `json:"account_active"`
-	Harness       string          `json:"harness"`
+	ID              uuid.UUID       `json:"id"`
+	Name            string          `json:"name"`
+	Description     *string         `json:"description"`
+	LlmAccountID    uuid.UUID       `json:"llm_account_id"`
+	Model           string          `json:"model"`
+	Instructions    string          `json:"instructions"`
+	Codex           json.RawMessage `json:"codex"`
+	Active          bool            `json:"active"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	OpencodeVariant *string         `json:"opencode_variant"`
+	AccountName     string          `json:"account_name"`
+	AccountActive   bool            `json:"account_active"`
+	Harness         string          `json:"harness"`
 }
 
 func (q *Queries) ListModelProfiles(ctx context.Context, arg ListModelProfilesParams) ([]ListModelProfilesRow, error) {
@@ -536,6 +542,7 @@ func (q *Queries) ListModelProfiles(ctx context.Context, arg ListModelProfilesPa
 			&i.Active,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OpencodeVariant,
 			&i.AccountName,
 			&i.AccountActive,
 			&i.Harness,
@@ -574,7 +581,7 @@ func (q *Queries) LockLLMAccount(ctx context.Context, id uuid.UUID) (LlmAccount,
 }
 
 const lockModelProfile = `-- name: LockModelProfile :one
-SELECT id, name, description, llm_account_id, model, instructions, codex, active, created_at, updated_at FROM model_profiles WHERE id=$1 FOR UPDATE
+SELECT id, name, description, llm_account_id, model, instructions, codex, active, created_at, updated_at, opencode_variant FROM model_profiles WHERE id=$1 FOR UPDATE
 `
 
 func (q *Queries) LockModelProfile(ctx context.Context, id uuid.UUID) (ModelProfile, error) {
@@ -591,12 +598,13 @@ func (q *Queries) LockModelProfile(ctx context.Context, id uuid.UUID) (ModelProf
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OpencodeVariant,
 	)
 	return i, err
 }
 
 const modelProfileForAdmission = `-- name: ModelProfileForAdmission :one
-SELECT id, name, description, llm_account_id, model, instructions, codex, active, created_at, updated_at FROM model_profiles WHERE name=$1 FOR SHARE
+SELECT id, name, description, llm_account_id, model, instructions, codex, active, created_at, updated_at, opencode_variant FROM model_profiles WHERE name=$1 FOR SHARE
 `
 
 func (q *Queries) ModelProfileForAdmission(ctx context.Context, name string) (ModelProfile, error) {
@@ -613,6 +621,7 @@ func (q *Queries) ModelProfileForAdmission(ctx context.Context, name string) (Mo
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OpencodeVariant,
 	)
 	return i, err
 }
@@ -733,18 +742,19 @@ func (q *Queries) UpdateLLMAccount(ctx context.Context, arg UpdateLLMAccountPara
 }
 
 const updateModelProfile = `-- name: UpdateModelProfile :one
-UPDATE model_profiles SET description=$2, llm_account_id=$3, model=$4, instructions=$5, codex=$6, active=$7, updated_at=clock_timestamp()
-WHERE id=$1 RETURNING id, name, description, llm_account_id, model, instructions, codex, active, created_at, updated_at
+UPDATE model_profiles SET description=$2, llm_account_id=$3, model=$4, instructions=$5, codex=$6, active=$7, opencode_variant=$8, updated_at=clock_timestamp()
+WHERE id=$1 RETURNING id, name, description, llm_account_id, model, instructions, codex, active, created_at, updated_at, opencode_variant
 `
 
 type UpdateModelProfileParams struct {
-	ID           uuid.UUID       `json:"id"`
-	Description  *string         `json:"description"`
-	LlmAccountID uuid.UUID       `json:"llm_account_id"`
-	Model        string          `json:"model"`
-	Instructions string          `json:"instructions"`
-	Codex        json.RawMessage `json:"codex"`
-	Active       bool            `json:"active"`
+	ID              uuid.UUID       `json:"id"`
+	Description     *string         `json:"description"`
+	LlmAccountID    uuid.UUID       `json:"llm_account_id"`
+	Model           string          `json:"model"`
+	Instructions    string          `json:"instructions"`
+	Codex           json.RawMessage `json:"codex"`
+	Active          bool            `json:"active"`
+	OpencodeVariant *string         `json:"opencode_variant"`
 }
 
 func (q *Queries) UpdateModelProfile(ctx context.Context, arg UpdateModelProfileParams) (ModelProfile, error) {
@@ -756,6 +766,7 @@ func (q *Queries) UpdateModelProfile(ctx context.Context, arg UpdateModelProfile
 		arg.Instructions,
 		arg.Codex,
 		arg.Active,
+		arg.OpencodeVariant,
 	)
 	var i ModelProfile
 	err := row.Scan(
@@ -769,6 +780,7 @@ func (q *Queries) UpdateModelProfile(ctx context.Context, arg UpdateModelProfile
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OpencodeVariant,
 	)
 	return i, err
 }

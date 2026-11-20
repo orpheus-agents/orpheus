@@ -102,16 +102,17 @@ type Message struct {
 }
 
 type ModelProfile struct {
-	ID           uuid.UUID       `json:"id"`
-	Name         string          `json:"name"`
-	Description  *string         `json:"description"`
-	LlmAccountID uuid.UUID       `json:"llm_account_id"`
-	Model        string          `json:"model"`
-	Instructions string          `json:"instructions"`
-	Codex        json.RawMessage `json:"codex"`
-	Active       bool            `json:"active"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
+	ID              uuid.UUID       `json:"id"`
+	Name            string          `json:"name"`
+	Description     *string         `json:"description"`
+	LlmAccountID    uuid.UUID       `json:"llm_account_id"`
+	Model           string          `json:"model"`
+	Instructions    string          `json:"instructions"`
+	Codex           json.RawMessage `json:"codex"`
+	Active          bool            `json:"active"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	OpencodeVariant *string         `json:"opencode_variant"`
 }
 
 type Operation struct {

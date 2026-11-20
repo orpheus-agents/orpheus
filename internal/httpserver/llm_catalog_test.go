@@ -48,7 +48,7 @@ func TestLLMCatalogHTTP(t *testing.T) {
 		t.Fatal(profile)
 	}
 	pp := "/api/v1/profiles/" + profile.ID.String()
-	for _, body := range []string{`{}`, `{"name":"other"}`, `{"model":""}`, `{"model":null}`, `{"instructions":null}`, `{"codex":{"effort":"invalid"}}`} {
+	for _, body := range []string{`{}`, `{"name":"other"}`, `{"model":""}`, `{"model":null}`, `{"instructions":null}`, `{"codex":{"effort":"invalid"}}`, `{"opencode":{"variant":"high"}}`} {
 		externalRequest(t, server, "PATCH", pp, body, "", 422)
 	}
 	externalRequest(t, server, "PATCH", pp, `{"codex":{"effort":"high"},"instructions":"test"}`, "", 200)
@@ -66,6 +66,30 @@ func TestLLMCatalogHTTP(t *testing.T) {
 		externalRequest(t, server, "GET", "/api/v1/accounts/limits?"+query, "", "", 422)
 	}
 }
+func TestOpenCodeProfileVariantHTTP(t *testing.T) {
+	server, _ := testServer(t)
+	account := decodeHTTP[llm.AccountDetails](t, externalRequest(t, server, "POST", "/api/v1/llm-accounts", `{"name":"Kimi","harness":"opencode","provider":"kimi-code-plan-global","auth_mode":"api_key","api_key":"fixture"}`, "", 201))
+	created := decodeHTTP[client.Profile](t, externalRequest(t, server, "POST", "/api/v1/profiles", fmt.Sprintf(`{"name":"research","account_id":%q,"model":"k3.1-pro","opencode":{"variant":"max"}}`, account.ID), "", 201))
+	if created.Opencode == nil || created.Opencode.Variant == nil || *created.Opencode.Variant != "max" || created.Model != "k3.1-pro" {
+		t.Fatal(created)
+	}
+	path := "/api/v1/profiles/" + created.ID.String()
+	for _, method := range []string{"GET", "PATCH"} {
+		body := ""
+		if method == "PATCH" {
+			body = `{"description":"keep variant"}`
+		}
+		got := decodeHTTP[client.Profile](t, externalRequest(t, server, method, path, body, "", 200))
+		if got.Opencode == nil || got.Opencode.Variant == nil || *got.Opencode.Variant != "max" {
+			t.Fatal(got)
+		}
+	}
+	cleared := decodeHTTP[client.Profile](t, externalRequest(t, server, "PATCH", path, `{"opencode":{"variant":null}}`, "", 200))
+	if cleared.Opencode != nil {
+		t.Fatal(cleared)
+	}
+}
+
 func TestLLMAuthFileConditionalWrites(t *testing.T) {
 	endpoint := os.Getenv("TEST_S3_ENDPOINT")
 	if endpoint == "" {

@@ -82,6 +82,13 @@ OpenCode profiles inherit the account provider. Use the model ID from the
 template or provider catalog, such as `k3.1-pro` on global Kimi Coding Plan.
 For Console OAuth, use `opencode-go/<model-id>` for the Go subscription.
 An unqualified Console model uses the `opencode` provider and its billing.
+To set reasoning effort for an OpenCode profile, put the native variant ID in
+`opencode.variant`. Keep the model ID in `model`. For example, a Kimi profile
+can use `"model": "k3.1-pro", "opencode": {"variant": "max"}`.
+Available variants depend on the provider and model. An omitted variant uses
+the model default. PATCH with `{"opencode":{"variant":null}}` to clear it.
+Sessions keep the setting captured at creation.
+
 Codex options apply only to Codex profiles.
 
 Responses include `account_id`, `account_name`, `account_active`, `active` and

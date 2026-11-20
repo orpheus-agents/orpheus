@@ -3,6 +3,7 @@ import json
 import pathlib
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 location = (
     pathlib.Path(__file__).resolve().parents[2] / "internal/harness/opencode/bridge.py"
@@ -74,6 +75,38 @@ class Stub(bridge.Server):
 
 
 class BridgeTest(unittest.TestCase):
+    def test_open_selects_optional_model_variant(self):
+        for variant in ("", "max"):
+            with self.subTest(variant=variant):
+                server = Stub()
+                server.session = "ses_1"
+                server.request = Mock()
+                server.call(
+                    "open",
+                    {
+                        "run": "A",
+                        "existing": False,
+                        "provider": "kimi-code-plan-global",
+                        "model": "k3.1-pro",
+                        "variant": variant,
+                        "cwd": "/work",
+                        "instructions": "",
+                    },
+                )
+                model = {"providerID": "kimi-code-plan-global", "id": "k3.1-pro"}
+                if variant:
+                    model["variant"] = variant
+                server.request.assert_called_once_with(
+                    "/api/session",
+                    "POST",
+                    {
+                        "id": "ses_1",
+                        "model": model,
+                        "location": {"directory": "/work"},
+                        "agent": "build",
+                    },
+                )
+
     def test_lost_ack_partial_batch_and_late_input(self):
         s = Stub()
         p = {
@@ -98,6 +131,31 @@ class BridgeTest(unittest.TestCase):
             s.deliver(late)
         self.assertEqual(
             [m["id"] for m in snapshot["messages"]], ["msg_x", "msg_y", "idle"]
+        )
+
+    def test_reasoning_text_is_private_but_its_native_slot_is_preserved(self):
+        server = Stub()
+        server.messages = [
+            {
+                "id": "u",
+                "type": "user",
+                "text": "go",
+                "metadata": {"orpheus_run_id": "A"},
+            },
+            {
+                "id": "a",
+                "type": "assistant",
+                "content": [
+                    {"type": "reasoning", "text": "private reasoning"},
+                    {"type": "text", "text": "Checking the logs."},
+                ],
+            },
+        ]
+        snapshot = server.snapshot()
+        self.assertNotIn("private reasoning", json.dumps(snapshot))
+        self.assertEqual(
+            snapshot["messages"][1]["content"],
+            [{"type": "reasoning"}, {"type": "text", "text": "Checking the logs."}],
         )
 
     def test_conflicting_200_and_foreign_run(self):

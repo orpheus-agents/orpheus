@@ -58,7 +58,7 @@ func TestLiveOpenCodeDeliveryAndHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := s.CreateProfile(ctx, llm.ProfileInput{Name: "fixture", AccountID: account.ID, Model: "fixture", Instructions: "Use tools when requested."})
+	profile, err := s.CreateProfile(ctx, llm.ProfileInput{Name: "fixture", AccountID: account.ID, Model: "fixture", OpenCode: session.OpenCodeConfiguration{Variant: new("thorough")}, Instructions: "Use tools when requested."})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,6 +164,9 @@ func TestLiveOpenCodeDeliveryAndHistory(t *testing.T) {
 	}
 	count := 0
 	for _, m := range msgs {
+		if strings.Contains(m.Text, "PRIVATE_REASONING_FIXTURE") {
+			t.Fatal("OpenCode reasoning was published as a conversation message")
+		}
 		if m.Role == "user" {
 			count++
 			if m.DeliveryStatus == nil || *m.DeliveryStatus != "delivered" || m.NativeKey == nil {

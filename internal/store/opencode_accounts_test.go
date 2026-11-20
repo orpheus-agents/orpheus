@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/internal/accountlimits"
 	"github.com/orpheus-agents/orpheus/internal/llm"
+	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
 func TestOpenCodeAccountsAndSourceChanges(t *testing.T) {
@@ -27,7 +28,7 @@ func TestOpenCodeAccountsAndSourceChanges(t *testing.T) {
 	if _, err := s.CreateProfile(ctx, llm.ProfileInput{Name: "invalid-options", AccountID: kimi.ID, Model: "k3.1-pro", Codex: map[string]string{"effort": "high"}}); err == nil {
 		t.Fatal("OpenCode accepted Codex-only options")
 	}
-	p, err := s.CreateProfile(ctx, llm.ProfileInput{Name: "kimi", AccountID: kimi.ID, Model: "k3.1-pro"})
+	p, err := s.CreateProfile(ctx, llm.ProfileInput{Name: "kimi", AccountID: kimi.ID, Model: "k3.1-pro", OpenCode: session.OpenCodeConfiguration{Variant: new("max")}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,8 +39,12 @@ func TestOpenCodeAccountsAndSourceChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	edited, err := s.UpdateProfile(ctx, p.ID, []byte(`{"opencode":{"variant":null}}`))
+	if err != nil || edited.OpenCode.Variant != nil {
+		t.Fatal("clear profile variant", err)
+	}
 	record, err := GetSession(ctx, s.Pool, run.SessionID, false)
-	if err != nil || record.Configuration.Harness != "opencode" || record.Configuration.Provider != kimi.Provider {
+	if err != nil || record.Configuration.Harness != "opencode" || record.Configuration.Provider != kimi.Provider || record.Configuration.Public.Agent.OpenCode.Variant == nil || *record.Configuration.Public.Agent.OpenCode.Variant != "max" || record.Configuration.Public.Agent.Model != "k3.1-pro" {
 		t.Fatal("snapshot", err)
 	}
 	sources := func() KimiLimitCredential {

@@ -38,7 +38,7 @@ func (s *Store) resolveProfile(ctx context.Context, tx pgx.Tx, in session.Config
 	if !account.Active {
 		return empty, uuid.Nil, profileUnavailable("account_inactive")
 	}
-	input := llm.ProfileInput{Name: profile.Name, AccountID: profile.LlmAccountID, Model: profile.Model, Instructions: profile.Instructions}
+	input := llm.ProfileInput{OpenCode: session.OpenCodeConfiguration{Variant: profile.OpencodeVariant}, Name: profile.Name, AccountID: profile.LlmAccountID, Model: profile.Model, Instructions: profile.Instructions}
 	if err = json.Unmarshal(profile.Codex, &input.Codex); err != nil {
 		return empty, uuid.Nil, err
 	}

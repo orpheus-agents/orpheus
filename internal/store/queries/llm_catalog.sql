@@ -37,8 +37,8 @@ AND (sqlc.narg(account_ids)::uuid[] IS NULL OR a.id=ANY(sqlc.narg(account_ids)::
 SELECT DISTINCT credential_store::text FROM llm_accounts WHERE credential_store IS NOT NULL ORDER BY credential_store;
 
 -- name: CreateModelProfile :one
-INSERT INTO model_profiles (id, name, description, llm_account_id, model, instructions, codex, active)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *;
+INSERT INTO model_profiles (id, name, description, llm_account_id, model, instructions, codex, active, opencode_variant)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *;
 
 -- name: LockModelProfile :one
 SELECT * FROM model_profiles WHERE id=$1 FOR UPDATE;
@@ -47,7 +47,7 @@ SELECT * FROM model_profiles WHERE id=$1 FOR UPDATE;
 SELECT * FROM model_profiles WHERE name=$1 FOR SHARE;
 
 -- name: UpdateModelProfile :one
-UPDATE model_profiles SET description=$2, llm_account_id=$3, model=$4, instructions=$5, codex=$6, active=$7, updated_at=clock_timestamp()
+UPDATE model_profiles SET description=$2, llm_account_id=$3, model=$4, instructions=$5, codex=$6, active=$7, opencode_variant=$8, updated_at=clock_timestamp()
 WHERE id=$1 RETURNING *;
 
 -- name: DeleteModelProfile :execrows

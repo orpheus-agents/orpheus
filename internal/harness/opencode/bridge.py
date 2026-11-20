@@ -191,8 +191,11 @@ class Server:
             elif kind == "assistant":
                 content = []
                 for part in m["content"]:
-                    if part["type"] in ("text", "reasoning"):
-                        content.append({"type": part["type"], "text": part["text"]})
+                    if part["type"] == "text":
+                        content.append({"type": "text", "text": part["text"]})
+                    elif part["type"] == "reasoning":
+                        # Keep the slot for stable native IDs across worker upgrades.
+                        content.append({"type": "reasoning"})
                     elif part["type"] == "tool":
                         state = part["state"]
                         item = {
@@ -340,12 +343,15 @@ class Server:
                     raise
                 self.clean_inbox(None)
             else:
+                model = {"providerID": p["provider"], "id": p["model"]}
+                if p.get("variant"):
+                    model["variant"] = p["variant"]
                 self.request(
                     "/api/session",
                     "POST",
                     {
                         "id": self.session,
-                        "model": {"providerID": p["provider"], "id": p["model"]},
+                        "model": model,
                         "location": {"directory": p["cwd"]},
                         "agent": "build",
                     },

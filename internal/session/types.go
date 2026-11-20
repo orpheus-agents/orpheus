@@ -110,11 +110,15 @@ type CodexConfiguration struct {
 	Personality string `json:"personality,omitzero"`
 	ServiceTier string `json:"service_tier,omitzero"`
 }
+type OpenCodeConfiguration struct {
+	Variant *string `json:"variant,omitempty"`
+}
 type AgentConfiguration struct {
-	Profile      string             `json:"profile"`
-	Model        string             `json:"model"`
-	Codex        CodexConfiguration `json:"codex,omitzero"`
-	Instructions string             `json:"instructions"`
+	OpenCode     OpenCodeConfiguration `json:"opencode,omitzero"`
+	Profile      string                `json:"profile"`
+	Model        string                `json:"model"`
+	Codex        CodexConfiguration    `json:"codex,omitzero"`
+	Instructions string                `json:"instructions"`
 }
 type SandboxConfiguration struct {
 	Services []Service `json:"services"`

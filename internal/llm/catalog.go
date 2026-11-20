@@ -40,27 +40,29 @@ type AccountInput struct {
 	APIKey          *string         `json:"api_key"`
 }
 type Profile struct {
-	ID            uuid.UUID         `json:"id"`
-	Name          string            `json:"name"`
-	Description   *string           `json:"description"`
-	Harness       string            `json:"harness"`
-	AccountID     uuid.UUID         `json:"account_id"`
-	AccountName   string            `json:"account_name"`
-	AccountActive bool              `json:"account_active"`
-	Active        bool              `json:"active"`
-	Available     bool              `json:"available"`
-	Model         string            `json:"model"`
-	Instructions  string            `json:"instructions"`
-	Codex         map[string]string `json:"codex"`
+	OpenCode      session.OpenCodeConfiguration `json:"opencode,omitzero"`
+	ID            uuid.UUID                     `json:"id"`
+	Name          string                        `json:"name"`
+	Description   *string                       `json:"description"`
+	Harness       string                        `json:"harness"`
+	AccountID     uuid.UUID                     `json:"account_id"`
+	AccountName   string                        `json:"account_name"`
+	AccountActive bool                          `json:"account_active"`
+	Active        bool                          `json:"active"`
+	Available     bool                          `json:"available"`
+	Model         string                        `json:"model"`
+	Instructions  string                        `json:"instructions"`
+	Codex         map[string]string             `json:"codex"`
 }
 type ProfileInput struct {
-	Name         string            `json:"name"`
-	Description  *string           `json:"description"`
-	AccountID    uuid.UUID         `json:"account_id"`
-	Active       *bool             `json:"active"`
-	Model        string            `json:"model"`
-	Instructions string            `json:"instructions"`
-	Codex        map[string]string `json:"codex"`
+	OpenCode     session.OpenCodeConfiguration `json:"opencode,omitzero"`
+	Name         string                        `json:"name"`
+	Description  *string                       `json:"description"`
+	AccountID    uuid.UUID                     `json:"account_id"`
+	Active       *bool                         `json:"active"`
+	Model        string                        `json:"model"`
+	Instructions string                        `json:"instructions"`
+	Codex        map[string]string             `json:"codex"`
 }
 type Page[T any] struct {
 	Items      []T     `json:"items"`
@@ -178,6 +180,9 @@ func NormalizeProfile(in ProfileInput) (ProfileInput, error) {
 			in.Description = nil
 		}
 	}
+	if v := in.OpenCode.Variant; v != nil && !validText(*v, 255, true) {
+		return in, Invalid("opencode")
+	}
 	if in.Codex == nil {
 		in.Codex = map[string]string{}
 	}
@@ -204,6 +209,15 @@ func NormalizeProfile(in ProfileInput) (ProfileInput, error) {
 	}
 	return in, nil
 }
+func (p ProfileInput) ValidateHarness(harness string) error {
+	if harness != "codex" && len(p.Codex) > 0 {
+		return Invalid("codex")
+	}
+	if harness != "opencode" && p.OpenCode.Variant != nil {
+		return Invalid("opencode")
+	}
+	return nil
+}
 func (p ProfileInput) Options() session.CodexConfiguration {
 	return session.CodexConfiguration{Effort: p.Codex["effort"], Summary: p.Codex["summary"], Personality: p.Codex["personality"], ServiceTier: p.Codex["service_tier"]}
 }
@@ -226,6 +240,22 @@ func PatchProfile(in ProfileInput, raw []byte) (ProfileInput, error) {
 			target = &in.Active
 		case "description":
 			target = &in.Description
+		case "opencode":
+			if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+				in.OpenCode = session.OpenCodeConfiguration{}
+				continue
+			}
+			var options map[string]*string
+			if Decode(value, &options) != nil {
+				return in, Invalid(name)
+			}
+			for key, variant := range options {
+				if key != "variant" {
+					return in, Invalid(name)
+				}
+				in.OpenCode.Variant = variant
+			}
+			continue
 		case "codex":
 			if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
 				in.Codex = map[string]string{}
