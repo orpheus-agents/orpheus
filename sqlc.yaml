@@ -60,8 +60,7 @@ sql:
               pointer: true
           - column: "runs.services"
             go_type:
-              import: "github.com/orpheus-agents/orpheus/internal/session"
-              type: "Service"
+              type: "string"
               slice: true
           - column: "runs.error"
             go_type:

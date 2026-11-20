@@ -14,11 +14,11 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
-func TestServiceAdmissionSnapshotsAndReplay(t *testing.T) {
+func TestServiceAdmissionSelectionsAndReplay(t *testing.T) {
 	s := fixture(t)
 	s.Deployment.Services = map[string]config.Service{
-		"a": {Name: "First", Description: "First service", EnvFrom: []string{"A", "SHARED"}},
-		"b": {Name: "Second", Description: "Second service", EnvFrom: []string{"B", "SHARED"}},
+		"a": {Name: "First", Description: "First service", Credentials: map[string]config.DirectCredential{"a": {Env: "A"}, "shared": {Env: "SHARED"}}},
+		"b": {Name: "Second", Description: "Second service", Credentials: map[string]config.DirectCredential{"b": {Env: "B"}, "shared": {Env: "SHARED"}}},
 	}
 	req := request()
 	req.Create.Configuration.Sandbox.Services = []string{"b", "a"}
@@ -53,18 +53,18 @@ func TestServiceAdmissionSnapshotsAndReplay(t *testing.T) {
 	get := func() {
 		t.Helper()
 		r := mustSession(t, s, accepted.SessionID)
-		if len(r.Configuration.Public.Sandbox.Services) != 2 || r.Configuration.Public.Sandbox.Services[0].Name != "First" || !slices.Equal(r.Configuration.Public.Sandbox.EnvFrom, []string{"A", "B", "SHARED"}) {
+		if !slices.Equal(r.Configuration.Public.Sandbox.Services, []string{"a", "b"}) || !slices.Equal(r.Configuration.Public.Sandbox.EnvFrom, []string{"SHARED"}) {
 			t.Fatal(r.Configuration)
 		}
 		run, err := s.Run(t.Context(), accepted.SessionID, accepted.RunID)
-		if err != nil || len(run.Services) != 2 || run.Services[0].Name != "First" || !slices.Equal(run.EnvFrom, []string{"A", "B", "SHARED"}) {
+		if err != nil || !slices.Equal(run.Services, []string{"a", "b"}) || len(run.EnvFrom) != 0 {
 			t.Fatal(run, err)
 		}
 	}
 	get()
 	req.Create.Services = []string{"a", "b"}
 	req.Create.Configuration.Sandbox.Services = []string{"a", "b"}
-	s.Deployment.Services["a"] = config.Service{Name: "Changed", EnvFrom: []string{"NEW"}}
+	s.Deployment.Services["a"] = config.Service{Name: "Changed", Credentials: map[string]config.DirectCredential{"new": {Env: "NEW"}}}
 	delete(s.Deployment.Services, "b")
 	// Simulate a fresh process with a different catalog and the same storage.
 	restarted := *s
@@ -107,7 +107,7 @@ func TestServiceAdmissionSnapshotsAndReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	nextRun, err := s.Run(t.Context(), next.SessionID, next.RunID)
-	if err != nil || len(nextRun.Services) != 1 || nextRun.Services[0].Name != "Changed" || !slices.Equal(nextRun.EnvFrom, []string{"NEW"}) {
+	if err != nil || len(nextRun.Services) != 1 || nextRun.Services[0] != "a" || len(nextRun.EnvFrom) != 0 {
 		t.Fatal(nextRun, err)
 	}
 	clear(s.Deployment.Services)

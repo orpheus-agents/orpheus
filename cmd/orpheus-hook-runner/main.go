@@ -17,6 +17,7 @@ import (
 )
 
 type started struct {
+	Attempt     int       `json:"attempt"`
 	OperationID string    `json:"operation_id"`
 	WrapperPID  int       `json:"wrapper_pid"`
 	HookPID     *int      `json:"hook_pid"`
@@ -145,8 +146,8 @@ func writeJSON(path string, v any) error {
 	return writeAtomic(path, b, 0600)
 }
 
-func run(operationID, dir, script, workspace string, limit int) error {
-	if operationID == "" || dir == "" || script == "" || workspace == "" || limit < 2 {
+func run(operationID, dir, script, workspace string, limit, attempt int) error {
+	if attempt < 1 || operationID == "" || dir == "" || script == "" || workspace == "" || limit < 2 {
 		return errors.New("invalid runner arguments")
 	}
 	if err := os.MkdirAll(dir, 0700); err != nil {
@@ -159,7 +160,7 @@ func run(operationID, dir, script, workspace string, limit int) error {
 	if err := claim.Close(); err != nil {
 		return err
 	}
-	start := started{OperationID: operationID, WrapperPID: os.Getpid(), StartedAt: time.Now().UTC()}
+	start := started{Attempt: attempt, OperationID: operationID, WrapperPID: os.Getpid(), StartedAt: time.Now().UTC()}
 	if err := writeJSON(filepath.Join(dir, "started.json"), start); err != nil {
 		return err
 	}
@@ -235,14 +236,15 @@ func writeResult(dir, operationID string, state *os.ProcessState, waitErr error,
 
 func main() {
 	var operationID, dir, script, workspace string
-	var limit int
+	var limit, attempt int
 	flag.StringVar(&operationID, "operation-id", "", "hook operation UUID")
 	flag.StringVar(&dir, "operation-dir", "", "private operation directory")
 	flag.StringVar(&script, "script", "", "executable hook script")
 	flag.StringVar(&workspace, "workspace", "", "working directory")
 	flag.IntVar(&limit, "max-output-bytes", 524288, "maximum retained output bytes")
+	flag.IntVar(&attempt, "attempt", 0, "one-based start attempt")
 	flag.Parse()
-	if err := run(operationID, dir, script, workspace, limit); err != nil {
+	if err := run(operationID, dir, script, workspace, limit, attempt); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

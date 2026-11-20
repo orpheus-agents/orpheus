@@ -525,7 +525,7 @@ func TestCancelBeforeLaunchIntentPreventsDispatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	called := false
-	_, err = e.invoke(t.Context(), o, func() (operationResult, error) { called = true; return operationResult{}, nil })
+	_, err = e.invoke(t.Context(), o, nil, func() (operationResult, error) { called = true; return operationResult{}, nil })
 	if !errors.Is(err, errProvisionWait) || called || r.launches != 0 {
 		t.Fatal("cancelled launch dispatched", err)
 	}

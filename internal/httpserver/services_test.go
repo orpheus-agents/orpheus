@@ -11,8 +11,8 @@ import (
 
 func TestServicesCatalog(t *testing.T) {
 	s := &store.Store{Settings: config.DefaultSettings(), Deployment: config.Deployment{Services: map[string]config.Service{
-		"z": {Name: "Last", Description: "Last service", EnvFrom: []string{"Z", "A"}},
-		"a": {Name: "First", Description: "First service", EnvFrom: []string{"A"}},
+		"z": {Name: "Last", Description: "Last service", Credentials: map[string]config.DirectCredential{"z": {Env: "WORKER_TOKEN", As: new("Z")}, "a": {Env: "A"}}},
+		"a": {Name: "First", Description: "First service", Credentials: map[string]config.DirectCredential{"a": {Env: "A"}}},
 	}}}
 	s.Settings.PublicAPIKeys = []string{"key"}
 	s.Settings.BrowserAuth.Mode = "anonymous"
@@ -36,7 +36,7 @@ func TestServicesCatalog(t *testing.T) {
 		if w.Code != 200 || w.Header().Get("Cache-Control") != "no-store" {
 			t.Fatal(w.Code, w.Body.String())
 		}
-		assertCatalogJSON(t, w.Body.Bytes(), `{"items":[{"code":"a","name":"First","description":"First service","env_from":["A"]},{"code":"z","name":"Last","description":"Last service","env_from":["A","Z"]}]}`)
+		assertCatalogJSON(t, w.Body.Bytes(), `{"items":[{"code":"a","name":"First","description":"First service","env_names":["A"]},{"code":"z","name":"Last","description":"Last service","env_names":["A","Z"]}]}`)
 	}
 	clear(s.Deployment.Services)
 	w := httptest.NewRecorder()

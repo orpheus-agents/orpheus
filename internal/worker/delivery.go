@@ -148,7 +148,7 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 			deliveryErr = e.opStatus(ctx, o.ID, "confirmed", result)
 		}
 	} else {
-		result, deliveryErr = e.invoke(ctx, o, dispatch)
+		result, deliveryErr = e.invoke(ctx, o, nil, dispatch)
 	}
 	if deliveryErr != nil {
 		deliveryErr = e.bindFailure(deliveryErr, record, &run)

@@ -118,3 +118,9 @@ WHERE NOT s.slot_reserved AND EXISTS (
       AND d.kind = 'sandbox_delete' AND d.status = 'confirmed'
       AND d.parameters->>'create_operation_id' = o.id::text
       AND d.parameters->>'sandbox_id' = o.result->>'sandbox_id'));
+
+-- name: SendHarnessLaunch :execrows
+UPDATE operations SET status = 'sending', attempted_at = now(),
+    parameters = jsonb_build_object('env_names', to_jsonb(sqlc.arg(env_names)::text[]))
+WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id)
+    AND kind = 'launch' AND status = 'pending';

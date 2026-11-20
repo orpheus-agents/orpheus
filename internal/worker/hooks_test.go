@@ -7,10 +7,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"maps"
 	"path"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -45,6 +47,7 @@ type hookRemote struct {
 	startAttempts   int
 	cleanups        int
 	onProcesses     func()
+	onKill          func()
 }
 
 func (h *hookRemote) Create(ctx context.Context, template string, timeout time.Duration, metadata map[string]string) (harness.Sandbox, error) {
@@ -91,7 +94,13 @@ func (h *hookRemote) Processes(ctx context.Context) ([]harness.Process, error) {
 	}
 	return processes, err
 }
-func (h *hookRemote) Start(_ context.Context, _ string, env map[string]string, _ string) (harness.Stream, int, error) {
+func (h *hookRemote) Kill(ctx context.Context, pid int) error {
+	if h.onKill != nil {
+		h.onKill()
+	}
+	return h.remote.Kill(ctx, pid)
+}
+func (h *hookRemote) Start(_ context.Context, command string, env map[string]string, _ string) (harness.Stream, int, error) {
 	h.startAttempts++
 	if h.alwaysLostStart {
 		return nil, 0, harness.ErrUncertain
@@ -106,6 +115,12 @@ func (h *hookRemote) Start(_ context.Context, _ string, env map[string]string, _
 	h.invoked = append(h.invoked, name)
 	h.hookEnv = append(h.hookEnv, maps.Clone(env))
 	if h.autoResult {
+		var attempt int
+		_, args, _ := strings.Cut(command, " -attempt ")
+		if _, err := fmt.Sscanf(args, "%d", &attempt); err != nil {
+			return nil, 0, err
+		}
+		h.files[path.Join(dir, "started.json")], _ = json.Marshal(hookStarted{Attempt: attempt, OperationID: id, WrapperPID: 200, HookPID: new(201)})
 		h.completeHook(id, name)
 	}
 	return hookStream{}, 200 + len(h.invoked), nil
@@ -362,7 +377,7 @@ func TestHookResultRecoveredWithoutRelaunch(t *testing.T) {
 		t.Fatal(hook, err)
 	}
 	dir := path.Join("/home/template/.orpheus/hooks", hook.ID.String())
-	started, _ := json.Marshal(hookStarted{OperationID: hook.ID.String(), WrapperPID: 200})
+	started, _ := json.Marshal(hookStarted{Attempt: 1, OperationID: hook.ID.String(), WrapperPID: 200})
 	box.files[path.Join(dir, "started.json")] = started
 	box.processes = append(box.processes, harness.Process{PID: 200, Env: map[string]string{"ORPHEUS_HOOK_OPERATION_ID": hook.ID.String()}})
 	e.Disconnect()
@@ -396,18 +411,31 @@ func TestHookResultPublishedDuringProcessListIsNotLost(t *testing.T) {
 		t.Fatal(h, err)
 	}
 	dir := path.Join("/home/template/.orpheus/hooks", h.ID.String())
-	started, _ := json.Marshal(hookStarted{OperationID: h.ID.String(), WrapperPID: 200})
+	started, _ := json.Marshal(hookStarted{Attempt: 1, OperationID: h.ID.String(), WrapperPID: 200})
 	box.files[path.Join(dir, "started.json")] = started
-	box.onProcesses = func() { box.completeHook(h.ID.String(), string(box.files[path.Join(dir, "script")])) }
+	box.onProcesses = func() {
+		box.files[path.Join(dir, "started.json")], _ = json.Marshal(hookStarted{Attempt: 1, OperationID: h.ID.String(), WrapperPID: 200, HookPID: new(201)})
+		box.completeHook(h.ID.String(), string(box.files[path.Join(dir, "script")]))
+	}
 	tick(t, e)
 	h, err = s.Hook(t.Context(), a.RunID, "after_create")
-	if err != nil || h == nil || h.Status != "completed" {
+	if err != nil || h == nil || h.Status != "completed" || h.StartedAttempt == nil || *h.StartedAttempt != 1 {
 		t.Fatal(h, err)
 	}
 }
 
 func TestUncertainHookStartRetriesSameOperation(t *testing.T) {
 	s, box, a, e := setupHooks(t, true, false)
+	if _, err := s.Cancel(t.Context(), a.SessionID, a.RunID); err != nil {
+		t.Fatal(err)
+	}
+	service := config.Service{Environment: map[string]config.DirectValue{"FIRST": {Literal: new("first")}}}
+	s.Deployment.Services = map[string]config.Service{"test": service}
+	a, err := s.Accept(t.Context(), store.Admission{Key: uuid.New(), Create: &session.CreateSession{Configuration: session.ConfigurationInput{Agent: session.AgentInput{Profile: "p"}, Sandbox: session.SandboxInput{Template: "codex", Services: []string{"test"}}, Limits: session.Limits{RunTimeoutSeconds: 3600}, Hooks: &session.HooksInput{AfterCreate: new("#!/bin/sh\n# after_create\n")}}, Messages: []session.TextMessage{{Text: "test"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.ID = a.SessionID
 	box.lostHookStart = true
 	found := false
 	for range 15 {
@@ -424,6 +452,8 @@ func TestUncertainHookStartRetriesSameOperation(t *testing.T) {
 		t.Fatal("uncertain Start was not reached")
 	}
 	e.Disconnect()
+	service.Environment = map[string]config.DirectValue{"SECOND": {Literal: new("second")}}
+	s.Deployment.Services["test"] = service
 	tickUntil(t, e, func() bool { return box.startAttempts == 2 })
 	h, err := s.Hook(t.Context(), a.RunID, "after_create")
 	if err != nil || h == nil || h.Status != "running" || len(box.invoked) != 1 {
@@ -433,6 +463,16 @@ func TestUncertainHookStartRetriesSameOperation(t *testing.T) {
 		h, err := s.Hook(t.Context(), a.RunID, "after_create")
 		return err == nil && h != nil && h.Status == "completed"
 	})
+	view, err := s.Run(t.Context(), a.SessionID, a.RunID)
+	if err != nil || !slices.Equal(view.Hooks[0].EnvNames, slices.Sorted(maps.Keys(box.hookEnv[0]))) {
+		t.Fatal(view, err)
+	}
+	h, err = s.Hook(t.Context(), a.RunID, "after_create")
+	var attempts [][]string
+	if err != nil || h.StartedAttempt == nil || *h.StartedAttempt != 2 || json.Unmarshal(h.AttemptEnvNames, &attempts) != nil || len(attempts) != 2 || slices.Equal(attempts[0], attempts[1]) {
+		t.Fatal(h, err)
+	}
+
 }
 
 func TestHookStartRetriesAreBounded(t *testing.T) {
@@ -524,7 +564,7 @@ func TestCancellingPreparationStopsOnlyHook(t *testing.T) {
 		t.Fatal(hook, err)
 	}
 	dir := path.Join("/home/template/.orpheus/hooks", hook.ID.String())
-	started, _ := json.Marshal(hookStarted{OperationID: hook.ID.String(), WrapperPID: 200, HookPID: new(201)})
+	started, _ := json.Marshal(hookStarted{Attempt: 1, OperationID: hook.ID.String(), WrapperPID: 200, HookPID: new(201)})
 	box.files[path.Join(dir, "started.json")] = started
 	box.processes = append(box.processes, harness.Process{PID: 200, Env: map[string]string{"ORPHEUS_HOOK_OPERATION_ID": hook.ID.String()}})
 	if _, err := s.Cancel(t.Context(), a.SessionID, a.RunID); err != nil {
@@ -556,7 +596,7 @@ func TestHookTimeoutFailsPreparationWithoutAgent(t *testing.T) {
 		t.Fatal(hook, err)
 	}
 	dir := path.Join("/home/template/.orpheus/hooks", hook.ID.String())
-	started, _ := json.Marshal(hookStarted{OperationID: hook.ID.String(), WrapperPID: 200, HookPID: new(201)})
+	started, _ := json.Marshal(hookStarted{Attempt: 1, OperationID: hook.ID.String(), WrapperPID: 200, HookPID: new(201)})
 	box.files[path.Join(dir, "started.json")] = started
 	box.processes = append(box.processes, harness.Process{PID: 200, Env: map[string]string{"ORPHEUS_HOOK_OPERATION_ID": hook.ID.String()}})
 	if _, err := s.Pool.Exec(t.Context(), "UPDATE hook_executions SET deadline_at=now()-interval '1 second' WHERE id=$1", hook.ID); err != nil {
@@ -588,7 +628,7 @@ func TestHookForceStopHasHardDeadline(t *testing.T) {
 		t.Fatal(h, err)
 	}
 	dir := path.Join("/home/template/.orpheus/hooks", h.ID.String())
-	started, _ := json.Marshal(hookStarted{OperationID: h.ID.String(), WrapperPID: 200, HookPID: new(201)})
+	started, _ := json.Marshal(hookStarted{Attempt: 1, OperationID: h.ID.String(), WrapperPID: 200, HookPID: new(201)})
 	box.files[path.Join(dir, "started.json")] = started
 	box.processes = append(box.processes, harness.Process{PID: 200, Env: map[string]string{"ORPHEUS_HOOK_OPERATION_ID": h.ID.String()}})
 	if err := s.ChangeHook(t.Context(), a.SessionID, a.RunID, "after_create", func(h *store.HookExecution, _ *store.RunRecord) error {
@@ -628,7 +668,7 @@ func TestHookForceStopKillsUnresponsiveWrapper(t *testing.T) {
 		t.Fatal(h, err)
 	}
 	dir := path.Join("/home/template/.orpheus/hooks", h.ID.String())
-	started, _ := json.Marshal(hookStarted{OperationID: h.ID.String(), WrapperPID: 200, HookPID: new(201)})
+	started, _ := json.Marshal(hookStarted{Attempt: 1, OperationID: h.ID.String(), WrapperPID: 200, HookPID: new(201)})
 	box.files[path.Join(dir, "started.json")] = started
 	box.processes = append(box.processes, harness.Process{PID: 200, Env: map[string]string{"ORPHEUS_HOOK_OPERATION_ID": h.ID.String()}})
 	if err := s.ChangeHook(t.Context(), a.SessionID, a.RunID, "after_create", func(h *store.HookExecution, _ *store.RunRecord) error {
@@ -644,6 +684,37 @@ func TestHookForceStopKillsUnresponsiveWrapper(t *testing.T) {
 	h, err = s.Hook(t.Context(), a.RunID, "after_create")
 	if err != nil || h == nil || h.Status != "failed" || h.Error == nil || h.Error.Code != "hook_timeout" || len(box.killed) != 1 || box.killed[0] != 200 {
 		t.Fatal(h, box.killed, err)
+	}
+}
+
+func TestHookStartConfirmedWhenResultArrivesDuringKill(t *testing.T) {
+	s, box, a, e := setupHooks(t, false, false)
+	tickUntil(t, e, func() bool { return len(box.invoked) == 1 })
+	h, err := s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || h == nil {
+		t.Fatal(h, err)
+	}
+	dir := path.Join("/home/template/.orpheus/hooks", h.ID.String())
+	started, _ := json.Marshal(hookStarted{Attempt: 1, OperationID: h.ID.String(), WrapperPID: 200})
+	box.files[path.Join(dir, "started.json")] = started
+	box.processes = append(box.processes, harness.Process{PID: 200, Env: map[string]string{"ORPHEUS_HOOK_OPERATION_ID": h.ID.String()}})
+	if err := s.ChangeHook(t.Context(), a.SessionID, a.RunID, "after_create", func(h *store.HookExecution, _ *store.RunRecord) error {
+		h.DeadlineAt = new(time.Now().Add(-time.Minute))
+		h.CancelAttemptedAt = new(time.Now().Add(-time.Minute))
+		h.StopReason = new("timeout")
+		h.KillAttemptedAt = new(time.Now().Add(-time.Minute))
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	box.onKill = func() {
+		box.files[path.Join(dir, "started.json")], _ = json.Marshal(hookStarted{Attempt: 1, OperationID: h.ID.String(), WrapperPID: 200, HookPID: new(201)})
+		box.completeHook(h.ID.String(), string(box.files[path.Join(dir, "script")]))
+	}
+	tick(t, e)
+	current, err := s.Hook(t.Context(), a.RunID, "after_create")
+	if err != nil || current.StartedAttempt == nil || *current.StartedAttempt != 1 || len(box.killed) != 1 {
+		t.Fatal(current, box.killed, err)
 	}
 }
 

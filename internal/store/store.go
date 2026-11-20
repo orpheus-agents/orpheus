@@ -124,39 +124,49 @@ func RunViews(ctx context.Context, q db.DBTX, records []RunRecord) ([]session.Ru
 		return views, nil
 	}
 	ids := make([]uuid.UUID, 0, len(records))
-	messageIDs := make([]uuid.UUID, 0, len(records))
 	for _, r := range records {
 		ids = append(ids, r.ID)
-		if (r.Status.Terminal() || r.Status == session.Finalizing) && r.FinalMessageID != nil {
-			messageIDs = append(messageIDs, *r.FinalMessageID)
-		}
 	}
 	hooks, err := db.New(q).HookExecutionsForRuns(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
+	launches, err := db.New(q).HarnessEnvironmentForRuns(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	harnessNames := make(map[uuid.UUID][]string, len(records))
+	for _, row := range launches {
+		if row.HarnessEnvNames != nil {
+			var names []string
+			if err := json.Unmarshal(row.HarnessEnvNames, &names); err != nil {
+				return nil, err
+			}
+			harnessNames[row.ID] = names
+		}
+	}
 	byRun := make(map[uuid.UUID][]session.HookResult, len(records))
 	for _, h := range hooks {
+		var names []string
+		if h.EnvNames != nil {
+			if err := json.Unmarshal(h.EnvNames, &names); err != nil {
+				return nil, err
+			}
+		}
 		byRun[h.RunID] = append(byRun[h.RunID], session.HookResult{
-			ID: h.ID, Name: h.Name, Status: h.Status, StartedAt: h.StartedAt,
+			ID: h.ID, Name: h.Name, Status: h.Status, StartedAt: h.StartedAt, EnvNames: names,
 			DeadlineAt: h.DeadlineAt, FinishedAt: h.FinishedAt, ExitCode: h.ExitCode,
 			Signal: h.Signal, Output: h.Output, OutputCompleteness: h.OutputCompleteness,
 			TruncationReason: h.TruncationReason, Error: h.Error,
 		})
 	}
-	byMessage := make(map[uuid.UUID]session.Message, len(messageIDs))
-	if len(messageIDs) > 0 {
-		messages, err := db.New(q).MessagesByIDs(ctx, messageIDs)
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range messages {
-			m, _ := messageRecord(row, nil)
-			byMessage[m.ID] = m.Message
-		}
+	messages, err := finalMessages(ctx, q, records)
+	if err != nil {
+		return nil, err
 	}
 	for _, r := range records {
 		v := r.Run
+		v.HarnessEnvNames = harnessNames[r.ID]
 		if v.EnvNames == nil {
 			v.EnvNames = []string{}
 		}
@@ -164,24 +174,47 @@ func RunViews(ctx context.Context, q db.DBTX, records []RunRecord) ([]session.Ru
 			v.EnvFrom = []string{}
 		}
 		if v.Services == nil {
-			v.Services = []session.Service{}
+			v.Services = []string{}
 		}
 		v.Hooks = byRun[r.ID]
 		if v.Hooks == nil {
 			v.Hooks = []session.HookResult{}
 		}
-		v.FinalMessage = nil
-		if (r.Status.Terminal() || r.Status == session.Finalizing) && r.FinalMessageID != nil {
-			message, ok := byMessage[*r.FinalMessageID]
-			if !ok {
-				return nil, pgx.ErrNoRows
-			}
-			v.FinalMessage = &message
-		}
+		v.FinalMessage = messages[r.ID]
 		views = append(views, v)
 	}
 	return views, nil
 }
+
+func finalMessages(ctx context.Context, q db.DBTX, runs []RunRecord) (map[uuid.UUID]*session.Message, error) {
+	owners := make(map[uuid.UUID]uuid.UUID)
+	for _, r := range runs {
+		if (r.Status.Terminal() || r.Status == session.Finalizing) && r.FinalMessageID != nil {
+			owners[r.ID] = *r.FinalMessageID
+		}
+	}
+	if len(owners) == 0 {
+		return nil, nil
+	}
+	rows, err := db.New(q).MessagesByIDs(ctx, slices.Collect(maps.Values(owners)))
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[uuid.UUID]*session.Message, len(rows))
+	for _, row := range rows {
+		m, _ := messageRecord(row, nil)
+		byID[m.ID] = &m.Message
+	}
+	out := make(map[uuid.UUID]*session.Message, len(owners))
+	for run, id := range owners {
+		if byID[id] == nil {
+			return nil, pgx.ErrNoRows
+		}
+		out[run] = byID[id]
+	}
+	return out, nil
+}
+
 func SessionView(ctx context.Context, q db.DBTX, s SessionRecord) (session.Session, error) {
 	views, err := SessionViews(ctx, q, []SessionRecord{s})
 	if err != nil {
@@ -205,13 +238,15 @@ func SessionViews(ctx context.Context, q db.DBTX, records []SessionRecord) ([]se
 	if err != nil {
 		return nil, err
 	}
-	runViews, err := RunViews(ctx, q, runs)
+	messages, err := finalMessages(ctx, q, runs)
 	if err != nil {
 		return nil, err
 	}
-	bySession := make(map[uuid.UUID]session.Run, len(runViews))
-	for _, r := range runViews {
-		bySession[r.SessionID] = r
+	bySession := make(map[uuid.UUID]session.Run, len(runs))
+	for _, r := range runs {
+		v := r.Run
+		v.FinalMessage = messages[r.ID]
+		bySession[r.SessionID] = v
 	}
 	for _, s := range records {
 		r, ok := bySession[s.ID]
@@ -692,10 +727,12 @@ func (s *Store) Accept(ctx context.Context, a Admission) (session.Acceptance, er
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		var runServices []session.Service
+		var runServices []string
 		var runEnvFrom []string
 		if a.RunID == uuid.Nil {
-			runEnvFrom, runServices, err = config.ResolveServices(a.Env, a.EnvFrom, a.Services, s.Deployment)
+			runServices, err = s.Deployment.ValidateServiceCodes(a.Services)
+			runEnvFrom = append([]string{}, a.EnvFrom...)
+			slices.Sort(runEnvFrom)
 			if err != nil {
 				return err
 			}

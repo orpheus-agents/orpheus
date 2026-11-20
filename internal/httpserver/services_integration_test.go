@@ -15,7 +15,7 @@ import (
 
 func TestServiceRequests(t *testing.T) {
 	server, s := testServer(t)
-	s.Deployment.Services = map[string]config.Service{"gitlab": {Name: "GitLab", Description: "Repositories", EnvFrom: []string{"GITLAB_TOKEN"}}}
+	s.Deployment.Services = map[string]config.Service{"gitlab": {Name: "GitLab", Description: "Repositories", Credentials: map[string]config.DirectCredential{"gitlab_token": {Env: "GITLAB_TOKEN"}}}}
 	for _, tc := range []struct {
 		body string
 		path []any
@@ -25,16 +25,6 @@ func TestServiceRequests(t *testing.T) {
 	} {
 		raw := externalRequest(t, server, "POST", "/api/v1/sessions", tc.body, uuid.NewString(), 422)
 		assertServiceProblem(t, raw, "unknown_service", tc.path)
-	}
-	for _, tc := range []struct {
-		body string
-		path []any
-	}{
-		{strings.Replace(validBody, `"messages":`, `"env":{"GITLAB_TOKEN":"literal"},"services":["gitlab"],"messages":`, 1), []any{"body", "services", float64(0)}},
-		{strings.Replace(validBody, `"sandbox":{`, `"sandbox":{"env":{"GITLAB_TOKEN":"literal"},"services":["gitlab"],`, 1), []any{"body", "configuration", "sandbox", "services", float64(0)}},
-	} {
-		raw := externalRequest(t, server, "POST", "/api/v1/sessions", tc.body, uuid.NewString(), 422)
-		assertServiceProblem(t, raw, "validation_error", tc.path)
 	}
 	for _, value := range []string{`null`, `"gitlab"`, `["gitlab","gitlab"]`, `[""]`, `["BAD"]`, `["missing"]`} {
 		for _, body := range []string{
@@ -48,20 +38,18 @@ func TestServiceRequests(t *testing.T) {
 	if err := s.Pool.QueryRow(t.Context(), "SELECT count(*) FROM sessions").Scan(&count); err != nil || count != 0 {
 		t.Fatal("rejected admission persisted", count, err)
 	}
-	body := strings.Replace(validBody, `"sandbox":{`, `"sandbox":{"services":["gitlab"],`, 1)
+	body := strings.Replace(validBody, `"sandbox":{`, `"sandbox":{"env":{"GITLAB_TOKEN":"literal"},"services":["gitlab"],`, 1)
 	body = strings.Replace(body, `"messages":`, `"services":["gitlab"],"messages":`, 1)
 	a := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", "/api/v1/sessions", body, uuid.NewString(), 202))
 	base := "/api/v1/sessions/" + a.SessionID.String()
 	raw := externalRequest(t, server, "POST", base+"/runs", `{"messages":[{"text":"next"}],"services":["missing"]}`, uuid.NewString(), 422)
 	assertServiceProblem(t, raw, "unknown_service", []any{"body", "services", float64(0)})
-	raw = externalRequest(t, server, "POST", base+"/runs", `{"messages":[{"text":"next"}],"env":{"GITLAB_TOKEN":"literal"},"services":["gitlab"]}`, uuid.NewString(), 422)
-	assertServiceProblem(t, raw, "validation_error", []any{"body", "services", float64(0)})
 	sess := decodeHTTP[session.Session](t, externalRequest(t, server, "GET", base, "", "", 200))
-	if len(sess.Configuration.Sandbox.Services) != 1 || sess.Configuration.Sandbox.Services[0].Code != "gitlab" {
+	if len(sess.Configuration.Sandbox.Services) != 1 || sess.Configuration.Sandbox.Services[0] != "gitlab" {
 		t.Fatal(sess.Configuration)
 	}
 	run := decodeHTTP[session.Run](t, externalRequest(t, server, "GET", base+"/runs/"+a.RunID.String(), "", "", 200))
-	if len(run.Services) != 1 || run.Services[0].Code != "gitlab" {
+	if len(run.Services) != 1 || run.Services[0] != "gitlab" {
 		t.Fatal(run)
 	}
 	for _, value := range []string{`null`, `["gitlab","gitlab"]`, `["missing"]`} {
@@ -71,9 +59,9 @@ func TestServiceRequests(t *testing.T) {
 	if _, err := s.Cancel(t.Context(), a.SessionID, a.RunID); err != nil {
 		t.Fatal(err)
 	}
-	next := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", base+"/runs", `{"messages":[{"text":"next"}],"services":["gitlab"]}`, uuid.NewString(), 202))
+	next := decodeHTTP[session.Acceptance](t, externalRequest(t, server, "POST", base+"/runs", `{"messages":[{"text":"next"}],"env":{"GITLAB_TOKEN":"literal"},"services":["gitlab"]}`, uuid.NewString(), 202))
 	run = decodeHTTP[session.Run](t, externalRequest(t, server, "GET", base+"/runs/"+next.RunID.String(), "", "", 200))
-	if len(run.Services) != 1 || run.Services[0].Code != "gitlab" {
+	if len(run.Services) != 1 || run.Services[0] != "gitlab" {
 		t.Fatal(run)
 	}
 }

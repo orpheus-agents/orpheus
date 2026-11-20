@@ -15,7 +15,7 @@ import (
 )
 
 const activeRun = `-- name: ActiveRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id, r.harness_launch_id
 FROM runs r
 WHERE session_id = $1 AND status IN ('accepted', 'starting', 'running', 'cancelling', 'finalizing')
 `
@@ -54,6 +54,7 @@ func (q *Queries) ActiveRun(ctx context.Context, sessionID uuid.UUID) (Run, erro
 		&i.ReasoningOutputTokens,
 		&i.Services,
 		&i.EnvSecretID,
+		&i.HarnessLaunchID,
 	)
 	return i, err
 }
@@ -65,6 +66,30 @@ SELECT pg_advisory_xact_lock($1::bigint)
 func (q *Queries) AdvisoryLock(ctx context.Context, lockKey int64) error {
 	_, err := q.db.Exec(ctx, advisoryLock, lockKey)
 	return err
+}
+
+const bindRunHarnessLaunch = `-- name: BindRunHarnessLaunch :execrows
+UPDATE runs r SET harness_launch_id = o.id
+FROM operations o
+WHERE r.id = $1 AND r.session_id = $2
+    AND o.id = $3 AND o.session_id = r.session_id
+    AND o.kind = 'launch' AND o.status = 'confirmed'
+    AND r.status IN ('accepted','starting','running','cancelling','finalizing')
+    AND r.execution_started_at IS NULL AND r.harness_launch_id IS DISTINCT FROM o.id
+`
+
+type BindRunHarnessLaunchParams struct {
+	RunID     uuid.UUID `json:"run_id"`
+	SessionID uuid.UUID `json:"session_id"`
+	LaunchID  uuid.UUID `json:"launch_id"`
+}
+
+func (q *Queries) BindRunHarnessLaunch(ctx context.Context, arg BindRunHarnessLaunchParams) (int64, error) {
+	result, err := q.db.Exec(ctx, bindRunHarnessLaunch, arg.RunID, arg.SessionID, arg.LaunchID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const countReserved = `-- name: CountReserved :one
@@ -83,18 +108,18 @@ func (q *Queries) CountReserved(ctx context.Context) (int64, error) {
 const createRun = `-- name: CreateRun :one
 INSERT INTO runs AS r(id, session_id, number, input_fingerprint, env_names, env_from, services, env_secret_id)
 VALUES($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id
+RETURNING r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id, r.harness_launch_id
 `
 
 type CreateRunParams struct {
-	ID               uuid.UUID         `json:"id"`
-	SessionID        uuid.UUID         `json:"session_id"`
-	Number           int               `json:"number"`
-	InputFingerprint *string           `json:"input_fingerprint"`
-	EnvNames         []string          `json:"env_names"`
-	EnvFrom          []string          `json:"env_from"`
-	Services         []session.Service `json:"services"`
-	EnvSecretID      *uuid.UUID        `json:"env_secret_id"`
+	ID               uuid.UUID  `json:"id"`
+	SessionID        uuid.UUID  `json:"session_id"`
+	Number           int        `json:"number"`
+	InputFingerprint *string    `json:"input_fingerprint"`
+	EnvNames         []string   `json:"env_names"`
+	EnvFrom          []string   `json:"env_from"`
+	Services         []string   `json:"services"`
+	EnvSecretID      *uuid.UUID `json:"env_secret_id"`
 }
 
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, error) {
@@ -140,6 +165,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		&i.ReasoningOutputTokens,
 		&i.Services,
 		&i.EnvSecretID,
+		&i.HarnessLaunchID,
 	)
 	return i, err
 }
@@ -266,7 +292,7 @@ func (q *Queries) GetMessage(ctx context.Context, id uuid.UUID) (Message, error)
 }
 
 const getRun = `-- name: GetRun :one
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id, r.harness_launch_id
 FROM runs r
 WHERE session_id = $1 AND id = $2
 `
@@ -310,6 +336,7 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (Run, error) {
 		&i.ReasoningOutputTokens,
 		&i.Services,
 		&i.EnvSecretID,
+		&i.HarnessLaunchID,
 	)
 	return i, err
 }
@@ -408,9 +435,9 @@ func (q *Queries) InsertIdempotency(ctx context.Context, arg InsertIdempotencyPa
 }
 
 const latestRunsForSessions = `-- name: LatestRunsForSessions :many
-SELECT latest.id, latest.session_id, latest.number, latest.status, latest.observation, latest.created_at, latest.execution_started_at, latest.deadline_at, latest.finished_at, latest.cancel_requested_at, latest.cancel_attempted_at, latest.stop_reason, latest.stop_method, latest.error, latest.native_turn_id, latest.next_delivery_number, latest.final_message_id, latest.input_fingerprint, latest.env_names, latest.env_from, latest.phase, latest.agent_status, latest.agent_error, latest.input_tokens, latest.output_tokens, latest.total_tokens, latest.cached_input_tokens, latest.reasoning_output_tokens, latest.services, latest.env_secret_id FROM sessions s
+SELECT latest.id, latest.session_id, latest.number, latest.status, latest.observation, latest.created_at, latest.execution_started_at, latest.deadline_at, latest.finished_at, latest.cancel_requested_at, latest.cancel_attempted_at, latest.stop_reason, latest.stop_method, latest.error, latest.native_turn_id, latest.next_delivery_number, latest.final_message_id, latest.input_fingerprint, latest.env_names, latest.env_from, latest.phase, latest.agent_status, latest.agent_error, latest.input_tokens, latest.output_tokens, latest.total_tokens, latest.cached_input_tokens, latest.reasoning_output_tokens, latest.services, latest.env_secret_id, latest.harness_launch_id FROM sessions s
 CROSS JOIN LATERAL (
-  SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id FROM runs r WHERE r.session_id = s.id
+  SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id, r.harness_launch_id FROM runs r WHERE r.session_id = s.id
   ORDER BY r.number DESC LIMIT 1
 ) latest
 WHERE s.id = ANY($1::uuid[])
@@ -456,6 +483,7 @@ func (q *Queries) LatestRunsForSessions(ctx context.Context, sessionIds []uuid.U
 			&i.ReasoningOutputTokens,
 			&i.Services,
 			&i.EnvSecretID,
+			&i.HarnessLaunchID,
 		); err != nil {
 			return nil, err
 		}

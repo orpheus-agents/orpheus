@@ -152,3 +152,12 @@ ORDER BY delivery_number, registered_sequence;
 
 -- name: TryWorkerLock :one
 SELECT pg_try_advisory_lock(sqlc.arg(lock_key)::bigint);
+
+-- name: BindRunHarnessLaunch :execrows
+UPDATE runs r SET harness_launch_id = o.id
+FROM operations o
+WHERE r.id = sqlc.arg(run_id) AND r.session_id = sqlc.arg(session_id)
+    AND o.id = sqlc.arg(launch_id) AND o.session_id = r.session_id
+    AND o.kind = 'launch' AND o.status = 'confirmed'
+    AND r.status IN ('accepted','starting','running','cancelling','finalizing')
+    AND r.execution_started_at IS NULL AND r.harness_launch_id IS DISTINCT FROM o.id;

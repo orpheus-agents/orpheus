@@ -7,7 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"testing"
+
+	"github.com/orpheus-agents/orpheus/internal/config"
 
 	"github.com/google/uuid"
 	"github.com/orpheus-agents/orpheus/client"
@@ -29,12 +32,19 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.Deployment.Services = map[string]config.Service{"registry": {Name: "Registry", Description: "Images", Credentials: map[string]config.DirectCredential{"password": {Env: "WORKER_TOKEN", As: new("REGISTRY_TOKEN")}}}}
+	catalog, err := c.GetServicesWithResponse(t.Context())
+	if err != nil || catalog.JSON200 == nil || len(catalog.JSON200.Items) != 1 || !slices.Equal(catalog.JSON200.Items[0].EnvNames, []string{"REGISTRY_TOKEN"}) {
+		t.Fatal(catalog, err)
+	}
 	params := &client.CreateSessionParams{IdempotencyKey: new(uuid.NewString())}
 	body := client.CreateSession{
 		Namespace: new("connector/test"), ExternalKey: new("source:thread"), InputFingerprint: new("revision:1"),
 		Configuration: client.ConfigurationInput{Agent: client.AgentInput{Profile: "default"}, Sandbox: client.SandboxInput{Template: "codex"}, Hooks: &client.HooksInput{BeforeRun: new("#!/bin/sh\ntrue\n"), AfterRun: new("#!/bin/sh\ntrue\n")}},
 		Messages:      []client.TextMessage{{Text: "hello", ExternalKey: new("post:1"), Metadata: new(json.RawMessage(`{"big":9007199254740993}`))}}, Env: &map[string]string{"RUN_INPUT": "fixture"},
 	}
+	body.Configuration.Sandbox.Services = new([]string{"registry"})
+	body.Services = new([]string{"registry"})
 	created, err := c.CreateSessionWithResponse(t.Context(), params, body)
 	if err != nil {
 		t.Fatal(err)
@@ -65,6 +75,9 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	got, err := c.GetSessionWithResponse(t.Context(), a.SessionID)
 	if err != nil || got.JSON200 == nil || got.JSON200.ID != a.SessionID || got.JSON200.Configuration.Agent.Instructions != "profile instruction" {
 		t.Fatalf("session: %#v %v", got, err)
+	}
+	if !slices.Equal(got.JSON200.Configuration.Sandbox.Services, []string{"registry"}) || len(got.JSON200.Configuration.Sandbox.EnvFrom) != 0 {
+		t.Fatal(got.JSON200.Configuration.Sandbox)
 	}
 	if got.JSON200.LastRunCreatedAt.IsZero() {
 		t.Fatal("session lacks latest run creation time")
@@ -98,6 +111,29 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	run, err := c.GetRunWithResponse(t.Context(), a.SessionID, a.RunID)
 	if err != nil || run.JSON200 == nil || run.JSON200.AgentStatus != nil || run.JSON200.Status != client.RunStatusAccepted || len(run.JSON200.EnvNames) != 1 || run.JSON200.EnvNames[0] != "RUN_INPUT" {
 		t.Fatalf("run: %#v %v", run, err)
+	}
+	for _, v := range []client.Run{*run.JSON200, runs.JSON200.Items[0], all.JSON200.Items[0]} {
+		if !slices.Equal(v.Services, []string{"registry"}) || v.EnvFrom == nil || len(v.EnvFrom) != 0 || v.HarnessEnvNames != nil {
+			t.Fatal(v)
+		}
+	}
+	saved, err := c.GetEventsWithResponse(t.Context(), a.SessionID, &client.GetEventsParams{})
+	if err != nil || saved.JSON200 == nil {
+		t.Fatal(saved, err)
+	}
+	foundRun := false
+	for _, item := range saved.JSON200.Items {
+		event, err := item.AsRunEvent()
+		if err != nil || event.Type != client.RunUpdated {
+			continue
+		}
+		if !slices.Equal(event.Data.Services, []string{"registry"}) || event.Data.HarnessEnvNames != nil {
+			t.Fatal(event)
+		}
+		foundRun = true
+	}
+	if !foundRun {
+		t.Fatal("missing run.updated event")
 	}
 	history, err := c.GetHistoryWithResponse(t.Context(), a.SessionID, &client.GetHistoryParams{MessageExternalKey: new("post:1"), RunID: &a.RunID})
 	if err != nil || history.JSON200 == nil || len(history.JSON200.Items) != 1 {

@@ -100,18 +100,23 @@ Define named groups of worker ENV names in `orpheus.toml`:
 [services.helpdesk]
 name = "Helpdesk"
 description = "Read tickets and publish replies."
-env_from = ["HELPDESK_URL", "HELPDESK_TOKEN"]
+delivery = "direct"
+endpoint = "https://helpdesk.example.com"
+credentials.token = { env = "HELPDESK_TOKEN" }
+environment.HELPDESK_URL = { from = "endpoint" }
 ```
 
-Supply values to the worker. `GET /api/v1/services` returns the catalog without
-secret values. Select codes in `configuration.sandbox.services` for the agent
-and session hooks, or top-level `services` for only that run's `before_run` and
-`after_run`. Services combine with `env_from`. Their ENV names also join the
-explicit `HARNESS_ENV_ALLOWLIST` on API and worker. No service is automatically
-selected. Unknown codes reject the request with `422 unknown_service`.
+Select service codes in `configuration.sandbox.services` for the harness and
+session hooks. Top-level `services` apply to the run's `before_run` and
+`after_run` hooks. The worker reads the current catalog and selected credentials
+when preparing each process. Set `as` in a credential to rename its client ENV.
+Use `endpoint.host` to pass the host and optional port, or a string for a literal.
 
-Accepted sessions and runs retain service snapshots. Catalog edits apply to new
-sessions and runs, not existing snapshots. See the [service setup guide](https://orpheus-agents.github.io/en/configuration/secrets.html).
+`GET /api/v1/services` lists the available client ENV names. Credential source
+names join `HARNESS_ENV_ALLOWLIST` for explicit `env_from` requests. Sessions and
+runs store selected codes and explicit references separately. Run details record
+the ENV names passed to the harness and each confirmed hook start.
+See the [service setup guide](https://orpheus-agents.github.io/en/configuration/secrets.html).
 
 Explicit session and run environment values are encrypted in the database's
 `secrets` table. See [secret storage](docs/secret-storage.md) for integrity

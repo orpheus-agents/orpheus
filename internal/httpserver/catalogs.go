@@ -12,7 +12,7 @@ func (s *Server) GetServices(_ context.Context, _ api.GetServicesRequestObject) 
 	items := make([]api.Service, 0, len(s.Store.Deployment.Services))
 	for _, code := range slices.Sorted(maps.Keys(s.Store.Deployment.Services)) {
 		service := s.Store.Deployment.Services[code]
-		items = append(items, api.Service{Code: code, Name: service.Name, Description: service.Description, EnvFrom: slices.Sorted(slices.Values(service.EnvFrom))})
+		items = append(items, api.Service{Code: code, Name: service.Name, Description: service.Description, EnvNames: service.EnvNames()})
 	}
 	return api.GetServices200JSONResponse{Items: items}, nil
 }

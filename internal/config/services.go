@@ -1,84 +1,229 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"maps"
+	"net/url"
+	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
-
-	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
 var serviceCode = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 
-type Service struct {
-	Name        string   `toml:"name"`
-	Description string   `toml:"description"`
-	EnvFrom     []string `toml:"env_from"`
+type DirectCredential struct {
+	Env string  `toml:"env"`
+	As  *string `toml:"as"`
 }
 
-func validateServices(services map[string]Service) error {
-	for code, service := range services {
-		service.Name = strings.TrimSpace(service.Name)
-		service.Description = strings.TrimSpace(service.Description)
-		if !serviceCode.MatchString(code) || service.Name == "" || service.Description == "" || len(service.EnvFrom) == 0 {
-			return fmt.Errorf("invalid service %q: code, name, description and environment references are required", code)
-		}
-		if err := validateEnvironment(nil, service.EnvFrom, nil); err != nil {
-			return fmt.Errorf("invalid service %q environment references", code)
-		}
-		slices.Sort(service.EnvFrom)
-		services[code] = service
+func (c DirectCredential) destination() string {
+	if c.As != nil {
+		return *c.As
 	}
-	return nil
+	return c.Env
 }
 
-// EnvironmentAllowlist authorizes catalog references without duplicating them
-// in deployment ENV. Selection still determines which references are forwarded.
-func (p Deployment) EnvironmentAllowlist(explicit []string) []string {
-	names := slices.Clone(explicit)
-	for _, service := range p.Services {
-		names = append(names, service.EnvFrom...)
+type DirectValue struct {
+	Literal *string
+	From    string
+}
+
+// TOML environment entries can be either a string or a table with one reference.
+type serviceDefinition[V any] struct {
+	Name        string                      `toml:"name"`
+	Description string                      `toml:"description"`
+	Delivery    string                      `toml:"delivery"`
+	Endpoint    string                      `toml:"endpoint"`
+	Credentials map[string]DirectCredential `toml:"credentials"`
+	Environment map[string]V                `toml:"environment"`
+}
+
+type Service serviceDefinition[DirectValue]
+
+func validEnvName(name string) bool {
+	return envName.MatchString(name) && !slices.Contains(reserved, name)
+}
+
+func validEndpoint(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") ||
+		u.User != nil || u.RawQuery != "" || u.ForceQuery || strings.Contains(raw, "#") {
+		return false
+	}
+	if port := u.Port(); port != "" {
+		n, err := strconv.Atoi(port)
+		return err == nil && n >= 1 && n <= 65535
+	}
+	return !strings.HasSuffix(u.Host, ":")
+}
+
+func parseServices(raw map[string]serviceDefinition[any]) (map[string]Service, error) {
+	services := make(map[string]Service, len(raw))
+	for _, code := range slices.Sorted(maps.Keys(raw)) {
+		r := raw[code]
+		s := Service{Name: strings.TrimSpace(r.Name), Description: strings.TrimSpace(r.Description), Delivery: r.Delivery, Endpoint: r.Endpoint, Credentials: r.Credentials, Environment: make(map[string]DirectValue, len(r.Environment))}
+		if !serviceCode.MatchString(code) || s.Name == "" || s.Description == "" || s.Delivery != "direct" || !validEndpoint(s.Endpoint) || len(r.Environment) == 0 {
+			return nil, fmt.Errorf("invalid service %q: code, name, description, direct delivery, HTTP(S) endpoint and environment are required", code)
+		}
+		for field, c := range s.Credentials {
+			if field == "" || !validEnvName(c.Env) || !validEnvName(c.destination()) {
+				return nil, fmt.Errorf("invalid credential %q in service %q", field, code)
+			}
+		}
+		for name, value := range r.Environment {
+			if !validEnvName(name) {
+				return nil, fmt.Errorf("invalid environment name %q in service %q", name, code)
+			}
+			switch v := value.(type) {
+			case string:
+				if !strings.ContainsRune(v, 0) {
+					s.Environment[name] = DirectValue{Literal: &v}
+					continue
+				}
+			case map[string]any:
+				from, _ := v["from"].(string)
+				if len(v) == 1 && (from == "endpoint" || from == "endpoint.host") {
+					s.Environment[name] = DirectValue{From: from}
+					continue
+				}
+			}
+			return nil, fmt.Errorf("invalid environment assignment %q in service %q", name, code)
+		}
+		services[code] = s
+	}
+	return services, nil
+}
+
+func (s Service) EnvNames() []string {
+	names := slices.Collect(maps.Keys(s.Environment))
+	for _, c := range s.Credentials {
+		names = append(names, c.destination())
 	}
 	slices.Sort(names)
 	return slices.Compact(names)
 }
 
-// ResolveServices freezes public service metadata and merges references. It must
-// run only after idempotent replay, never when restoring accepted execution.
-func ResolveServices(env map[string]string, from, codes []string, p Deployment, prefix ...any) ([]string, []session.Service, error) {
-	if err := validateEnvironment(env, from, prefix); err != nil {
-		return nil, nil, err
+func (p Deployment) EnvironmentAllowlist(explicit []string) []string {
+	names := slices.Clone(explicit)
+	for _, s := range p.Services {
+		for _, c := range s.Credentials {
+			names = append(names, c.Env)
+		}
 	}
+	slices.Sort(names)
+	return slices.Compact(names)
+}
+
+func (p Deployment) ValidateServiceCodes(codes []string, prefix ...any) ([]string, error) {
 	seen := make(map[string]bool, len(codes))
-	services := make([]session.Service, 0, len(codes))
-	refs := append([]string{}, from...)
 	for i, code := range codes {
 		path := append(slices.Clone(prefix), "services", i)
 		if !serviceCode.MatchString(code) || seen[code] {
-			return nil, nil, invalid("Service codes must be valid and unique.", path...)
+			return nil, invalid("Service codes must be valid and unique.", path...)
 		}
 		seen[code] = true
-		service, ok := p.Services[code]
-		if !ok {
+		if _, ok := p.Services[code]; !ok {
 			problem := invalid(fmt.Sprintf("Unknown service %q.", code), path...)
 			problem.Problem.Code = "unknown_service"
-			return nil, nil, problem
+			return nil, problem
 		}
-		names := slices.Sorted(slices.Values(service.EnvFrom))
-		for _, name := range names {
-			if _, exists := env[name]; exists {
-				return nil, nil, invalid(fmt.Sprintf("Service %q conflicts with explicit environment variable %q.", code, name), path...)
+	}
+	out := append([]string{}, codes...)
+	slices.Sort(out)
+	return out, nil
+}
+
+type EnvironmentInput struct {
+	Services []string
+	EnvFrom  []string
+	Env      map[string]string
+}
+
+// ResolveEnvironment resolves the run first: a replaced session assignment must
+// not read a worker variable that may no longer exist.
+func (p Deployment) ResolveEnvironment(base, override EnvironmentInput, explicit []string) (map[string]string, error) {
+	allowlist := p.EnvironmentAllowlist(explicit)
+	overrides, err := p.resolveLevel(override, nil, allowlist)
+	if err != nil {
+		return nil, err
+	}
+	out, err := p.resolveLevel(base, overrides, allowlist)
+	if err != nil {
+		return nil, err
+	}
+	maps.Copy(out, overrides)
+	return out, nil
+}
+
+func (p Deployment) resolveLevel(in EnvironmentInput, shadow map[string]string, allowed []string) (map[string]string, error) {
+	out := make(map[string]string)
+	owners := make(map[string]string)
+	assign := func(name, value, ref, owner string, credential bool) error {
+		if _, ok := shadow[name]; ok {
+			return nil
+		}
+		if ref != "" {
+			if !slices.Contains(allowed, ref) {
+				return fmt.Errorf("%s: worker ENV %q for %q is not allowed", owner, ref, name)
+			}
+			var ok bool
+			value, ok = os.LookupEnv(ref)
+			if !ok || (credential && value == "") {
+				return fmt.Errorf("%s: worker ENV %q for %q is unavailable", owner, ref, name)
 			}
 		}
-		services = append(services, session.Service{Code: code, Name: service.Name, Description: service.Description, EnvFrom: names})
-		refs = append(refs, names...)
+		if prev, ok := out[name]; ok && prev != value {
+			return fmt.Errorf("environment variable %q has conflicting assignments from %s and %s", name, owners[name], owner)
+		}
+		out[name], owners[name] = value, owner
+		return nil
 	}
-	slices.SortFunc(services, func(a, b session.Service) int { return strings.Compare(a.Code, b.Code) })
-	slices.Sort(refs)
-	refs = slices.Compact(refs)
-	if err := validateEnvironment(env, refs, prefix); err != nil {
-		return nil, nil, err
+
+	if err := validateEnvironment(in.Env, in.EnvFrom, nil); err != nil {
+		return nil, errors.New("invalid explicit environment configuration")
 	}
-	return refs, services, nil
+	for name, value := range in.Env {
+		if err := assign(name, value, "", "explicit env", false); err != nil {
+			return nil, err
+		}
+	}
+	for _, ref := range in.EnvFrom {
+		if err := assign(ref, "", ref, "explicit env_from", false); err != nil {
+			return nil, err
+		}
+	}
+	for _, code := range in.Services {
+		s, ok := p.Services[code]
+		if !ok {
+			return nil, fmt.Errorf("selected service %q is unavailable", code)
+		}
+		for name, v := range s.Environment {
+			var value string
+			switch {
+			case v.Literal != nil:
+				value = *v.Literal
+			case v.From == "endpoint":
+				value = s.Endpoint
+			default: // endpoint.host, validated on load.
+				u, err := url.Parse(s.Endpoint)
+				if err != nil {
+					return nil, fmt.Errorf("invalid endpoint in service %q", code)
+				}
+				value = u.Host
+			}
+			if err := assign(name, value, "", "service "+code+".environment", false); err != nil {
+				return nil, err
+			}
+		}
+		for _, field := range slices.Sorted(maps.Keys(s.Credentials)) {
+			c := s.Credentials[field]
+			if err := assign(c.destination(), "", c.Env, "service "+code+".credentials."+field, true); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return out, nil
 }

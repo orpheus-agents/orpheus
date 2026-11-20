@@ -14,8 +14,24 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
+const appendHookEnvironment = `-- name: AppendHookEnvironment :exec
+UPDATE hook_executions SET attempt_env_names =
+    attempt_env_names || jsonb_build_array(to_jsonb($1::text[]))
+WHERE id = $2
+`
+
+type AppendHookEnvironmentParams struct {
+	EnvNames []string  `json:"env_names"`
+	ID       uuid.UUID `json:"id"`
+}
+
+func (q *Queries) AppendHookEnvironment(ctx context.Context, arg AppendHookEnvironmentParams) error {
+	_, err := q.db.Exec(ctx, appendHookEnvironment, arg.EnvNames, arg.ID)
+	return err
+}
+
 const getHookExecution = `-- name: GetHookExecution :one
-SELECT id, session_id, run_id, name, status, started_at, deadline_at, cancel_attempted_at, stop_reason, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error, kill_attempted_at, start_attempts FROM hook_executions WHERE run_id = $1 AND name = $2
+SELECT id, session_id, run_id, name, status, started_at, deadline_at, cancel_attempted_at, stop_reason, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error, kill_attempted_at, start_attempts, attempt_env_names, started_attempt FROM hook_executions WHERE run_id = $1 AND name = $2
 `
 
 type GetHookExecutionParams struct {
@@ -45,12 +61,14 @@ func (q *Queries) GetHookExecution(ctx context.Context, arg GetHookExecutionPara
 		&i.Error,
 		&i.KillAttemptedAt,
 		&i.StartAttempts,
+		&i.AttemptEnvNames,
+		&i.StartedAttempt,
 	)
 	return i, err
 }
 
 const hookExecutions = `-- name: HookExecutions :many
-SELECT id, session_id, run_id, name, status, started_at, deadline_at, cancel_attempted_at, stop_reason, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error, kill_attempted_at, start_attempts FROM hook_executions WHERE run_id = $1 ORDER BY
+SELECT id, session_id, run_id, name, status, started_at, deadline_at, cancel_attempted_at, stop_reason, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error, kill_attempted_at, start_attempts, attempt_env_names, started_attempt FROM hook_executions WHERE run_id = $1 ORDER BY
   CASE name WHEN 'after_create' THEN 1 WHEN 'before_run' THEN 2 WHEN 'after_run' THEN 3 ELSE 4 END
 `
 
@@ -82,6 +100,8 @@ func (q *Queries) HookExecutions(ctx context.Context, runID uuid.UUID) ([]HookEx
 			&i.Error,
 			&i.KillAttemptedAt,
 			&i.StartAttempts,
+			&i.AttemptEnvNames,
+			&i.StartedAttempt,
 		); err != nil {
 			return nil, err
 		}
@@ -94,19 +114,43 @@ func (q *Queries) HookExecutions(ctx context.Context, runID uuid.UUID) ([]HookEx
 }
 
 const hookExecutionsForRuns = `-- name: HookExecutionsForRuns :many
-SELECT id, session_id, run_id, name, status, started_at, deadline_at, cancel_attempted_at, stop_reason, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error, kill_attempted_at, start_attempts FROM hook_executions WHERE run_id = ANY($1::uuid[]) ORDER BY run_id,
+SELECT h.id, h.session_id, h.run_id, h.name, h.status, h.started_at, h.deadline_at, h.cancel_attempted_at, h.stop_reason, h.finished_at, h.exit_code, h.signal, h.output, h.output_completeness, h.truncation_reason, h.error, h.kill_attempted_at, h.start_attempts, h.attempt_env_names, h.started_attempt, (h.attempt_env_names -> (h.started_attempt - 1))::jsonb AS env_names FROM hook_executions h WHERE run_id = ANY($1::uuid[]) ORDER BY run_id,
   CASE name WHEN 'after_create' THEN 1 WHEN 'before_run' THEN 2 WHEN 'after_run' THEN 3 ELSE 4 END
 `
 
-func (q *Queries) HookExecutionsForRuns(ctx context.Context, runIds []uuid.UUID) ([]HookExecution, error) {
+type HookExecutionsForRunsRow struct {
+	ID                 uuid.UUID       `json:"id"`
+	SessionID          uuid.UUID       `json:"session_id"`
+	RunID              uuid.UUID       `json:"run_id"`
+	Name               string          `json:"name"`
+	Status             string          `json:"status"`
+	StartedAt          *time.Time      `json:"started_at"`
+	DeadlineAt         *time.Time      `json:"deadline_at"`
+	CancelAttemptedAt  *time.Time      `json:"cancel_attempted_at"`
+	StopReason         *string         `json:"stop_reason"`
+	FinishedAt         *time.Time      `json:"finished_at"`
+	ExitCode           *int            `json:"exit_code"`
+	Signal             *int            `json:"signal"`
+	Output             json.RawMessage `json:"output"`
+	OutputCompleteness string          `json:"output_completeness"`
+	TruncationReason   *string         `json:"truncation_reason"`
+	Error              *session.Error  `json:"error"`
+	KillAttemptedAt    *time.Time      `json:"kill_attempted_at"`
+	StartAttempts      int             `json:"start_attempts"`
+	AttemptEnvNames    json.RawMessage `json:"attempt_env_names"`
+	StartedAttempt     *int            `json:"started_attempt"`
+	EnvNames           json.RawMessage `json:"env_names"`
+}
+
+func (q *Queries) HookExecutionsForRuns(ctx context.Context, runIds []uuid.UUID) ([]HookExecutionsForRunsRow, error) {
 	rows, err := q.db.Query(ctx, hookExecutionsForRuns, runIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []HookExecution{}
+	items := []HookExecutionsForRunsRow{}
 	for rows.Next() {
-		var i HookExecution
+		var i HookExecutionsForRunsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.SessionID,
@@ -126,6 +170,9 @@ func (q *Queries) HookExecutionsForRuns(ctx context.Context, runIds []uuid.UUID)
 			&i.Error,
 			&i.KillAttemptedAt,
 			&i.StartAttempts,
+			&i.AttemptEnvNames,
+			&i.StartedAttempt,
+			&i.EnvNames,
 		); err != nil {
 			return nil, err
 		}
@@ -168,7 +215,7 @@ UPDATE hook_executions SET
   kill_attempted_at = $6, start_attempts = $7,
   finished_at = $8, exit_code = $9, signal = $10, output = $11,
   output_completeness = $12, truncation_reason = $13, error = $14,
-  stop_reason = $15
+  stop_reason = $15, started_attempt = $16
 WHERE id = $1
 `
 
@@ -188,6 +235,7 @@ type SaveHookExecutionParams struct {
 	TruncationReason   *string         `json:"truncation_reason"`
 	Error              *session.Error  `json:"error"`
 	StopReason         *string         `json:"stop_reason"`
+	StartedAttempt     *int            `json:"started_attempt"`
 }
 
 func (q *Queries) SaveHookExecution(ctx context.Context, arg SaveHookExecutionParams) error {
@@ -207,6 +255,7 @@ func (q *Queries) SaveHookExecution(ctx context.Context, arg SaveHookExecutionPa
 		arg.TruncationReason,
 		arg.Error,
 		arg.StopReason,
+		arg.StartedAttempt,
 	)
 	return err
 }
