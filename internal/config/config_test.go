@@ -33,16 +33,16 @@ func TestResolve(t *testing.T) {
 		t.Fatal("blank model")
 	}
 	t.Setenv("GITHUB_TOKEN", "a")
-	env, err := Environment(in.Sandbox.Env, first.Public, []string{"GITHUB_TOKEN"})
+	env, err := (Deployment{}).ResolveEnvironment(EnvironmentInput{Env: in.Sandbox.Env, EnvFrom: first.Public.Sandbox.EnvFrom}, EnvironmentInput{}, []string{"GITHUB_TOKEN"})
 	if err != nil || env["GITHUB_TOKEN"] != "a" {
 		t.Fatal(env, err)
 	}
 	t.Setenv("GITHUB_TOKEN", "b")
-	env, err = Environment(in.Sandbox.Env, first.Public, []string{"GITHUB_TOKEN"})
+	env, err = (Deployment{}).ResolveEnvironment(EnvironmentInput{Env: in.Sandbox.Env, EnvFrom: first.Public.Sandbox.EnvFrom}, EnvironmentInput{}, []string{"GITHUB_TOKEN"})
 	if err != nil || env["GITHUB_TOKEN"] != "b" {
 		t.Fatal(env, err)
 	}
-	if _, err := Environment(in.Sandbox.Env, first.Public, nil); err == nil {
+	if _, err := (Deployment{}).ResolveEnvironment(EnvironmentInput{Env: in.Sandbox.Env, EnvFrom: first.Public.Sandbox.EnvFrom}, EnvironmentInput{}, nil); err == nil {
 		t.Fatal("revoked allowlist accepted")
 	}
 }
@@ -83,7 +83,7 @@ func TestSandboxValidation(t *testing.T) {
 			t.Fatalf("accepted %q", name)
 		}
 	}
-	for _, s := range []session.SandboxInput{{Template: "codex", Env: map[string]string{"A": "\x00"}}, {Template: "codex", Env: map[string]string{"A": "x"}, EnvFrom: []string{"A"}}, {Template: "codex", EnvFrom: []string{"A", "A"}}} {
+	for _, s := range []session.SandboxInput{{Template: "codex", Env: map[string]string{"A": "\x00"}}, {Template: "codex", EnvFrom: []string{"A", "A"}}} {
 		if err := ValidateSandbox(s); err == nil {
 			t.Fatal("invalid environment accepted")
 		}

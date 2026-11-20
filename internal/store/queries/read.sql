@@ -132,3 +132,9 @@ WITH objects AS (
    WHERE (sqlc.narg(run_id)::uuid IS NULL OR runs.id = sqlc.narg(run_id)::uuid)
   ) SELECT type, data, rn, unknown, idx, seq FROM positioned
   WHERE (sqlc.arg(first_page)::boolean OR (rn, unknown, idx, seq)>(sqlc.arg(after_run)::bigint, sqlc.arg(after_unknown)::bigint, sqlc.arg(after_index)::bigint, sqlc.arg(after_sequence)::bigint)) ORDER BY rn, unknown, idx, seq LIMIT sqlc.arg(page_limit)::int;
+
+-- name: HarnessEnvironmentForRuns :many
+SELECT r.id, (o.parameters->'env_names')::jsonb AS harness_env_names
+FROM runs r LEFT JOIN operations o ON o.id = r.harness_launch_id AND o.session_id = r.session_id
+    AND o.kind = 'launch' AND o.status = 'confirmed'
+WHERE r.id = ANY(sqlc.arg(run_ids)::uuid[]);

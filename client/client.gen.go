@@ -1396,7 +1396,10 @@ type HistoryPage_Items_Item struct {
 
 // HookResult defines model for HookResult.
 type HookResult struct {
-	DeadlineAt         *time.Time                   `json:"deadline_at"`
+	DeadlineAt *time.Time `json:"deadline_at"`
+
+	// EnvNames Sorted names passed by Orpheus for the confirmed start of this hook script. Null if unknown.
+	EnvNames           *[]string                    `json:"env_names"`
 	Error              *Error                       `json:"error"`
 	ExitCode           *int                         `json:"exit_code"`
 	FinishedAt         *time.Time                   `json:"finished_at"`
@@ -1633,17 +1636,20 @@ type Run struct {
 	CreatedAt         time.Time       `json:"created_at"`
 	DeadlineAt        *time.Time      `json:"deadline_at"`
 
-	// EnvFrom Sorted orchestrator environment variable names for this run, including expanded services.
+	// EnvFrom Sorted worker variable names explicitly requested for this run.
 	EnvFrom []string `json:"env_from"`
 
 	// EnvNames Sorted names of explicit variables supplied for this run; values are never returned.
-	EnvNames           []string           `json:"env_names"`
-	Error              *Error             `json:"error"`
-	ExecutionStartedAt *time.Time         `json:"execution_started_at"`
-	FinalMessage       *Message           `json:"final_message"`
-	FinishedAt         *time.Time         `json:"finished_at"`
-	Hooks              []HookResult       `json:"hooks"`
-	ID                 openapi_types.UUID `json:"id"`
+	EnvNames           []string   `json:"env_names"`
+	Error              *Error     `json:"error"`
+	ExecutionStartedAt *time.Time `json:"execution_started_at"`
+	FinalMessage       *Message   `json:"final_message"`
+	FinishedAt         *time.Time `json:"finished_at"`
+
+	// HarnessEnvNames Sorted names passed by Orpheus at launch of the harness used by this run. Null if unknown, including before attachment.
+	HarnessEnvNames *[]string          `json:"harness_env_names"`
+	Hooks           []HookResult       `json:"hooks"`
+	ID              openapi_types.UUID `json:"id"`
 
 	// InputFingerprint Input snapshot version supplied when the run was accepted. Opaque identifier, 1–256 UTF-8 bytes; no NUL or whitespace-only value. Compared exactly, without normalization.
 	InputFingerprint *string         `json:"input_fingerprint"`
@@ -1651,8 +1657,8 @@ type Run struct {
 	Observation      *RunObservation `json:"observation"`
 	Phase            *RunPhase       `json:"phase"`
 
-	// Services Immutable service descriptions and environment names resolved when accepted.
-	Services  []Service          `json:"services"`
+	// Services Unique service codes. Order is insignificant on input. Admission rejects unknown codes. Responses return sorted selections.
+	Services  ServiceCodes       `json:"services"`
 	SessionID openapi_types.UUID `json:"session_id"`
 	Status    RunStatus          `json:"status"`
 
@@ -1702,13 +1708,15 @@ type RunStatus string
 
 // SandboxConfiguration defines model for SandboxConfiguration.
 type SandboxConfiguration struct {
-	// EnvFrom Sorted orchestrator environment variable names, including expanded services.
-	EnvFrom  []string `json:"env_from"`
+	// EnvFrom Sorted worker variable names explicitly requested for the session.
+	EnvFrom []string `json:"env_from"`
+
+	// EnvNames Sorted names of explicit session env values.
 	EnvNames []string `json:"env_names"`
 
-	// Services Immutable service descriptions and environment names resolved when accepted.
-	Services []Service `json:"services"`
-	Template string    `json:"template"`
+	// Services Unique service codes. Order is insignificant on input. Admission rejects unknown codes. Responses return sorted selections.
+	Services ServiceCodes `json:"services"`
+	Template string       `json:"template"`
 }
 
 // SandboxEvent defines model for SandboxEvent.
@@ -1728,7 +1736,7 @@ type SandboxInput struct {
 	Env     *map[string]string `json:"env,omitempty"`
 	EnvFrom *[]string          `json:"env_from,omitempty"`
 
-	// Services Services available to the agent and session hooks, expanded together with env_from.
+	// Services Session service codes. The worker resolves them using its current service configuration when preparing the harness or a hook.
 	Services *ServiceCodes `json:"services,omitempty"`
 
 	// Template Exact active catalog name, including any team slug and tag. Missing or inactive records return 422 unknown_template with detail code template_not_found or template_inactive. Accepted sessions and idempotent replays keep their stored name regardless of subsequent catalog changes.
@@ -1762,12 +1770,12 @@ type Service struct {
 	Code        string `json:"code"`
 	Description string `json:"description"`
 
-	// EnvFrom Sorted environment variable names; never their values.
-	EnvFrom []string `json:"env_from"`
-	Name    string   `json:"name"`
+	// EnvNames Sorted destination variable names supplied by this service to the client.
+	EnvNames []string `json:"env_names"`
+	Name     string   `json:"name"`
 }
 
-// ServiceCodes Unique configured service codes. Order is insignificant; an unknown code rejects the entire request.
+// ServiceCodes Unique service codes. Order is insignificant on input. Admission rejects unknown codes. Responses return sorted selections.
 type ServiceCodes = []string
 
 // Services defines model for Services.

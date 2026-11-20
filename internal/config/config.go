@@ -31,7 +31,7 @@ type Deployment struct {
 
 func ReadDeployment(r io.Reader) (Deployment, error) {
 	var source struct {
-		Services         map[string]Service `toml:"services"`
+		Services         map[string]serviceDefinition[any] `toml:"services"`
 		CredentialStores map[string]struct {
 			Type        *string `toml:"type"`
 			Bucket      string  `toml:"bucket"`
@@ -43,10 +43,11 @@ func ReadDeployment(r io.Reader) (Deployment, error) {
 	if err := toml.NewDecoder(r).DisallowUnknownFields().Decode(&source); err != nil {
 		return out, err
 	}
-	if err := validateServices(source.Services); err != nil {
+	services, err := parseServices(source.Services)
+	if err != nil {
 		return out, err
 	}
-	out.Services = source.Services
+	out.Services = services
 	for name, raw := range source.CredentialStores {
 		value := session.CredentialStore{Type: "s3", Bucket: raw.Bucket, Region: "us-east-1", EndpointURL: raw.EndpointURL}
 		if raw.Type != nil {
@@ -124,18 +125,17 @@ func ValidateRunEnvironment(env map[string]string, from, allowlist []string) err
 	return nil
 }
 func validateEnvironment(env map[string]string, from []string, prefix []any) error {
-	names := make(map[string]bool, len(env)+len(from))
+	names := make(map[string]bool, len(from))
 	for name, value := range env {
 		if strings.ContainsRune(value, 0) {
 			return invalid("NUL is not allowed in environment variables.", append(slices.Clone(prefix), "env", name)...)
 		}
-		if !envName.MatchString(name) || slices.Contains(reserved, name) {
+		if !validEnvName(name) {
 			return invalid("Invalid or reserved environment variable.", append(slices.Clone(prefix), "env", name)...)
 		}
-		names[name] = true
 	}
 	for _, name := range from {
-		if !envName.MatchString(name) || slices.Contains(reserved, name) {
+		if !validEnvName(name) {
 			return invalid("Invalid or reserved environment variable.", append(slices.Clone(prefix), "env_from")...)
 		}
 		if names[name] {
@@ -161,7 +161,9 @@ func Resolve(in session.ConfigurationInput, profile llm.ProfileInput, harness st
 	if err := ValidateSandbox(in.Sandbox); err != nil {
 		return out, err
 	}
-	refs, services, err := ResolveServices(in.Sandbox.Env, in.Sandbox.EnvFrom, in.Sandbox.Services, p, "configuration", "sandbox")
+	services, err := p.ValidateServiceCodes(in.Sandbox.Services, "configuration", "sandbox")
+	refs := append([]string{}, in.Sandbox.EnvFrom...)
+	slices.Sort(refs)
 	if err != nil {
 		return out, err
 	}
@@ -201,46 +203,6 @@ func Resolve(in session.ConfigurationInput, profile llm.ProfileInput, harness st
 	}
 	out = session.ResolvedConfiguration{Version: 1, Harness: harness, Public: session.Configuration{Agent: session.AgentConfiguration{Profile: in.Agent.Profile, Model: *model, Codex: profile.Options(), OpenCode: profile.OpenCode, Instructions: instructions}, Sandbox: session.SandboxConfiguration{Template: in.Sandbox.Template, EnvNames: names, EnvFrom: refs, Services: services}, Limits: in.Limits, Hooks: hooks}}
 	return out, nil
-}
-func Environment(env map[string]string, cfg session.Configuration, allowlist []string) (map[string]string, error) {
-	return MergedEnvironment(env, cfg, allowlist, nil, nil)
-}
-
-// MergedEnvironment resolves selected sources after run-level overrides have
-// replaced session-level sources. An overridden reference is never read.
-func MergedEnvironment(env map[string]string, cfg session.Configuration, allowlist []string, overrides map[string]string, overrideFrom []string) (map[string]string, error) {
-	env = maps.Clone(env)
-	if env == nil {
-		env = map[string]string{}
-	}
-	for _, name := range cfg.Sandbox.EnvFrom {
-		if _, ok := overrides[name]; ok || slices.Contains(overrideFrom, name) {
-			continue
-		}
-		if !slices.Contains(allowlist, name) {
-			return nil, errors.New("environment reference is no longer allowed")
-		}
-		value, ok := os.LookupEnv(name)
-		if !ok {
-			return nil, errors.New("environment reference is unavailable")
-		}
-		env[name] = value
-	}
-	maps.Copy(env, overrides)
-	for _, name := range overrideFrom {
-		if !slices.Contains(allowlist, name) {
-			return nil, errors.New("run environment reference is no longer allowed")
-		}
-		value, ok := os.LookupEnv(name)
-		if !ok {
-			return nil, errors.New("run environment reference is unavailable")
-		}
-		env[name] = value
-	}
-	if err := ValidateSandbox(session.SandboxInput{Template: cfg.Sandbox.Template, Env: env}); err != nil {
-		return nil, err
-	}
-	return env, nil
 }
 
 const DefaultMaxSessionTokens int64 = 100_000_000

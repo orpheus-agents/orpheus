@@ -105,8 +105,8 @@ func TestSessionViewsBatch(t *testing.T) {
 		if err != nil || len(page.Items) != limit || page.NextCursor == nil {
 			t.Fatalf("page %d: %v", limit, err)
 		}
-		if n := counter.count.Load(); n != 4 {
-			t.Fatalf("page %d used %d queries, want 4", limit, n)
+		if n := counter.count.Load(); n != 3 {
+			t.Fatalf("page %d used %d queries, want 3", limit, n)
 		}
 		for _, item := range page.Items {
 			i := slices.IndexFunc(expected, func(w session.Session) bool { return w.ID == item.ID })
@@ -166,7 +166,7 @@ func TestSessionViewsEmptyMissingAndErrors(t *testing.T) {
 	if _, err := s.Pool.Exec(ctx, `UPDATE runs SET final_message_id=$1 WHERE id=$2`, mid, rid); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"LatestRunsForSessions", "HookExecutionsForRuns", "MessagesByIDs"} {
+	for _, name := range []string{"LatestRunsForSessions", "MessagesByIDs"} {
 		t.Run(name, func(t *testing.T) {
 			want := errors.New("query failed")
 			_, err := SessionViews(ctx, failSessionQuery{DBTX: s.Pool, name: name, err: want}, []SessionRecord{record})

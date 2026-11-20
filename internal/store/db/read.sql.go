@@ -13,6 +13,38 @@ import (
 	"github.com/google/uuid"
 )
 
+const harnessEnvironmentForRuns = `-- name: HarnessEnvironmentForRuns :many
+SELECT r.id, (o.parameters->'env_names')::jsonb AS harness_env_names
+FROM runs r LEFT JOIN operations o ON o.id = r.harness_launch_id AND o.session_id = r.session_id
+    AND o.kind = 'launch' AND o.status = 'confirmed'
+WHERE r.id = ANY($1::uuid[])
+`
+
+type HarnessEnvironmentForRunsRow struct {
+	ID              uuid.UUID       `json:"id"`
+	HarnessEnvNames json.RawMessage `json:"harness_env_names"`
+}
+
+func (q *Queries) HarnessEnvironmentForRuns(ctx context.Context, runIds []uuid.UUID) ([]HarnessEnvironmentForRunsRow, error) {
+	rows, err := q.db.Query(ctx, harnessEnvironmentForRuns, runIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []HarnessEnvironmentForRunsRow{}
+	for rows.Next() {
+		var i HarnessEnvironmentForRunsRow
+		if err := rows.Scan(&i.ID, &i.HarnessEnvNames); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const history = `-- name: History :many
 WITH objects AS (
    SELECT DISTINCT ON(type, data->>'id') type, data FROM session_events
@@ -186,7 +218,7 @@ func (q *Queries) HistoryByExternalKey(ctx context.Context, arg HistoryByExterna
 }
 
 const listAllRuns = `-- name: ListAllRuns :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id FROM runs r JOIN sessions s ON s.id=r.session_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id, r.harness_launch_id FROM runs r JOIN sessions s ON s.id=r.session_id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR r.input_fingerprint = $3::text) AND ($4::text IS NULL OR r.status = $4::text)
 AND (r.created_at, r.id) > (CASE WHEN $5::boolean THEN '-infinity'::timestamptz ELSE $6::timestamptz END, $7::uuid)
@@ -254,6 +286,7 @@ func (q *Queries) ListAllRuns(ctx context.Context, arg ListAllRunsParams) ([]Run
 			&i.ReasoningOutputTokens,
 			&i.Services,
 			&i.EnvSecretID,
+			&i.HarnessLaunchID,
 		); err != nil {
 			return nil, err
 		}
@@ -266,7 +299,7 @@ func (q *Queries) ListAllRuns(ctx context.Context, arg ListAllRunsParams) ([]Run
 }
 
 const listAllRunsDesc = `-- name: ListAllRunsDesc :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id FROM runs r JOIN sessions s ON s.id=r.session_id
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id, r.harness_launch_id FROM runs r JOIN sessions s ON s.id=r.session_id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
 AND ($3::text IS NULL OR r.input_fingerprint = $3::text) AND ($4::text IS NULL OR r.status = $4::text)
 AND (r.created_at, r.id) < (CASE WHEN $5::boolean THEN 'infinity'::timestamptz ELSE $6::timestamptz END, $7::uuid)
@@ -334,6 +367,7 @@ func (q *Queries) ListAllRunsDesc(ctx context.Context, arg ListAllRunsDescParams
 			&i.ReasoningOutputTokens,
 			&i.Services,
 			&i.EnvSecretID,
+			&i.HarnessLaunchID,
 		); err != nil {
 			return nil, err
 		}
@@ -390,7 +424,7 @@ func (q *Queries) ListEvents(ctx context.Context, arg ListEventsParams) ([]ListE
 }
 
 const listRuns = `-- name: ListRuns :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id FROM runs r WHERE r.session_id = $1
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id, r.harness_launch_id FROM runs r WHERE r.session_id = $1
 AND ($2::text IS NULL OR r.input_fingerprint = $2::text) AND ($3::text IS NULL OR r.status = $3::text)
 AND ($4::boolean OR (r.number) > ($5::int))
 ORDER BY r.number ASC
@@ -453,6 +487,7 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]Run, erro
 			&i.ReasoningOutputTokens,
 			&i.Services,
 			&i.EnvSecretID,
+			&i.HarnessLaunchID,
 		); err != nil {
 			return nil, err
 		}
@@ -465,7 +500,7 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]Run, erro
 }
 
 const listRunsDesc = `-- name: ListRunsDesc :many
-SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id FROM runs r WHERE r.session_id = $1
+SELECT r.id, r.session_id, r.number, r.status, r.observation, r.created_at, r.execution_started_at, r.deadline_at, r.finished_at, r.cancel_requested_at, r.cancel_attempted_at, r.stop_reason, r.stop_method, r.error, r.native_turn_id, r.next_delivery_number, r.final_message_id, r.input_fingerprint, r.env_names, r.env_from, r.phase, r.agent_status, r.agent_error, r.input_tokens, r.output_tokens, r.total_tokens, r.cached_input_tokens, r.reasoning_output_tokens, r.services, r.env_secret_id, r.harness_launch_id FROM runs r WHERE r.session_id = $1
 AND ($2::text IS NULL OR r.input_fingerprint = $2::text) AND ($3::text IS NULL OR r.status = $3::text)
 AND ($4::boolean OR (r.number) < ($5::int))
 ORDER BY r.number DESC
@@ -528,6 +563,7 @@ func (q *Queries) ListRunsDesc(ctx context.Context, arg ListRunsDescParams) ([]R
 			&i.ReasoningOutputTokens,
 			&i.Services,
 			&i.EnvSecretID,
+			&i.HarnessLaunchID,
 		); err != nil {
 			return nil, err
 		}

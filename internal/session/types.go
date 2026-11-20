@@ -60,13 +60,6 @@ type AgentInput struct {
 	Model        *string `json:"model,omitzero"`
 	Instructions *string `json:"instructions,omitzero"`
 }
-type Service struct {
-	Code        string   `json:"code"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	EnvFrom     []string `json:"env_from"`
-}
-
 type SandboxInput struct {
 	Services []string          `json:"services,omitzero"`
 	Template string            `json:"template"`
@@ -121,10 +114,10 @@ type AgentConfiguration struct {
 	Instructions string                `json:"instructions"`
 }
 type SandboxConfiguration struct {
-	Services []Service `json:"services"`
-	Template string    `json:"template"`
-	EnvNames []string  `json:"env_names"`
-	EnvFrom  []string  `json:"env_from"`
+	Services []string `json:"services"`
+	Template string   `json:"template"`
+	EnvNames []string `json:"env_names"`
+	EnvFrom  []string `json:"env_from"`
 }
 type Configuration struct {
 	Agent   AgentConfiguration   `json:"agent"`
@@ -207,6 +200,7 @@ type ToolCall struct {
 	CreatedAt          time.Time       `json:"created_at"`
 }
 type HookResult struct {
+	EnvNames           []string        `json:"env_names"`
 	ID                 uuid.UUID       `json:"id"`
 	Name               string          `json:"name"`
 	Status             string          `json:"status"`
@@ -221,7 +215,8 @@ type HookResult struct {
 	Error              *Error          `json:"error"`
 }
 type Run struct {
-	Services           []Service    `json:"services"`
+	HarnessEnvNames    []string     `json:"harness_env_names"`
+	Services           []string     `json:"services"`
 	Usage              Usage        `json:"usage"`
 	InputFingerprint   *string      `json:"input_fingerprint"`
 	EnvNames           []string     `json:"env_names"`

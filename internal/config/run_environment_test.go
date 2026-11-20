@@ -22,7 +22,7 @@ func TestValidateRunEnvironment(t *testing.T) {
 		{"reserved hook name", map[string]string{"ORPHEUS_RUN_ID": "x"}, nil, false},
 		{"NUL", map[string]string{"VALUE": "x\x00y"}, nil, false},
 		{"duplicate reference", nil, []string{"TOKEN_FROM", "TOKEN_FROM"}, false},
-		{"overlap", map[string]string{"TOKEN_FROM": "x"}, []string{"TOKEN_FROM"}, false},
+		{"overlap", map[string]string{"TOKEN_FROM": "x"}, []string{"TOKEN_FROM"}, true},
 		{"not allowlisted", nil, []string{"OTHER"}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

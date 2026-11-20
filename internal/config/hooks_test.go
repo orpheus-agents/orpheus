@@ -35,15 +35,14 @@ func TestResolveHooks(t *testing.T) {
 
 func TestMergedEnvironmentDoesNotResolveOverriddenSources(t *testing.T) {
 	cfg := session.Configuration{Sandbox: session.SandboxConfiguration{Template: "template", EnvFrom: []string{"SESSION_TOKEN"}}}
-	env, err := MergedEnvironment(nil, cfg, nil, map[string]string{"SESSION_TOKEN": "from-run"}, nil)
+	env, err := (Deployment{}).ResolveEnvironment(EnvironmentInput{EnvFrom: cfg.Sandbox.EnvFrom}, EnvironmentInput{Env: map[string]string{"SESSION_TOKEN": "from-run"}}, nil)
 	if err != nil || env["SESSION_TOKEN"] != "from-run" {
 		t.Fatalf("overridden session reference was resolved: %v, %v", env, err)
 	}
 
 	values := map[string]string{"RUN_TOKEN": "from-session"}
 	t.Setenv("RUN_TOKEN", "from-run-reference")
-	cfg.Sandbox.EnvFrom = nil
-	env, err = MergedEnvironment(values, cfg, []string{"RUN_TOKEN"}, nil, []string{"RUN_TOKEN"})
+	env, err = (Deployment{}).ResolveEnvironment(EnvironmentInput{Env: values}, EnvironmentInput{EnvFrom: []string{"RUN_TOKEN"}}, []string{"RUN_TOKEN"})
 	if err != nil || env["RUN_TOKEN"] != "from-run-reference" {
 		t.Fatalf("run reference did not override session value: %v, %v", env, err)
 	}

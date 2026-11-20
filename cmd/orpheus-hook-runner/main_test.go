@@ -20,7 +20,7 @@ func TestRunRecordsResultWithoutReexecution(t *testing.T) {
 	if err := os.WriteFile(script, []byte(content), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := run("operation-1", dir, script, root, 32); err != nil {
+	if err := run("operation-1", dir, script, root, 32, 1); err != nil {
 		t.Fatal(err)
 	}
 	var got result
@@ -41,8 +41,13 @@ func TestRunRecordsResultWithoutReexecution(t *testing.T) {
 	if string(output) != "hello world" {
 		t.Fatalf("unexpected output %q", output)
 	}
-	if err := run("operation-1", dir, script, root, 32); err == nil {
+	if err := run("operation-1", dir, script, root, 32, 2); err == nil {
 		t.Fatal("claimed hook operation ran again")
+	}
+	marker, err := os.ReadFile(filepath.Join(dir, "started.json"))
+	var winner started
+	if err != nil || json.Unmarshal(marker, &winner) != nil || winner.Attempt != 1 || winner.HookPID == nil || *winner.HookPID <= 0 {
+		t.Fatal(winner, err)
 	}
 	calls, err := os.ReadFile(filepath.Join(root, "calls"))
 	if err != nil || string(calls) != "called\n" {
@@ -57,7 +62,7 @@ func TestRunKeepsOnlyOutputEdges(t *testing.T) {
 	if err := os.WriteFile(script, []byte("#!/bin/sh\nprintf 'abcdefghijklmnopqrstuvwxyz'\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := run("operation-2", dir, script, root, 10); err != nil {
+	if err := run("operation-2", dir, script, root, 10, 1); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "result.json"))
@@ -121,8 +126,13 @@ func TestMissingInterpreterRecordsLaunchFailure(t *testing.T) {
 	if err := os.WriteFile(script, []byte("#!/no-such-hook-interpreter\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := run("missing-interpreter", dir, script, root, 32); err != nil {
+	if err := run("missing-interpreter", dir, script, root, 32, 1); err != nil {
 		t.Fatal(err)
+	}
+	marker, err := os.ReadFile(filepath.Join(dir, "started.json"))
+	var record started
+	if err != nil || json.Unmarshal(marker, &record) != nil || record.Attempt != 1 || record.HookPID != nil {
+		t.Fatal(record, err)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "result.json"))
 	if err != nil {
@@ -145,7 +155,7 @@ func TestLargeOutputContinuesAfterLimit(t *testing.T) {
 	if err := os.WriteFile(script, []byte(content), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := run("large-output", dir, script, root, 10); err != nil {
+	if err := run("large-output", dir, script, root, 10, 1); err != nil {
 		t.Fatal(err)
 	}
 	if marker, err := os.ReadFile(filepath.Join(root, "marker")); err != nil || string(marker) != "done" {
@@ -172,7 +182,7 @@ func TestRunDoesNotWaitForBackgroundChildOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	startedAt := time.Now()
-	if err := run("background-child", dir, script, root, 32); err != nil {
+	if err := run("background-child", dir, script, root, 32, 1); err != nil {
 		t.Fatal(err)
 	}
 	child, err := os.ReadFile(filepath.Join(root, "child.pid"))

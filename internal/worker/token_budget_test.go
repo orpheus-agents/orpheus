@@ -170,7 +170,7 @@ func TestTokenBudgetStopsPreparationHook(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := path.Join("/home/template/.orpheus/hooks", h.ID.String())
-	started, _ := json.Marshal(hookStarted{OperationID: h.ID.String(), WrapperPID: 200, HookPID: new(201)})
+	started, _ := json.Marshal(hookStarted{Attempt: 1, OperationID: h.ID.String(), WrapperPID: 200, HookPID: new(201)})
 	box.files[path.Join(dir, "started.json")] = started
 	box.processes = append(box.processes, harness.Process{PID: 200, Env: map[string]string{"ORPHEUS_HOOK_OPERATION_ID": h.ID.String()}})
 	if err := s.Mutate(t.Context(), a.SessionID, false, func(_ pgx.Tx, r *store.SessionRecord) error {

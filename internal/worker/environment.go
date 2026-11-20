@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/orpheus-agents/orpheus/internal/harness/opencode"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/store/db"
 )
 
 // Renew a short lease independently of run and hook deadlines. Requesting the
@@ -132,7 +134,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 	isOpenCode := cfg.Harness == "opencode"
 	rotating := isOpenCode && e.driver != nil && e.driverRunID != run.ID
 	if e.driver != nil && !repair && !rotating {
-		return nil
+		return e.bindHarness(ctx, run, record.LaunchID)
 	}
 	if e.driver != nil {
 		if isOpenCode && e.account != nil {
@@ -271,9 +273,9 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 				}
 				return harness.Failure("environment_unavailable", "Harness environment is unavailable.")
 			}
-			env, err = config.Environment(env, cfg.Public, e.Store.Deployment.EnvironmentAllowlist(e.Store.Settings.HarnessEnvAllowlist))
+			env, err = e.Store.Deployment.ResolveEnvironment(config.EnvironmentInput{Services: cfg.Public.Sandbox.Services, EnvFrom: cfg.Public.Sandbox.EnvFrom, Env: env}, config.EnvironmentInput{}, e.Store.Settings.HarnessEnvAllowlist)
 			if err != nil {
-				return harness.Failure("environment_unavailable", "Harness environment is unavailable.")
+				return harness.Failure("environment_unavailable", err.Error())
 			}
 			if !isOpenCode && e.account != nil {
 				// A replacement process must not inherit credentials that became
@@ -284,7 +286,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 			}
 			config.AddSandboxProxy(env, e.Store.Settings.SandboxProxyURL)
 			env["ORPHEUS_LAUNCH_ID"] = o.ID.String()
-			result, err := e.invoke(ctx, o, func() (operationResult, error) {
+			result, err := e.invoke(ctx, o, slices.Sorted(maps.Keys(env)), func() (operationResult, error) {
 				pid, err := driver.Launch(ctx, env, *record.Workspace, source)
 				return operationResult{PID: pid}, err
 			})
@@ -392,6 +394,9 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 		if err := e.account.Watch(ctx); err != nil {
 			return err
 		}
+	}
+	if err := e.bindHarness(ctx, run, record.LaunchID); err != nil {
+		return err
 	}
 	e.driver = driver
 	e.driverRunID = run.ID
@@ -711,4 +716,21 @@ func (e *Executor) flushSavedConsole(ctx context.Context, record store.SessionRe
 	}
 	defer func() { _ = sync.Close() }()
 	return flushAccount(ctx, sync)
+}
+
+func (e *Executor) bindHarness(ctx context.Context, run *store.RunRecord, launchID *uuid.UUID) error {
+	if launchID == nil || run.ExecutionStartedAt != nil {
+		return nil
+	}
+	return e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, record *store.SessionRecord) error {
+		n, err := db.New(tx).BindRunHarnessLaunch(ctx, db.BindRunHarnessLaunchParams{RunID: run.ID, SessionID: e.ID, LaunchID: *launchID})
+		if err != nil || n == 0 {
+			return err
+		}
+		current, err := store.GetRun(ctx, tx, e.ID, run.ID)
+		if err != nil {
+			return err
+		}
+		return store.PublishRun(ctx, tx, record, &current)
+	})
 }

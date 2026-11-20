@@ -2,123 +2,143 @@ package config
 
 import (
 	"errors"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/orpheus-agents/orpheus/internal/llm"
 	"github.com/orpheus-agents/orpheus/internal/session"
 )
 
-const serviceProfiles = ""
+const directService = `[services.registry]
+name = " Registry "
+description = " Image registry "
+delivery = "direct"
+endpoint = "https://registry.example:5443/path/v1"
+credentials.password = { env = "WORKER_TOKEN", as = "REGISTRY_TOKEN" }
+credentials.username = { env = "REGISTRY_USER" }
+environment.REGISTRY = { from = "endpoint.host" }
+environment.URL = { from = "endpoint" }
+environment.REGION = "eu"
+environment.EMPTY = ""
+`
 
 func TestServiceConfiguration(t *testing.T) {
-	const service = "[services.gitlab]\nname = ' GitLab '\ndescription = ' Repositories '\nenv_from = ['TOKEN_B', 'TOKEN_A']\n"
-	p, err := ReadDeployment(strings.NewReader(serviceProfiles + service))
-	if err != nil || p.Services["gitlab"].Name != "GitLab" || p.Services["gitlab"].Description != "Repositories" || !slices.Equal(p.Services["gitlab"].EnvFrom, []string{"TOKEN_A", "TOKEN_B"}) {
-		t.Fatal(p.Services, err)
+	p, err := ReadDeployment(strings.NewReader(directService))
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, invalid := range []string{
-		strings.Replace(service, "services.gitlab", "services.Bad", 1),
-		strings.Replace(service, "services.gitlab", "services."+strings.Repeat("a", 65), 1),
-		strings.Replace(service, "name = ' GitLab '", "name = ' '", 1),
-		strings.Replace(service, "description = ' Repositories '\n", "", 1),
-		strings.Replace(service, "['TOKEN_B', 'TOKEN_A']", "[]", 1),
-		strings.Replace(service, "'TOKEN_B'", "'TOKEN_A'", 1),
-		strings.Replace(service, "'TOKEN_B'", "'AGENTBOX_API_KEY'", 1),
-		strings.Replace(service, "'TOKEN_B'", "'BAD-NAME'", 1),
-		service + "extra = true\n",
+	s := p.Services["registry"]
+	if s.Name != "Registry" || s.Description != "Image registry" || !slices.Equal(s.EnvNames(), []string{"EMPTY", "REGION", "REGISTRY", "REGISTRY_TOKEN", "REGISTRY_USER", "URL"}) {
+		t.Fatal(s)
+	}
+	if !slices.Equal(p.EnvironmentAllowlist([]string{"MANUAL", "REGISTRY_USER"}), []string{"MANUAL", "REGISTRY_USER", "WORKER_TOKEN"}) {
+		t.Fatal("unexpected allowlist")
+	}
+	for _, tc := range [][2]string{
+		{"services.registry", "services.Bad"}, {"services.registry", "services." + strings.Repeat("a", 65)},
+		{" Registry ", " "}, {" Image registry ", " "}, {"direct", "broker"},
+		{"https://registry.example:5443/path/v1", "relative/path"}, {"https://registry.example:5443/path/v1", "https://:5443"},
+		{":5443/path/v1", ":70000"}, {":5443/path/v1", ":x"}, {"registry.example", "user@registry.example"},
+		{"path/v1", "path?"}, {"path/v1", "path#"}, {"https://", "ftp://"},
+		{"WORKER_TOKEN", "AGENTBOX_API_KEY"}, {"REGISTRY_TOKEN", "BAD-NAME"}, {"REGISTRY_TOKEN", ""},
+		{"env = \"REGISTRY_USER\"", "source = \"REGISTRY_USER\""}, {"endpoint.host", "auth.key"},
+		{"from = \"endpoint\"", "from = \"endpoint\", extra = true"}, {"REGION = \"eu\"", "REGION = 2"},
+		{"REGION = \"eu\"", "REGION = \"\\u0000\""},
+		{"environment.EMPTY", "environment.ORPHEUS_RUN_ID"}, {"delivery =", "legacy ="},
 	} {
-		if _, err := ReadDeployment(strings.NewReader(serviceProfiles + invalid)); err == nil {
-			t.Fatalf("accepted invalid service: %s", invalid)
+		if _, err := ReadDeployment(strings.NewReader(strings.ReplaceAll(directService, tc[0], tc[1]))); err == nil {
+			t.Fatalf("accepted %q -> %q", tc[0], tc[1])
 		}
 	}
-	if _, err := ReadDeployment(strings.NewReader(serviceProfiles + service + strings.Replace(service, "services.gitlab", "services.other", 1))); err != nil {
-		t.Fatal("overlapping services rejected", err)
+	for _, suffix := range []string{"env_from = ['TOKEN']\n", "environment.URL = 'duplicate'\n"} {
+		if _, err := ReadDeployment(strings.NewReader(directService + suffix)); err == nil {
+			t.Fatal(suffix)
+		}
 	}
-	if p, err := ReadDeployment(strings.NewReader(serviceProfiles)); err != nil || len(p.Services) != 0 {
+	if _, err := ReadDeployment(strings.NewReader(strings.Split(directService, "environment.REGISTRY")[0])); err == nil {
+		t.Fatal("accepted empty environment")
+	}
+	if _, err := ReadDeployment(strings.NewReader(directService + strings.Replace(directService, "services.registry", "services.other", 1))); err != nil {
+		t.Fatal(err)
+	}
+	if p, err := ReadDeployment(strings.NewReader("")); err != nil || len(p.Services) != 0 {
 		t.Fatal(p, err)
 	}
 }
 
-func TestResolveServices(t *testing.T) {
-	p := Deployment{Services: map[string]Service{
-		"a": {Name: "A", Description: "First", EnvFrom: []string{"SHARED", "TOKEN_A"}},
-		"b": {Name: "B", Description: "Second", EnvFrom: []string{"TOKEN_B", "SHARED"}},
-	}}
-	refs, services, err := ResolveServices(nil, []string{"SHARED", "EXTRA"}, []string{"b", "a"}, p)
-	if err != nil || !slices.Equal(refs, []string{"EXTRA", "SHARED", "TOKEN_A", "TOKEN_B"}) || len(services) != 2 || services[0].Code != "a" || services[1].Code != "b" {
-		t.Fatal(refs, services, err)
+func TestValidateServiceCodes(t *testing.T) {
+	p := Deployment{Services: map[string]Service{"a": {}, "b": {}}}
+	input := []string{"b", "a"}
+	got, err := p.ValidateServiceCodes(input)
+	if err != nil || !slices.Equal(got, []string{"a", "b"}) || input[0] != "b" {
+		t.Fatal(got, err)
 	}
-	if got := p.EnvironmentAllowlist([]string{"EXTRA", "SHARED"}); !slices.Equal(got, refs) {
-		t.Fatal(got)
-	}
-	p.Services["a"].EnvFrom[0] = "CHANGED"
-	if !slices.Equal(services[0].EnvFrom, []string{"SHARED", "TOKEN_A"}) {
-		t.Fatal("snapshot aliases configuration", services)
+	if got, err := p.ValidateServiceCodes(nil); err != nil || got == nil || len(got) != 0 {
+		t.Fatal(got, err)
 	}
 	for _, tc := range []struct {
 		codes []string
-		from  []string
-		env   map[string]string
 		code  string
+		index int
 	}{
-		{codes: []string{"missing"}, code: "unknown_service"},
-		{codes: []string{"a", "a"}, code: "validation_error"},
-		{codes: []string{"BAD"}, code: "validation_error"},
-		{codes: []string{"a"}, from: []string{"X", "X"}, code: "validation_error"},
-		{codes: []string{"a"}, env: map[string]string{"TOKEN_A": "literal"}, code: "validation_error"},
+		{[]string{"a", "missing"}, "unknown_service", 1}, {[]string{"a", "a"}, "validation_error", 1}, {[]string{"BAD"}, "validation_error", 0},
 	} {
-		_, _, err := ResolveServices(tc.env, tc.from, tc.codes, p, "configuration", "sandbox")
+		_, err := p.ValidateServiceCodes(tc.codes, "configuration", "sandbox")
 		problem, ok := errors.AsType[*session.APIError](err)
-		if !ok || problem.Problem.Code != tc.code || len(problem.Problem.Details) == 0 {
+		if !ok || problem.Problem.Code != tc.code || !reflect.DeepEqual(problem.Problem.Details[0].Path, []any{"body", "configuration", "sandbox", "services", tc.index}) {
 			t.Fatal(tc, err)
 		}
-		if tc.code == "unknown_service" && !reflect.DeepEqual(problem.Problem.Details[0].Path, []any{"body", "configuration", "sandbox", "services", 0}) {
-			t.Fatal(problem.Problem)
-		}
-	}
-	refs, services, err = ResolveServices(nil, nil, nil, p)
-	if err != nil || refs == nil || services == nil || len(refs) != 0 || len(services) != 0 {
-		t.Fatal(refs, services, err)
 	}
 }
 
-func TestServiceEnvironmentUsesFrozenReferencesAndCurrentAllowlist(t *testing.T) {
-	p, err := ReadDeployment(strings.NewReader(serviceProfiles + "[services.gitlab]\nname='GitLab'\ndescription='Repositories'\nenv_from=['SERVICE_TOKEN']"))
+func TestResolveDirectEnvironment(t *testing.T) {
+	p, err := ReadDeployment(strings.NewReader(directService))
 	if err != nil {
 		t.Fatal(err)
 	}
-	in := session.ConfigurationInput{Agent: session.AgentInput{Profile: "default"}, Sandbox: session.SandboxInput{Template: "codex", Services: []string{"gitlab"}}, Limits: session.Limits{RunTimeoutSeconds: 3600}}
-	cfg, err := Resolve(in, llm.ProfileInput{Name: "default", Model: "model"}, "codex", p, nil, DefaultMaxSessionTokens)
-	if err != nil || !slices.Equal(cfg.Public.Sandbox.EnvFrom, []string{"SERVICE_TOKEN"}) || len(cfg.Public.Sandbox.Services) != 1 {
-		t.Fatal(cfg, err)
+	base := EnvironmentInput{Services: []string{"registry"}, Env: map[string]string{"REGION": "eu"}, EnvFrom: []string{"REGISTRY_USER"}}
+	t.Setenv("REGISTRY_USER", "reader")
+	t.Setenv("WORKER_TOKEN", "first-value")
+	want := map[string]string{"URL": "https://registry.example:5443/path/v1", "REGISTRY": "registry.example:5443", "REGION": "eu", "REGISTRY_USER": "reader", "REGISTRY_TOKEN": "first-value", "EMPTY": ""}
+	got, err := p.ResolveEnvironment(base, EnvironmentInput{}, nil)
+	if err != nil || !maps.Equal(got, want) {
+		t.Fatal(got, err)
 	}
-	t.Setenv("SERVICE_TOKEN", "secret-value")
-	t.Setenv("ADDED_TOKEN", "must-not-appear")
-	p.Services["gitlab"] = Service{Name: "Renamed", Description: "New", EnvFrom: []string{"SERVICE_TOKEN", "ADDED_TOKEN"}}
-	env, err := Environment(nil, cfg.Public, p.EnvironmentAllowlist(nil))
-	if err != nil || len(env) != 1 || env["SERVICE_TOKEN"] != "secret-value" {
-		t.Fatal(env, err)
+	t.Setenv("WORKER_TOKEN", "rotated-value")
+	base.Env["REGISTRY_TOKEN"] = "disallowed-literal-value"
+	_, err = p.ResolveEnvironment(base, EnvironmentInput{}, nil)
+	if err == nil || !strings.Contains(err.Error(), "REGISTRY_TOKEN") || !strings.Contains(err.Error(), "registry.credentials.password") || strings.Contains(err.Error(), "value") {
+		t.Fatal(err)
 	}
-	delete(p.Services, "gitlab")
-	if _, err := Environment(nil, cfg.Public, p.EnvironmentAllowlist(nil)); err == nil {
-		t.Fatal("revoked reference accepted")
+	delete(base.Env, "REGISTRY_TOKEN")
+	got, err = p.ResolveEnvironment(base, EnvironmentInput{}, nil)
+	if err != nil || got["REGISTRY_TOKEN"] != "rotated-value" {
+		t.Fatal(got, err)
 	}
-	env, err = MergedEnvironment(nil, cfg.Public, nil, map[string]string{"SERVICE_TOKEN": "run-value"}, nil)
-	if err != nil || env["SERVICE_TOKEN"] != "run-value" {
-		t.Fatal("overridden reference was resolved", env, err)
+	t.Setenv("WORKER_TOKEN", "")
+	if _, err := p.ResolveEnvironment(base, EnvironmentInput{}, nil); err == nil || !strings.Contains(err.Error(), "WORKER_TOKEN") {
+		t.Fatal(err)
 	}
-	missing := session.Configuration{Sandbox: session.SandboxConfiguration{Template: "codex", EnvFrom: []string{"ORPHEUS_TEST_MISSING_SERVICE_ENV"}}}
-	if _, err := Environment(nil, missing, []string{"ORPHEUS_TEST_MISSING_SERVICE_ENV"}); err == nil {
-		t.Fatal("missing reference accepted")
+	override := EnvironmentInput{Env: map[string]string{"REGISTRY_TOKEN": "run-value"}}
+	got, err = p.ResolveEnvironment(base, override, nil)
+	if err != nil || got["REGISTRY_TOKEN"] != "run-value" {
+		t.Fatal(got, err)
 	}
-	// The allowlist includes catalog names, but direct references still need selection.
-	in.Sandbox.Services = nil
-	in.Sandbox.EnvFrom = []string{"SERVICE_TOKEN"}
-	p.Services["gitlab"] = Service{EnvFrom: []string{"SERVICE_TOKEN"}}
-	if _, err := Resolve(in, llm.ProfileInput{Name: "default", Model: "model"}, "codex", p, nil, DefaultMaxSessionTokens); err != nil {
-		t.Fatal("direct catalog reference rejected", err)
+	for _, name := range []string{"REGISTRY_TOKEN", "REGION"} {
+		if _, err := p.ResolveEnvironment(EnvironmentInput{EnvFrom: []string{name}}, EnvironmentInput{}, nil); err == nil {
+			t.Fatalf("allowed direct source %s", name)
+		}
+	}
+	t.Setenv("WORKER_TOKEN", "")
+	got, err = p.ResolveEnvironment(EnvironmentInput{EnvFrom: []string{"WORKER_TOKEN"}}, EnvironmentInput{}, nil)
+	if err != nil || !maps.Equal(got, map[string]string{"WORKER_TOKEN": ""}) {
+		t.Fatal(got, err)
+	}
+	base.EnvFrom = nil
+	delete(p.Services, "registry")
+	if _, err := p.ResolveEnvironment(base, override, nil); err == nil || !strings.Contains(err.Error(), "registry") {
+		t.Fatal(err)
 	}
 }

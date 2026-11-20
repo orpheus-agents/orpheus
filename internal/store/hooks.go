@@ -46,7 +46,7 @@ func FailUnfinishedHooks(ctx context.Context, tx pgx.Tx, runID uuid.UUID, active
 			ExitCode: h.ExitCode, Signal: h.Signal, Output: h.Output,
 			OutputCompleteness: h.OutputCompleteness, TruncationReason: h.TruncationReason,
 			Error:      h.Error,
-			StopReason: h.StopReason,
+			StopReason: h.StopReason, StartedAttempt: h.StartedAttempt,
 		}); err != nil {
 			return err
 		}
@@ -56,6 +56,10 @@ func FailUnfinishedHooks(ctx context.Context, tx pgx.Tx, runID uuid.UUID, active
 
 // ChangeHook commits a hook transition and its run.updated projection together.
 func (s *Store) ChangeHook(ctx context.Context, sid, rid uuid.UUID, name string, change func(*HookExecution, *RunRecord) error) error {
+	return s.changeHook(ctx, sid, rid, name, func(_ pgx.Tx, h *HookExecution, r *RunRecord) error { return change(h, r) })
+}
+
+func (s *Store) changeHook(ctx context.Context, sid, rid uuid.UUID, name string, change func(pgx.Tx, *HookExecution, *RunRecord) error) error {
 	return s.Mutate(ctx, sid, false, func(tx pgx.Tx, record *SessionRecord) error {
 		h, err := db.New(tx).GetHookExecution(ctx, db.GetHookExecutionParams{RunID: rid, Name: name})
 		if err != nil {
@@ -66,7 +70,7 @@ func (s *Store) ChangeHook(ctx context.Context, sid, rid uuid.UUID, name string,
 			return err
 		}
 		beforeHook, beforeRun := h, r
-		if err := change(&h, &r); err != nil {
+		if err := change(tx, &h, &r); err != nil {
 			return err
 		}
 		if reflect.DeepEqual(beforeHook, h) && reflect.DeepEqual(beforeRun, r) {
@@ -84,10 +88,36 @@ func (s *Store) ChangeHook(ctx context.Context, sid, rid uuid.UUID, name string,
 			FinishedAt: h.FinishedAt, ExitCode: h.ExitCode, Signal: h.Signal,
 			Output: h.Output, OutputCompleteness: h.OutputCompleteness,
 			TruncationReason: h.TruncationReason, Error: h.Error,
-			StopReason: h.StopReason,
+			StopReason: h.StopReason, StartedAttempt: h.StartedAttempt,
 		}); err != nil {
 			return err
 		}
 		return PublishRun(ctx, tx, record, &r)
 	})
+}
+
+// ReserveHookStart records the candidate ENV names before the RPC. A worker
+// observing a stale attempt number cannot issue a second Start for that attempt.
+func (s *Store) ReserveHookStart(ctx context.Context, sid, rid uuid.UUID, name string, expected int, names []string, timeout time.Duration) (int, error) {
+	attempt := 0
+	err := s.changeHook(ctx, sid, rid, name, func(tx pgx.Tx, h *HookExecution, r *RunRecord) error {
+		if r.Status.Terminal() || (r.CancelRequestedAt != nil && name != "after_run") ||
+			h.StartAttempts != expected || h.StopReason != nil {
+			return nil
+		}
+		if expected == 0 {
+			if h.Status != "pending" {
+				return nil
+			}
+			now := time.Now().UTC()
+			h.Status, h.StartedAt, h.DeadlineAt = "running", &now, new(now.Add(timeout))
+			r.Phase = &name
+		} else if h.Status != "running" {
+			return nil
+		}
+		h.StartAttempts++
+		attempt = h.StartAttempts
+		return db.New(tx).AppendHookEnvironment(ctx, db.AppendHookEnvironmentParams{ID: h.ID, EnvNames: names})
+	})
+	return attempt, err
 }

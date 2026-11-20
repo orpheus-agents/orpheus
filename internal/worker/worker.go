@@ -123,41 +123,10 @@ func (e *Executor) operation(ctx context.Context, kind string, rid, mid *uuid.UU
 	return e.Store.Operation(ctx, e.ID, kind, rid, mid, params)
 }
 func (e *Executor) opStatus(ctx context.Context, id uuid.UUID, status string, result any) error {
-	if status == "sending" {
-		blocked := false
-		err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, _ *store.SessionRecord) error {
-			o, err := db.New(tx).GetSessionOperation(ctx, db.GetSessionOperationParams{ID: id, SessionID: e.ID})
-			if err != nil {
-				return err
-			}
-			if o.Kind == "launch" && o.RunID != nil {
-				run, err := store.GetRun(ctx, tx, e.ID, *o.RunID)
-				if err != nil {
-					return err
-				}
-				if run.Status.Terminal() || run.CancelRequestedAt != nil {
-					blocked = true
-					return nil
-				}
-			}
-			o.Status = status
-			if o.AttemptedAt == nil {
-				o.AttemptedAt = new(time.Now().UTC())
-			}
-			return store.SaveOperation(ctx, tx, &o)
-		})
-		if err != nil {
-			return err
-		}
-		if blocked {
-			return errProvisionWait
-		}
-		return nil
-	}
 	return e.Store.SetOperation(ctx, e.ID, id, status, result)
 }
 
-func (e *Executor) invoke(ctx context.Context, o store.Operation, call func() (operationResult, error)) (result operationResult, err error) {
+func (e *Executor) invoke(ctx context.Context, o store.Operation, launchEnvNames []string, call func() (operationResult, error)) (result operationResult, err error) {
 	defer func() {
 		if err != nil {
 			fields := diagnostic.Capture(err)
@@ -171,7 +140,25 @@ func (e *Executor) invoke(ctx context.Context, o store.Operation, call func() (o
 	if o.Status != "pending" {
 		return operationResult{}, harness.ErrUncertain
 	}
-	if err := e.opStatus(ctx, o.ID, "sending", nil); err != nil {
+	if o.Kind == "launch" {
+		err := e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, _ *store.SessionRecord) error {
+			r, err := store.GetRun(ctx, tx, e.ID, *o.RunID)
+			if err != nil {
+				return err
+			}
+			if r.Status.Terminal() || r.CancelRequestedAt != nil {
+				return errProvisionWait
+			}
+			n, err := db.New(tx).SendHarnessLaunch(ctx, db.SendHarnessLaunchParams{ID: o.ID, SessionID: e.ID, EnvNames: launchEnvNames})
+			if err == nil && n == 0 {
+				return errProvisionWait
+			}
+			return err
+		})
+		if err != nil {
+			return operationResult{}, err
+		}
+	} else if err := e.opStatus(ctx, o.ID, "sending", nil); err != nil {
 		return operationResult{}, err
 	}
 	result, err = call()

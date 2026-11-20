@@ -472,7 +472,7 @@ components:
                 description: {type: [string, 'null'], maxLength: 4096}
                 active: {type: boolean}
         ServiceCodes:
-            description: Unique configured service codes. Order is insignificant; an unknown code rejects the entire request.
+            description: Unique service codes. Order is insignificant on input. Admission rejects unknown codes. Responses return sorted selections.
             type: array
             uniqueItems: true
             items:
@@ -483,14 +483,15 @@ components:
         Service:
             type: object
             additionalProperties: false
-            required: [code, name, description, env_from]
+            required: [code, name, description, env_names]
             properties:
                 code: {type: string}
                 name: {type: string}
                 description: {type: string}
-                env_from:
-                    description: Sorted environment variable names; never their values.
+                env_names:
+                    description: Sorted destination variable names supplied by this service to the client.
                     type: array
+                    uniqueItems: true
                     items: {type: string}
         Services:
             type: object
@@ -961,6 +962,13 @@ components:
             type: object
         HookResult:
             properties:
+                env_names:
+                    description: Sorted names passed by Orpheus for the confirmed start of this hook script. Null if unknown.
+                    anyOf:
+                        - type: array
+                          uniqueItems: true
+                          items: {type: string}
+                        - type: 'null'
                 id:
                     type: string
                     format: uuid
@@ -1010,7 +1018,7 @@ components:
                     anyOf:
                         - $ref: '#/components/schemas/Error'
                         - type: 'null'
-            required: [id, name, status, started_at, deadline_at, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error]
+            required: [id, name, env_names, status, started_at, deadline_at, finished_at, exit_code, signal, output, output_completeness, truncation_reason, error]
             type: object
         HistoryPage:
             properties:
@@ -1317,17 +1325,22 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/HookResult'
+                harness_env_names:
+                    description: Sorted names passed by Orpheus at launch of the harness used by this run. Null if unknown, including before attachment.
+                    anyOf:
+                        - type: array
+                          uniqueItems: true
+                          items: {type: string}
+                        - type: 'null'
                 env_names:
                     description: Sorted names of explicit variables supplied for this run; values are never returned.
                     type: array
                     items:
                         type: string
                 services:
-                    description: Immutable service descriptions and environment names resolved when accepted.
-                    type: array
-                    items: {$ref: '#/components/schemas/Service'}
+                    $ref: '#/components/schemas/ServiceCodes'
                 env_from:
-                    description: Sorted orchestrator environment variable names for this run, including expanded services.
+                    description: Sorted worker variable names explicitly requested for this run.
                     type: array
                     items:
                         type: string
@@ -1420,6 +1433,7 @@ components:
                 - hooks
                 - input_fingerprint
                 - env_names
+                - harness_env_names
                 - env_from
                 - services
                 - id
@@ -1468,16 +1482,15 @@ components:
             additionalProperties: false
             properties:
                 services:
-                    description: Immutable service descriptions and environment names resolved when accepted.
-                    type: array
-                    items: {$ref: '#/components/schemas/Service'}
+                    $ref: '#/components/schemas/ServiceCodes'
                 env_from:
-                    description: Sorted orchestrator environment variable names, including expanded services.
+                    description: Sorted worker variable names explicitly requested for the session.
                     items:
                         type: string
                     title: Env From
                     type: array
                 env_names:
+                    description: Sorted names of explicit session env values.
                     items:
                         type: string
                     title: Env Names
@@ -1527,7 +1540,7 @@ components:
                     title: Env
                     type: object
                 services:
-                    description: Services available to the agent and session hooks, expanded together with env_from.
+                    description: Session service codes. The worker resolves them using its current service configuration when preparing the harness or a hook.
                     $ref: '#/components/schemas/ServiceCodes'
                 env_from:
                     items:

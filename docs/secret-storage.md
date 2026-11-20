@@ -4,7 +4,10 @@ Explicit session and run environment maps are stored as AES-256-GCM payloads
 in `secrets`, referenced by `sessions.env_secret_id` and `runs.env_secret_id`.
 An empty map creates neither a secret nor a reference. Values are immutable.
 The encryption key is `ENV_ENCRYPTION_KEY`, required by both API and worker.
-Service values selected through `env_from` come from worker ENV.
+The worker reads direct service credentials from its own environment at process
+launch. The deployment TOML maps those sources to client ENV names. Service
+selections store only codes. Explicit `env_from` stores the client-requested
+worker references. Run and hook history records delivered names without values.
 
 Session payloads authenticate the session UUID. Run payloads authenticate
 `orpheus-run-env-v1\0`, the session UUID, and the run UUID. Moving a reference to
@@ -53,3 +56,10 @@ Rolling back the image to v0.9.0 requires no schema rollback. For v0.8.0,
 stop writers and run `migrate down` once using the image that applied migration
 28 before starting the older version. This restores both legacy columns and their values without
 the encryption key. Earlier versions require a separate offline rollback plan.
+
+
+Migration 35 converts existing service snapshots to codes and removes the
+references contributed by those snapshots from explicit `env_from`. A manual
+reference that duplicated a service reference is treated as service-provided.
+Stop writers and back up the database before upgrading. Restoring the historical
+snapshots for an earlier image requires that backup.
