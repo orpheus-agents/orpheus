@@ -191,8 +191,11 @@ class Server:
             elif kind == "assistant":
                 content = []
                 for part in m["content"]:
-                    if part["type"] in ("text", "reasoning"):
-                        content.append({"type": part["type"], "text": part["text"]})
+                    if part["type"] == "text":
+                        content.append({"type": "text", "text": part["text"]})
+                    elif part["type"] == "reasoning":
+                        # Keep the slot for stable native IDs across worker upgrades.
+                        content.append({"type": "reasoning"})
                     elif part["type"] == "tool":
                         state = part["state"]
                         item = {

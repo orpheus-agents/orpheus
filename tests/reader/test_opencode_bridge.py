@@ -133,6 +133,31 @@ class BridgeTest(unittest.TestCase):
             [m["id"] for m in snapshot["messages"]], ["msg_x", "msg_y", "idle"]
         )
 
+    def test_reasoning_text_is_private_but_its_native_slot_is_preserved(self):
+        server = Stub()
+        server.messages = [
+            {
+                "id": "u",
+                "type": "user",
+                "text": "go",
+                "metadata": {"orpheus_run_id": "A"},
+            },
+            {
+                "id": "a",
+                "type": "assistant",
+                "content": [
+                    {"type": "reasoning", "text": "private reasoning"},
+                    {"type": "text", "text": "Checking the logs."},
+                ],
+            },
+        ]
+        snapshot = server.snapshot()
+        self.assertNotIn("private reasoning", json.dumps(snapshot))
+        self.assertEqual(
+            snapshot["messages"][1]["content"],
+            [{"type": "reasoning"}, {"type": "text", "text": "Checking the logs."}],
+        )
+
     def test_conflicting_200_and_foreign_run(self):
         s = Stub()
         args = {

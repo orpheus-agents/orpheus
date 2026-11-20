@@ -82,6 +82,7 @@ func (d *Driver) normalize(p projection) (harness.Snapshot, error) {
 		return snapshot, nil
 	}
 	t := harness.Turn{NativeID: p.Run, Status: session.Running}
+	itemIndex := 0
 	for _, m := range p.Messages {
 		switch m.Type {
 		case "user":
@@ -89,15 +90,17 @@ func (d *Driver) normalize(p projection) (harness.Snapshot, error) {
 			if !ok || uuid.Validate(id) != nil || uuid.Validate(m.Metadata.Operation) != nil || m.Metadata.Run != p.Run {
 				return snapshot, harness.Failure("context_lost", "Invalid identity in OpenCode transcript.")
 			}
-			t.Items = append(t.Items, harness.Item{NativeID: m.ID, Type: "user", InputID: id, OperationID: m.Metadata.Operation, Text: m.Text, Index: len(t.Items)})
+			t.Items = append(t.Items, harness.Item{NativeID: m.ID, Type: "user", InputID: id, OperationID: m.Metadata.Operation, Text: m.Text, Index: itemIndex})
+			itemIndex++
 		case "assistant":
 			for i, c := range m.Content {
-				item := harness.Item{NativeID: fmt.Sprintf("%s/%d", m.ID, i), Index: len(t.Items)}
+				item := harness.Item{NativeID: fmt.Sprintf("%s/%d", m.ID, i), Index: itemIndex}
+				itemIndex++
 				switch c.Type {
-				case "text", "reasoning":
+				case "text":
 					item.Type = "assistant"
 					item.Kind = new("progress")
-					if c.Type == "text" && m.Finish == "stop" {
+					if m.Finish == "stop" {
 						item.Kind = new("answer")
 					}
 					item.Text = d.redactor.RedactValues(c.Text)

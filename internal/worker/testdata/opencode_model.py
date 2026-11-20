@@ -72,7 +72,7 @@ class Model(BaseHTTPRequestHandler):
                 break
         if "LATE_CASE" in latest and not call and Path("late.started").exists():
             Path("late.answered").touch()
-        msg = {"role": "assistant"}
+        msg = {"role": "assistant", "reasoning_content": "PRIVATE_REASONING_FIXTURE"}
         if call:
             msg["tool_calls"] = [call]
         else:
@@ -98,7 +98,18 @@ class Model(BaseHTTPRequestHandler):
         self.end_headers()
         meta = {"id": "fixture", "model": "fixture", "created": 1}
         if req.get("stream"):
+            reasoning = msg.pop("reasoning_content")
             for choices, stats in [
+                (
+                    [
+                        {
+                            "index": 0,
+                            "delta": {"reasoning_content": reasoning},
+                            "finish_reason": None,
+                        }
+                    ],
+                    None,
+                ),
                 ([{"index": 0, "delta": msg, "finish_reason": None}], None),
                 ([{"index": 0, "delta": {}, "finish_reason": finish}], None),
                 ([], usage),

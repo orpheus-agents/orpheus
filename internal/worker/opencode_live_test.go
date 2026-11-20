@@ -164,6 +164,9 @@ func TestLiveOpenCodeDeliveryAndHistory(t *testing.T) {
 	}
 	count := 0
 	for _, m := range msgs {
+		if strings.Contains(m.Text, "PRIVATE_REASONING_FIXTURE") {
+			t.Fatal("OpenCode reasoning was published as a conversation message")
+		}
 		if m.Role == "user" {
 			count++
 			if m.DeliveryStatus == nil || *m.DeliveryStatus != "delivered" || m.NativeKey == nil {
