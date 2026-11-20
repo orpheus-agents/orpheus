@@ -526,7 +526,9 @@ func TestExecutorRunsWithBlockedAccountLimitRead(t *testing.T) {
 	r := &remote{}
 	e := executor(accepted.SessionID, s, r)
 	driver := &lifecycleLimitDriver{fakeDriver: &fakeDriver{r: r}, started: make(chan struct{})}
-	e.NewDriver = func(harness.Sandbox) harness.Driver { return driver }
+	e.NewDriver = func(harness.Sandbox, store.SessionRecord, uuid.UUID, session.Credentials) harness.Driver {
+		return driver
+	}
 	ctx, cancel := context.WithCancel(t.Context())
 	collector := newAccountLimitsCollector(ctx, s)
 	e.Limits = collector

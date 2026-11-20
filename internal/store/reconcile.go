@@ -77,6 +77,18 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 		return err
 	}
 	operationMessageIDs := make([]uuid.UUID, 0, len(operations))
+	for _, turn := range snapshot.Turns {
+		for _, item := range turn.Items {
+			if item.InputID != "" {
+				id, err := uuid.Parse(item.InputID)
+				if err != nil {
+					return err
+				}
+				operationMessageIDs = append(operationMessageIDs, id)
+			}
+		}
+	}
+
 	startRecoveryRunIDs := []uuid.UUID{}
 	for _, operation := range operations {
 		if operation.MessageID != nil {
@@ -146,7 +158,12 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 		}
 		candidates := []string{}
 		for _, t := range snapshot.Turns {
-			if !slices.Contains(params.PreviousTurns, t.NativeID) && slices.ContainsFunc(t.Items, func(item harness.Item) bool { return item.Type == "user" && item.Text == initial.Text }) {
+			if !slices.Contains(params.PreviousTurns, t.NativeID) && slices.ContainsFunc(t.Items, func(item harness.Item) bool {
+				if record.Configuration.Harness == "opencode" {
+					return t.NativeID == r.ID.String() && item.InputID == initial.ID.String() && item.OperationID == o.ID.String() && item.Text == initial.Text
+				}
+				return item.Type == "user" && item.Text == initial.Text
+			}) {
 				candidates = append(candidates, t.NativeID)
 			}
 		}
@@ -157,7 +174,7 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 			byTurn[candidates[0]] = r
 			for i := range messages {
 				m := &messages[i]
-				if m.RunID != r.ID || m.Role != "user" || m.DeliveryNumber == nil || initial.DeliveryNumber == nil || *m.DeliveryNumber > *initial.DeliveryNumber {
+				if record.Configuration.Harness == "opencode" || m.RunID != r.ID || m.Role != "user" || m.DeliveryNumber == nil || initial.DeliveryNumber == nil || *m.DeliveryNumber > *initial.DeliveryNumber {
 					continue
 				}
 				if m.DeliveryStatus != nil && slices.Contains([]string{"sending", "uncertain"}, *m.DeliveryStatus) {
@@ -212,6 +229,25 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 			position := &session.Position{RunNumber: r.Number, ItemIndex: item.Index}
 			if item.Type == "user" || item.Type == "assistant" {
 				message := byNative[nativeKey]
+				if item.InputID != "" {
+					id, err := uuid.Parse(item.InputID)
+					if err != nil {
+						return err
+					}
+					candidate := byID[id]
+					if candidate == nil || candidate.Role != "user" || candidate.Text != item.Text || candidate.RunID != r.ID {
+						return harness.Failure("context_lost", "OpenCode projected a conflicting input.")
+					}
+					op := byMessage[candidate.ID]
+					if op == nil {
+						op = starts[r.ID]
+					}
+					if op == nil || op.ID.String() != item.OperationID {
+						return harness.Failure("context_lost", "OpenCode input has a conflicting operation.")
+					}
+					op.Status = "confirmed"
+					message = candidate
+				}
 				if message == nil && item.Type == "user" {
 					for i := range messages {
 						candidate := &messages[i]
@@ -315,6 +351,35 @@ func Reconcile(ctx context.Context, tx pgx.Tx, record *SessionRecord, snapshot h
 						return err
 					}
 				}
+			}
+		}
+	}
+	if snapshot.FencedRun != "" {
+		runID, err := uuid.Parse(snapshot.FencedRun)
+		if err != nil {
+			return err
+		}
+		if !slices.Contains(runIDs, runID) {
+			return harness.Failure("context_lost", "OpenCode transport belongs to another run.")
+		}
+		// Native export has been reconciled and the run transport has closed
+		// admission and removed its inbox entries. No remaining input can arrive.
+		pending, err := Messages(ctx, tx, runID)
+		if err != nil {
+			return err
+		}
+		for i := range pending {
+			m := &pending[i]
+			if m.Role != "user" || m.DeliveryStatus == nil || !slices.Contains([]string{"sending", "uncertain"}, *m.DeliveryStatus) {
+				continue
+			}
+			m.DeliveryStatus = new("rejected")
+			m.Error = &session.Error{Code: "run_finished_before_delivery", Message: "Run finished before delivery.", Details: []session.Detail{}}
+			if err := PublishMessage(ctx, &writes, record, m); err != nil {
+				return err
+			}
+			if op := byMessage[m.ID]; op != nil {
+				op.Status = "failed"
 			}
 		}
 	}

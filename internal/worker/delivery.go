@@ -7,11 +7,13 @@ import (
 	"slices"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/harness"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
+	"github.com/orpheus-agents/orpheus/internal/store/db"
 )
 
 func (e *Executor) send(ctx context.Context, record store.SessionRecord, run store.RunRecord) error {
@@ -19,7 +21,34 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 	if err != nil {
 		return err
 	}
+	nativeIDs := record.Configuration.Harness == "opencode"
+	accepted := map[uuid.UUID]bool{}
+	var initialEnd *int
+	if nativeIDs {
+		journal, err := db.New(e.Store.Pool).ReconcileOperations(ctx, db.ReconcileOperationsParams{SessionID: e.ID, RunIds: []uuid.UUID{run.ID}})
+		if err != nil {
+			return err
+		}
+		for _, op := range journal {
+			if op.MessageID == nil {
+				continue
+			}
+			if op.Kind == "start" {
+				for _, m := range messages {
+					if m.ID == *op.MessageID {
+						initialEnd = m.DeliveryNumber
+						break
+					}
+				}
+			} else if op.Status == "confirmed" {
+				accepted[*op.MessageID] = true
+			}
+		}
+	}
 	index := slices.IndexFunc(messages, func(m store.MessageRecord) bool {
+		if nativeIDs && run.NativeTurnID != nil && (accepted[m.ID] || (initialEnd != nil && m.DeliveryNumber != nil && *m.DeliveryNumber <= *initialEnd)) {
+			return false
+		}
 		return m.Role == "user" && m.DeliveryStatus != nil && slices.Contains([]string{"pending", "sending", "uncertain"}, *m.DeliveryStatus)
 	})
 	if index < 0 {
@@ -32,7 +61,7 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 		kind = "start"
 		batch = nil
 		for _, candidate := range messages {
-			if candidate.Role == "user" && candidate.DeliveryNumber != nil {
+			if candidate.Role == "user" && candidate.DeliveryNumber != nil && (initialEnd == nil || *candidate.DeliveryNumber <= *initialEnd) {
 				batch = append(batch, candidate)
 			}
 		}
@@ -56,10 +85,11 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 	if err != nil {
 		return err
 	}
-	if o.Status == "sending" || o.Status == "uncertain" {
+	replay := o.Status == "sending" || o.Status == "uncertain"
+	if replay && !nativeIDs {
 		return e.observation(ctx, "uncertain")
 	}
-	if o.Status == "confirmed" {
+	if o.Status == "confirmed" && !nativeIDs {
 		return nil
 	}
 	send := false
@@ -102,17 +132,24 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 	if err != nil || !send {
 		return err
 	}
-	result, deliveryErr := e.invoke(ctx, o, func() (operationResult, error) {
-		if kind == "start" {
-			texts := make([]string, len(batch))
-			for i, input := range batch {
-				texts[i] = input.Text
-			}
-			id, err := e.driver.Start(ctx, record.Configuration.Public.Agent, *record.ThreadID, texts)
-			return operationResult{TurnID: id}, err
+	delivery := harness.Delivery{RunID: run.ID.String(), OperationID: o.ID.String(), Replay: replay}
+	for _, m := range batch {
+		delivery.Inputs = append(delivery.Inputs, harness.Input{ID: m.ID.String(), Text: m.Text})
+	}
+	dispatch := func() (operationResult, error) {
+		id, err := e.driver.Deliver(ctx, record.Configuration.Public.Agent, *record.ThreadID, run.NativeTurnID, delivery)
+		return operationResult{TurnID: id}, err
+	}
+	var result operationResult
+	var deliveryErr error
+	if replay {
+		result, deliveryErr = dispatch()
+		if deliveryErr == nil {
+			deliveryErr = e.opStatus(ctx, o.ID, "confirmed", result)
 		}
-		return operationResult{}, e.driver.Steer(ctx, *record.ThreadID, *run.NativeTurnID, message.Text)
-	})
+	} else {
+		result, deliveryErr = e.invoke(ctx, o, dispatch)
+	}
 	if deliveryErr != nil {
 		deliveryErr = e.bindFailure(deliveryErr, record, &run)
 		fields := diagnostic.Capture(deliveryErr)
@@ -172,6 +209,11 @@ func (e *Executor) send(ctx context.Context, record store.SessionRecord, run sto
 			if err != nil {
 				return err
 			}
+			if nativeIDs {
+				// Admission to the OpenCode inbox precedes projection into model history.
+				// Reconcile confirms the persisted input ID on the next observation.
+				continue
+			}
 			m.DeliveryStatus = new("delivered")
 			if err := store.PublishMessage(ctx, tx, r, &m); err != nil {
 				return err
@@ -214,13 +256,17 @@ func (e *Executor) cancelRun(ctx context.Context, record store.SessionRecord, ru
 			return err
 		}
 	}
-	if o.Status != "pending" || e.driver == nil || record.ThreadID == nil || run.NativeTurnID == nil {
+	turn := run.NativeTurnID
+	if turn == nil && record.Configuration.Harness == "opencode" {
+		turn = new(run.ID.String())
+	}
+	if o.Status != "pending" || e.driver == nil || record.ThreadID == nil || turn == nil {
 		return nil
 	}
 	if err := e.opStatus(ctx, o.ID, "sending", nil); err != nil {
 		return err
 	}
-	err = e.driver.Interrupt(ctx, *record.ThreadID, *run.NativeTurnID)
+	err = e.driver.Interrupt(ctx, *record.ThreadID, *turn)
 	if errors.Is(err, harness.ErrRejected) {
 		return e.opStatus(ctx, o.ID, "confirmed", operationResult{Accepted: new(false)})
 	}
@@ -261,7 +307,7 @@ func (e *Executor) forceStop(ctx context.Context, record store.SessionRecord, ru
 		_ = e.driver.Close()
 		e.driver = nil
 	}
-	if run.ExecutionStartedAt != nil && run.NativeTurnID == nil {
+	if record.Configuration.Harness != "opencode" && run.ExecutionStartedAt != nil && run.NativeTurnID == nil {
 		messages, err := store.Messages(ctx, e.Store.Pool, run.ID)
 		if err != nil {
 			return err

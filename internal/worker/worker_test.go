@@ -185,6 +185,16 @@ func (d *fakeDriver) OpenContext(_ context.Context, _ session.AgentConfiguration
 }
 func (d *fakeDriver) HasUpdates() bool { return true }
 func (d *fakeDriver) Committed()       { d.r.usage = nil }
+func (d *fakeDriver) Deliver(ctx context.Context, agent session.AgentConfiguration, thread string, turn *string, delivery harness.Delivery) (string, error) {
+	if turn != nil {
+		return *turn, d.Steer(ctx, thread, *turn, delivery.Inputs[0].Text)
+	}
+	texts := make([]string, len(delivery.Inputs))
+	for i, v := range delivery.Inputs {
+		texts[i] = v.Text
+	}
+	return d.Start(ctx, agent, thread, texts)
+}
 func (d *fakeDriver) Start(_ context.Context, _ session.AgentConfiguration, _ string, texts []string) (string, error) {
 	r := d.r
 	r.rpcOrder = append(r.rpcOrder, "start")
@@ -279,7 +289,9 @@ func setupSession(t *testing.T, multiple bool, sandbox session.SandboxInput, run
 }
 func executor(id uuid.UUID, s *store.Store, r *remote) *Executor {
 	e := NewExecutor(id, s, r)
-	e.NewDriver = func(harness.Sandbox) harness.Driver { return &fakeDriver{r: r} }
+	e.NewDriver = func(harness.Sandbox, store.SessionRecord, uuid.UUID, session.Credentials) harness.Driver {
+		return &fakeDriver{r: r}
+	}
 	e.NewAccount = func(context.Context, harness.Sandbox, string, session.Credentials) (credentials.Sync, error) {
 		return &fakeAccount{r}, nil
 	}

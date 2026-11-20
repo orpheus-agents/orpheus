@@ -25,7 +25,7 @@ func SeedProfile(t *testing.T, pool *pgxpool.Pool, cipher *secret.Cipher, name, 
 	if err := q.CreateSecret(t.Context(), db.CreateSecretParams{ID: secretID, Nonce: value.Nonce, Ciphertext: value.Ciphertext}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := q.CreateLLMAccount(t.Context(), db.CreateLLMAccountParams{ID: accountID, Name: name, Harness: "codex", AuthMode: "api_key", Active: true, ApiKeySecretID: &secretID}); err != nil {
+	if _, err := q.CreateLLMAccount(t.Context(), db.CreateLLMAccountParams{ID: accountID, Name: name, Harness: "codex", Provider: "openai", AuthMode: "api_key", Active: true, ApiKeySecretID: &secretID}); err != nil {
 		t.Fatal(err)
 	}
 	profile, err := q.CreateModelProfile(t.Context(), db.CreateModelProfileParams{ID: uuid.New(), Name: name, LlmAccountID: accountID, Model: model, Codex: []byte("{}"), Active: true})
@@ -40,7 +40,7 @@ func SeedFileAccount(t *testing.T, pool *pgxpool.Pool, storeName, key string, me
 	t.Helper()
 	id := uuid.New()
 	q := db.New(pool)
-	if _, err := q.CreateLLMAccount(t.Context(), db.CreateLLMAccountParams{ID: id, Name: "File account", Harness: "codex", AuthMode: "account", Active: true, CredentialStore: &storeName, CredentialKey: &key}); err != nil {
+	if _, err := q.CreateLLMAccount(t.Context(), db.CreateLLMAccountParams{ID: id, Name: "File account", Harness: "codex", Provider: "openai", AuthMode: "account", Active: true, CredentialStore: &storeName, CredentialKey: &key}); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range profiles {

@@ -1,7 +1,6 @@
 # Account limits
 
-Orpheus reads ChatGPT rate limits from active, initialized Codex app-servers and
-serves their latest snapshots at `GET /api/v1/accounts/limits`. The endpoint does
+Orpheus serves provider quota snapshots at `GET /api/v1/accounts/limits`. The endpoint does
 not contact Codex, read credentials, or wake a sandbox. It accepts Bearer auth
 and the read-only browser modes described in [browser authentication](browser-auth.md).
 
@@ -11,11 +10,21 @@ Account creation and profile changes do not require a restart. An inactive
 account still reports observations from its existing sessions.
 
 The optional `account_ids` query is a comma-separated list of 1–200 UUIDs.
-Omit it for all file accounts; unknown IDs produce no item. The account list UI
+Omit it for all accounts with a supported quota source; unknown IDs produce no item. The account list UI
 uses this filter to request only the visible page. Existing observations retain
 their timestamps when imported; they are not discarded or marked fresh.
 
-API-key-only installations return an empty `items` list. Account profiles
+The worker reads quota according to the account provider and authentication:
+
+| Account | Source | Reported allowance |
+| --- | --- | --- |
+| Codex account file | Active Codex app-server | ChatGPT limits and available reset credits |
+| OpenCode Console account file | Active OpenCode server in its workspace | Go rolling five-hour, weekly and monthly windows. A credits-only workspace can return zero buckets. |
+| Global Kimi Coding Plan API key (`kimi-code-plan-global`) | Kimi Coding Plan usage API, independently of a running sandbox | One bucket per reported ID. Monthly total and monthly coding are separate. |
+| Other API keys | None | No entry |
+
+Replacing a Kimi key starts a new observation history for that source.
+The worker checks active Kimi keys about every two minutes. Account profiles
 without a successful sample appear as `unknown` or `unavailable`, never as 0% used.
 
 Each account item includes `reset_credits_available`: the last observed number
@@ -57,7 +66,7 @@ token budgets.
 The count uses the same account freshness state and `observed_at` as the windows.
 It can remain visible when stale; that does not confirm that those resets are
 still available. [Service metrics](service-metrics.md) export the same snapshot.
-There is intentionally no continuous polling when no active donor exists.
+Codex and OpenCode Console polling requires an active donor.
 
 The sanitized fixture in `tests/fixtures/codex-rate-limits-0.156.1.json` follows
 the JSON schema generated from the AgentBox `codex` template on 2026-09-24.

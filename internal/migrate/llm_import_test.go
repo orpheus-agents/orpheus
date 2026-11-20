@@ -53,7 +53,7 @@ func TestLLMEmptyInstallAndReplayWithoutInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if _, err := p.Up(t.Context()); err != nil {
+		if _, err := p.UpTo(t.Context(), 31); err != nil {
 			t.Fatal(err)
 		}
 	}

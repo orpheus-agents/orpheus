@@ -12,8 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/orpheus-agents/orpheus/internal/config"
+	"github.com/orpheus-agents/orpheus/internal/credentials"
 	"github.com/orpheus-agents/orpheus/internal/diagnostic"
 	"github.com/orpheus-agents/orpheus/internal/harness"
+	"github.com/orpheus-agents/orpheus/internal/harness/opencode"
 	"github.com/orpheus-agents/orpheus/internal/session"
 	"github.com/orpheus-agents/orpheus/internal/store"
 )
@@ -127,10 +129,19 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 			return err
 		}
 	}
-	if e.driver != nil && !repair {
+	isOpenCode := cfg.Harness == "opencode"
+	rotating := isOpenCode && e.driver != nil && e.driverRunID != run.ID
+	if e.driver != nil && !repair && !rotating {
 		return nil
 	}
 	if e.driver != nil {
+		if isOpenCode && e.account != nil {
+			if err := flushAccount(ctx, e.account); err != nil {
+				return err
+			}
+			_ = e.account.Close()
+			e.account = nil
+		}
 		if e.unregisterLimits != nil {
 			e.unregisterLimits()
 			e.unregisterLimits = nil
@@ -185,10 +196,16 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 		}
 	}
 	repair = repair && (launch == nil || launch.RunID == nil || *launch.RunID != run.ID)
-	if repair && process != nil {
+	previousRun := isOpenCode && launch != nil && launch.RunID != nil && *launch.RunID != run.ID
+	if previousRun && process != nil && source.Mode == "account" && !rotating {
+		if err := e.flushSavedConsole(ctx, *record, *launch.RunID, source, process); err != nil {
+			return err
+		}
+	}
+	if (repair || previousRun) && process != nil {
 		return e.sandbox.Kill(ctx, process.PID)
 	}
-	driver := e.NewDriver(e.sandbox)
+	driver := e.NewDriver(e.sandbox, *record, run.ID, source)
 	adopted := false
 	var unregisterLimits func()
 	defer func() {
@@ -214,7 +231,9 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 				return err
 			}
 		}
-		e.account, err = e.NewAccount(ctx, e.sandbox, *record.HarnessHome, source)
+		if !isOpenCode {
+			e.account, err = e.NewAccount(ctx, e.sandbox, *record.HarnessHome, source)
+		}
 		if err != nil {
 			return harness.Failure("credentials_unavailable", "Account credentials are unavailable.")
 		}
@@ -256,7 +275,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 			if err != nil {
 				return harness.Failure("environment_unavailable", "Harness environment is unavailable.")
 			}
-			if e.account != nil {
+			if !isOpenCode && e.account != nil {
 				// A replacement process must not inherit credentials that became
 				// stale while its sandbox was paused or disconnected.
 				if err := e.account.Seed(ctx); err != nil {
@@ -303,6 +322,23 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 	}
 	if err := driver.Initialize(ctx, source, !initialized); err != nil {
 		return err
+	}
+	if isOpenCode && source.Mode == "account" {
+		account, err := credentials.NewOpenCode(ctx, e.sandbox, *record.HarnessHome, driver.(credentials.ConsoleClient), source, e.redactor)
+		if err != nil {
+			return harness.FailureCause("credentials_unavailable", "Cannot open OpenCode account credentials.", err)
+		}
+		if err = account.Seed(ctx); err != nil {
+			_ = account.Close()
+			return harness.FailureCause("credentials_unavailable", "Cannot synchronize OpenCode account credentials.", err)
+		}
+		e.account = account
+		defer func() {
+			if !adopted {
+				_ = account.Close()
+				e.account = nil
+			}
+		}()
 	}
 	if e.Limits != nil {
 		unregisterLimits = e.Limits.Register(e.ID, cfg.Harness, source, driver)
@@ -358,6 +394,7 @@ func (e *Executor) ensureHarness(ctx context.Context, record *store.SessionRecor
 		}
 	}
 	e.driver = driver
+	e.driverRunID = run.ID
 	e.unregisterLimits = unregisterLimits
 	adopted = true
 	return nil
@@ -379,11 +416,14 @@ func (e *Executor) recoverDead(ctx context.Context, record store.SessionRecord, 
 		if err := store.Reconcile(ctx, tx, r, snapshot); err != nil {
 			return err
 		}
+		if err := store.ApplyUsage(ctx, tx, r, snapshot.Usage); err != nil {
+			return err
+		}
 		current, err := store.GetRun(ctx, tx, e.ID, run.ID)
 		if err != nil {
 			return err
 		}
-		if current.Status.Terminal() {
+		if current.Status.Terminal() || current.AgentStatus != nil {
 			return nil
 		}
 		if current.CancelRequestedAt != nil {
@@ -528,6 +568,9 @@ func (e *Executor) deleteNow(ctx context.Context, record store.SessionRecord) er
 			err := e.finalAuthSync(ctx, record, last)
 			absent = errors.Is(err, harness.ErrNotFound)
 			if err != nil && !absent {
+				if record.Configuration.Harness == "opencode" {
+					return err
+				}
 				slog.WarnContext(ctx, "Final account sync preparation failed; deleting sandbox", "session_id", e.ID, "error_type", diagnostic.Describe(err))
 			}
 		}
@@ -580,13 +623,27 @@ func (e *Executor) finalAuthSync(ctx context.Context, record store.SessionRecord
 			}
 			e.sandbox = box
 		}
+		if record.Configuration.Harness == "opencode" && e.account == nil {
+			processes, err := e.sandbox.Processes(ctx)
+			if err != nil {
+				return err
+			}
+			err = e.flushSavedConsole(ctx, record, last.ID, source, matching(processes, record.ProcessID, record.LaunchID))
+			if err != nil {
+				return err
+			}
+			e.settleAuthSynced = true
+			return nil
+		}
 		if e.account == nil {
 			e.account, err = e.NewAccount(ctx, e.sandbox, *record.HarnessHome, source)
 			if err != nil {
 				return err
 			}
 		}
-		e.account.Sync(ctx, true)
+		if err := flushAccount(ctx, e.account); err != nil {
+			return err
+		}
 	}
 	e.settleAuthSynced = true
 	return nil
@@ -619,4 +676,39 @@ func (e *Executor) releaseEnvironment(ctx context.Context, record store.SessionR
 		}
 		return nil
 	})
+}
+
+func (e *Executor) consoleDriver(record store.SessionRecord, run uuid.UUID, source session.Credentials) *opencode.Driver {
+	return opencode.New(e.sandbox, e.Store.Settings.RPCTimeout, e.Store.Settings.MaxToolResultBytes, e.redactor, e.ID, run, record.Configuration.Public.Sandbox.Template, source.Provider, record.Configuration.Public.Agent.Model)
+}
+func flushAccount(ctx context.Context, sync credentials.Sync) error {
+	if f, ok := sync.(interface{ Flush(context.Context) error }); ok {
+		if err := f.Flush(ctx); err != nil {
+			return harness.FailureCause("credentials_unavailable", "OpenCode account credential synchronization failed.", err)
+		}
+	} else {
+		sync.Sync(ctx, true)
+	}
+	return nil
+}
+func (e *Executor) flushSavedConsole(ctx context.Context, record store.SessionRecord, run uuid.UUID, source session.Credentials, process *harness.Process) error {
+	if record.HarnessHome == nil {
+		return nil
+	}
+	driver := e.consoleDriver(record, run, source)
+	defer func() { _ = driver.Close() }()
+	if process != nil {
+		if err := driver.Attach(ctx, process.PID); err != nil {
+			return err
+		}
+		if err := driver.Initialize(ctx, source, false); err != nil {
+			return err
+		}
+	}
+	sync, err := credentials.NewOpenCode(ctx, e.sandbox, *record.HarnessHome, driver, source, e.redactor)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = sync.Close() }()
+	return flushAccount(ctx, sync)
 }

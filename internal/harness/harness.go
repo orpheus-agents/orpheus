@@ -32,16 +32,17 @@ func FailureCause(code, message string, cause error) error {
 }
 
 type Item struct {
-	NativeID, Type   string
-	Index            int
-	Text             string
-	Kind             *string
-	Name             string
-	Input            json.RawMessage
-	Status           string
-	Result           json.RawMessage
-	Completeness     string
-	TruncationReason *string
+	InputID, OperationID string
+	NativeID, Type       string
+	Index                int
+	Text                 string
+	Kind                 *string
+	Name                 string
+	Input                json.RawMessage
+	Status               string
+	Result               json.RawMessage
+	Completeness         string
+	TruncationReason     *string
 }
 type Turn struct {
 	NativeID     string
@@ -51,10 +52,12 @@ type Turn struct {
 	ErrorMessage string
 }
 type Snapshot struct {
-	Usage  []UsageReport
-	Turns  []Turn
-	Path   *string
-	Offset int64
+	// After the native transport is fenced, unmatched inputs of this run are definitively undelivered.
+	FencedRun string
+	Usage     []UsageReport
+	Turns     []Turn
+	Path      *string
+	Offset    int64
 }
 
 // UsageReport carries cumulative counters for a native context, attributed to
@@ -107,6 +110,15 @@ type Platform interface {
 	Info(context.Context, string) (string, error)
 	Connect(context.Context, string, time.Duration) (Sandbox, error)
 }
+type Input struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
+}
+type Delivery struct {
+	RunID, OperationID string
+	Inputs             []Input
+	Replay             bool
+}
 type Driver interface {
 	StateDir(context.Context) (string, error)
 	Launch(context.Context, map[string]string, string, session.Credentials) (int, error)
@@ -116,8 +128,7 @@ type Driver interface {
 	Recover(context.Context, *string, *string, *string) (Snapshot, error)
 	HasUpdates() bool
 	Committed()
-	Start(context.Context, session.AgentConfiguration, string, []string) (string, error)
-	Steer(context.Context, string, string, string) error
+	Deliver(context.Context, session.AgentConfiguration, string, *string, Delivery) (string, error)
 	Interrupt(context.Context, string, string) error
 	Snapshot(context.Context, string, *string, int64) (Snapshot, error)
 	Close() error

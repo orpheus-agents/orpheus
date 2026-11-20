@@ -59,6 +59,7 @@ type RPC struct {
 	mu              sync.Mutex
 	pending         map[string]chan rpcMessage
 	notifications   []notification
+	generation      uint64
 	dirty           bool
 	limitsDirty     bool
 	limitsChanged   chan struct{}
@@ -187,6 +188,10 @@ func (r *RPC) receive(ctx context.Context, line []byte) {
 			return
 		}
 		switch message.Method {
+		case "harness/changed":
+			r.mu.Lock()
+			r.generation++
+			r.mu.Unlock()
 		case "account/rateLimits/updated":
 			r.mu.Lock()
 			r.limitsDirty = true
@@ -397,3 +402,5 @@ func (r *RPC) Close() error {
 	<-r.done
 	return err
 }
+
+func (r *RPC) Generation() uint64 { r.mu.Lock(); defer r.mu.Unlock(); return r.generation }

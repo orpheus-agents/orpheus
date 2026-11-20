@@ -135,16 +135,18 @@ type CredentialStore struct {
 	EndpointURL *string `json:"endpoint_url" toml:"endpoint_url"`
 }
 type Credentials struct {
-	Mode      string           `json:"mode" toml:"mode"`
-	AccountID string           `json:"account_id,omitzero" toml:"account_id"`
-	APIKey    string           `json:"-"`
-	Store     *CredentialStore `json:"store" toml:"-"`
-	Key       string           `json:"key" toml:"key"`
+	Harness, Provider, KeyVersion string           `json:"-" toml:"-"`
+	Mode                          string           `json:"mode" toml:"mode"`
+	AccountID                     string           `json:"account_id,omitzero" toml:"account_id"`
+	APIKey                        string           `json:"-"`
+	Store                         *CredentialStore `json:"store" toml:"-"`
+	Key                           string           `json:"key" toml:"key"`
 }
 type ResolvedConfiguration struct {
-	Version int           `json:"version"`
-	Harness string        `json:"harness"`
-	Public  Configuration `json:"public"`
+	Provider string        `json:"provider,omitempty"`
+	Version  int           `json:"version"`
+	Harness  string        `json:"harness"`
+	Public   Configuration `json:"public"`
 }
 type TextMessage struct {
 	ExternalKey *string         `json:"external_key,omitzero"`

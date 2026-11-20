@@ -43,11 +43,12 @@ func (s *Store) resolveProfile(ctx context.Context, tx pgx.Tx, in session.Config
 		return empty, uuid.Nil, err
 	}
 	snapshot, err := config.Resolve(in, input, account.Harness, s.Deployment, s.Settings.HarnessEnvAllowlist, s.Settings.DefaultMaxSessionTokens)
+	snapshot.Provider = account.Provider
 	return snapshot, account.ID, err
 }
 
 func (s *Store) credentialSource(row db.LlmAccount) (session.Credentials, error) {
-	out := session.Credentials{AccountID: row.ID.String(), Mode: row.AuthMode}
+	out := session.Credentials{AccountID: row.ID.String(), Mode: row.AuthMode, Harness: row.Harness, Provider: row.Provider}
 	if row.AuthMode == "account" {
 		if row.CredentialStore == nil || row.CredentialKey == nil {
 			return out, ErrCredentialsUnavailable

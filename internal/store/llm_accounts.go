@@ -35,7 +35,7 @@ func catalogError(err error, kind string) error {
 	return err
 }
 func accountView(row db.GetLLMAccountRow) llm.Account {
-	return llm.Account{ID: row.ID, Name: row.Name, Harness: row.Harness, AuthMode: row.AuthMode, Active: row.Active, CredentialStore: row.CredentialStore, Profiles: row.Profiles}
+	return llm.Account{ID: row.ID, Name: row.Name, Harness: row.Harness, Provider: row.Provider, AuthMode: row.AuthMode, Active: row.Active, CredentialStore: row.CredentialStore, Profiles: row.Profiles}
 }
 func (s *Store) accountKey(ctx context.Context, q db.DBTX, row db.LlmAccount) (string, error) {
 	if row.ApiKeySecretID == nil || s.Cipher == nil {
@@ -79,11 +79,11 @@ func (s *Store) CreateAccount(ctx context.Context, input llm.AccountInput) (llm.
 		return llm.AccountDetails{}, err
 	}
 	id := uuid.New()
-	args := db.CreateLLMAccountParams{ID: id, Name: in.Name, Harness: in.Harness, AuthMode: in.AuthMode, Active: *in.Active, CredentialStore: in.CredentialStore}
+	args := db.CreateLLMAccountParams{ID: id, Name: in.Name, Harness: in.Harness, Provider: in.Provider, AuthMode: in.AuthMode, Active: *in.Active, CredentialStore: in.CredentialStore}
 	var encrypted *secret.Value
 	if in.AuthMode == "account" {
 		args.CredentialKey = new("llm-accounts/" + id.String() + "/auth.json")
-		if credentials.Validate(in.AuthFile) != nil {
+		if credentials.ValidateFile(in.Harness, in.AuthFile) != nil {
 			return llm.AccountDetails{}, llm.Invalid("auth_file")
 		}
 		fileCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -219,7 +219,7 @@ func (s *Store) ReadAccountFile(ctx context.Context, id uuid.UUID) (credentials.
 	}
 	blob, err := files.Get(ctx)
 	if err == nil {
-		err = credentials.Validate(blob.Raw)
+		err = credentials.ValidateFile(row.Harness, blob.Raw)
 	}
 	if err == nil && blob.ETag == "" {
 		err = errors.New("missing ETag")
@@ -230,9 +230,6 @@ func (s *Store) ReplaceAccountFile(ctx context.Context, id uuid.UUID, raw []byte
 	if etag == "" || etag == "*" {
 		return "", llm.Invalid("If-Match")
 	}
-	if credentials.Validate(raw) != nil {
-		return "", llm.Invalid("auth_file")
-	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	row, err := db.New(s.Pool).ReadLLMAccount(ctx, id)
@@ -241,6 +238,9 @@ func (s *Store) ReplaceAccountFile(ctx context.Context, id uuid.UUID, raw []byte
 	}
 	if row.AuthMode != "account" {
 		return "", llm.Invalid("auth_mode")
+	}
+	if credentials.ValidateFile(row.Harness, raw) != nil {
+		return "", llm.Invalid("auth_file")
 	}
 	files, err := s.accountFiles(ctx, *row.CredentialStore, *row.CredentialKey)
 	if err != nil {

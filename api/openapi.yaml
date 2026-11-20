@@ -64,6 +64,7 @@ components:
               type: string
               enum:
               - codex
+              - opencode
             account_id:
               type: string
               format: uuid
@@ -213,6 +214,7 @@ components:
           - name
           - harness
           - auth_mode
+          - provider
           - active
           - credential_store
           - profiles
@@ -228,6 +230,12 @@ components:
               type: string
               enum:
               - codex
+              - opencode
+            provider:
+              type: string
+              minLength: 1
+              maxLength: 128
+              description: Native model integration ID. Required for OpenCode API keys and inferred from the OpenCode Console account file for OAuth.
             auth_mode:
               type: string
               enum:
@@ -251,6 +259,7 @@ components:
           - name
           - harness
           - auth_mode
+          - provider
           - active
           - credential_store
           - profiles
@@ -267,6 +276,12 @@ components:
               type: string
               enum:
               - codex
+              - opencode
+            provider:
+              type: string
+              minLength: 1
+              maxLength: 128
+              description: Native model integration ID. Required for OpenCode API keys and inferred from the OpenCode Console account file for OAuth.
             auth_mode:
               type: string
               enum:
@@ -326,6 +341,12 @@ components:
               type: string
               enum:
               - codex
+              - opencode
+            provider:
+              type: string
+              minLength: 1
+              maxLength: 128
+              description: Native model integration ID. Required for OpenCode API keys and inferred from the OpenCode Console account file for OAuth.
             auth_mode:
               type: string
               enum:
@@ -2510,7 +2531,7 @@ paths:
             items:
               type: string
               format: uuid
-          description: Comma-separated account UUIDs. Omit to read all account-file identities.
+          description: Comma-separated account UUIDs. Omit to read all accounts with supported quota sources.
     /api/v1/analytics/overview:
         get:
             operationId: get_analytics_overview

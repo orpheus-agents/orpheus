@@ -186,6 +186,19 @@ func (d *Driver) HasUpdates() bool {
 	return notify || dirty || len(d.usage) > 0 || d.thread == nil || !time.Now().Before(d.readAt)
 }
 func (d *Driver) Committed() { clear(d.outputs); d.usage = nil }
+func (d *Driver) Deliver(ctx context.Context, agent session.AgentConfiguration, thread string, turn *string, delivery harness.Delivery) (string, error) {
+	if len(delivery.Inputs) == 0 {
+		return "", harness.ErrRejected
+	}
+	if turn != nil {
+		return *turn, d.Steer(ctx, thread, *turn, delivery.Inputs[0].Text)
+	}
+	texts := make([]string, len(delivery.Inputs))
+	for i, input := range delivery.Inputs {
+		texts[i] = input.Text
+	}
+	return d.Start(ctx, agent, thread, texts)
+}
 func (d *Driver) Start(ctx context.Context, agent session.AgentConfiguration, thread string, texts []string) (string, error) {
 	if len(texts) == 0 {
 		return "", harness.ErrRejected

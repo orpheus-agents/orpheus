@@ -58,21 +58,17 @@ func (d *faultDriver) Launch(ctx context.Context, env map[string]string, cwd str
 	}
 	return pid, err
 }
-func (d *faultDriver) Start(ctx context.Context, agent session.AgentConfiguration, thread string, texts []string) (string, error) {
-	id, err := d.Driver.Start(ctx, agent, thread, texts)
-	if err == nil && !d.lost["start"] {
-		d.lost["start"] = true
+func (d *faultDriver) Deliver(ctx context.Context, agent session.AgentConfiguration, thread string, turn *string, input harness.Delivery) (string, error) {
+	id, err := d.Driver.Deliver(ctx, agent, thread, turn, input)
+	key := "start"
+	if turn != nil {
+		key = "steer"
+	}
+	if err == nil && !d.lost[key] {
+		d.lost[key] = true
 		return "", harness.ErrUncertain
 	}
 	return id, err
-}
-func (d *faultDriver) Steer(ctx context.Context, thread, turn, text string) error {
-	err := d.Driver.Steer(ctx, thread, turn, text)
-	if err == nil && !d.lost["steer"] {
-		d.lost["steer"] = true
-		return harness.ErrUncertain
-	}
-	return err
 }
 func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 	for _, name := range []string{"AGENTBOX_API_KEY", "OPENAI_API_KEY"} {
@@ -131,7 +127,7 @@ func TestLiveCodexRecoveryPauseResume(t *testing.T) {
 		e.RunnerBinary = func(remotePath string) ([]byte, error) {
 			return os.ReadFile(filepath.Join(runnerDir, filepath.Base(remotePath)))
 		}
-		e.NewDriver = func(box harness.Sandbox) harness.Driver {
+		e.NewDriver = func(box harness.Sandbox, _ store.SessionRecord, _ uuid.UUID, _ session.Credentials) harness.Driver {
 			return &faultDriver{Driver: codex.New(box, settings.RPCTimeout, settings.MaxToolResultBytes, e.redactor), lost: lost}
 		}
 		return e

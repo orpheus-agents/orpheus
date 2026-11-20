@@ -73,11 +73,34 @@ func TestAccountCredentialsAndMasking(t *testing.T) {
 			t.Fatal(got, want)
 		}
 	}
+	for _, tc := range []struct{ harness, mode, provider, want string }{
+		{"codex", "api_key", "", "openai"},
+		{"opencode", "api_key", "kimi-code-plan-global", "kimi-code-plan-global"},
+		{"opencode", "api_key", "selectel", "selectel"},
+		{"opencode", "account", "", "opencode"},
+		{"opencode", "account", "opencode", "opencode"},
+	} {
+		a := AccountInput{Name: "Account", Harness: tc.harness, AuthMode: tc.mode, Provider: tc.provider}
+		if a.AuthMode == "api_key" {
+			a.APIKey = new("key")
+		} else {
+			a.CredentialStore = new("s")
+			a.AuthFile = json.RawMessage(`{}`)
+		}
+		got, err := NormalizeAccount(a)
+		if err != nil || got.Provider != tc.want {
+			t.Fatal(tc, got.Provider, err)
+		}
+	}
 	in := AccountInput{Name: "Account", Harness: "codex", AuthMode: "api_key", APIKey: new("key")}
 	if _, err := NormalizeAccount(in); err != nil {
 		t.Fatal(err)
 	}
 	for _, invalid := range []AccountInput{
+		{Name: "Account", Harness: "opencode", AuthMode: "api_key", APIKey: new("key")},
+		{Name: "Account", Harness: "codex", AuthMode: "api_key", Provider: "someone", APIKey: new("key")},
+		{Name: "Account", Harness: "opencode", AuthMode: "api_key", Provider: "https://example.org", APIKey: new("key")},
+		{Name: "Account", Harness: "opencode", AuthMode: "account", Provider: "opencode-go", CredentialStore: new("s"), AuthFile: json.RawMessage(`{}`)},
 		{Name: "Account", Harness: "codex", AuthMode: "api_key", APIKey: new(" ")},
 		{Name: "Account", Harness: "codex", AuthMode: "api_key", APIKey: new("key"), CredentialStore: new("s")},
 		{Name: "Account", Harness: "codex", AuthMode: "account", CredentialStore: new("s"), AuthFile: json.RawMessage(`null`)},
@@ -87,7 +110,7 @@ func TestAccountCredentialsAndMasking(t *testing.T) {
 			t.Fatal("invalid account accepted")
 		}
 	}
-	for _, raw := range []string{`{}`, `{"harness":"codex"}`, `{"auth_mode":"account"}`, `{"active":null}`, `{"name":" "}`} {
+	for _, raw := range []string{`{}`, `{"provider":"custom"}`, `{"harness":"codex"}`, `{"auth_mode":"account"}`, `{"active":null}`, `{"name":" "}`} {
 		if _, err := PatchAccount(Account{Name: "Account", Active: true}, []byte(raw)); err == nil {
 			t.Fatal("invalid account patch accepted", raw)
 		}

@@ -169,6 +169,7 @@ type AccountLimitsCollector struct {
 
 func newAccountLimitsCollector(ctx context.Context, s *store.Store) *AccountLimitsCollector {
 	c := &AccountLimitsCollector{ctx: ctx, save: s.SaveAccountLimitObservation, accounts: map[string]*limitAccount{}, sem: make(chan struct{}, 4)}
+	c.wg.Go(func() { pollKimiLimits(ctx, s, accountlimits.ReadKimi) })
 	return c
 }
 func (c *AccountLimitsCollector) Wait() { c.wg.Wait() }
@@ -438,7 +439,10 @@ func (c *AccountLimitsCollector) read(donor *limitDonor) limitObservation {
 	ctx, cancel := context.WithTimeout(donor.ctx, 3*time.Second)
 	defer cancel()
 	snapshot, err := donor.reader.ReadAccountLimits(ctx)
-	at := time.Now().UTC()
+	return observedLimit(ctx, time.Now().UTC(), snapshot, err)
+}
+
+func observedLimit(ctx context.Context, at time.Time, snapshot accountlimits.Snapshot, err error) limitObservation {
 	if err == nil {
 		return limitObservation{at: at, snapshot: &snapshot}
 	}

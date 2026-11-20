@@ -76,8 +76,8 @@ lint-docker: tools
 	$(RUN) hadolint .docker/app/dev/Dockerfile .docker/app/prod/Dockerfile .docker/tools/Dockerfile
 
 lint-reader: tools
-	$(RUN) ruff check internal/harness/codex/native_reader.py tests/reader
-	$(RUN) ruff format --check internal/harness/codex/native_reader.py tests/reader
+	$(RUN) ruff check internal/harness/codex/native_reader.py internal/harness/opencode/bridge.py internal/worker/testdata/opencode_model.py tests/reader
+	$(RUN) ruff format --check internal/harness/codex/native_reader.py internal/harness/opencode/bridge.py internal/worker/testdata/opencode_model.py tests/reader
 
 lint: lint-go lint-api lint-docker lint-reader
 
