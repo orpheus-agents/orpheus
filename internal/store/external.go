@@ -27,9 +27,13 @@ func (a Admission) validateExternal() error {
 	return nil
 }
 
-// ListFilter contains exact matches. Nil means no filter, never SQL NULL matching.
+// A nil ListFilter field means no filter, never SQL NULL matching.
 type ListFilter struct {
 	Namespace          *string    `json:"namespace"`
+	NamespaceContains  *string    `json:"namespace_contains,omitempty"`
+	Profile            *string    `json:"profile,omitempty"`
+	Model              *string    `json:"model,omitempty"`
+	ModelContains      *string    `json:"model_contains,omitempty"`
 	ExternalKey        *string    `json:"external_key"`
 	InputFingerprint   *string    `json:"input_fingerprint"`
 	Status             *string    `json:"status"`
@@ -73,6 +77,19 @@ func (f ListFilter) scope(resource string) (string, error) {
 	}
 	if resource == "sessions" {
 		f = f.sessionDefaults()
+		if err := session.ValidateExternal(f.NamespaceContains, session.NamespaceMaxBytes, "query", "namespace_contains"); err != nil {
+			return "", err
+		}
+		for _, field := range []struct {
+			name  string
+			value *string
+		}{
+			{"profile", f.Profile}, {"model", f.Model}, {"model_contains", f.ModelContains},
+		} {
+			if field.value != nil && !session.ValidText(*field.value) {
+				return "", invalidFilter(field.name)
+			}
+		}
 		if f.Activity != "all" && f.Activity != "active" && f.Activity != "inactive" {
 			return "", invalidFilter("activity")
 		}
@@ -100,6 +117,7 @@ func (f ListFilter) scope(resource string) (string, error) {
 		// Session-only filters are irrelevant to run cursors.
 		f.Activity, f.Sort = "", ""
 		f.LastRunCreatedFrom, f.LastRunCreatedTo = nil, nil
+		f.NamespaceContains, f.Profile, f.Model, f.ModelContains = nil, nil, nil, nil
 	}
 	// Structured encoding avoids collisions when opaque values contain separators.
 	raw, err := json.Marshal(struct {

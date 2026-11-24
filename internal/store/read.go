@@ -112,7 +112,13 @@ func (s *Store) ListSessions(ctx context.Context, limit int, cursor string, filt
 		}
 	}
 	err = s.Snapshot(ctx, func(tx pgx.Tx) error {
-		args := db.ListSessionsParams{Namespace: filter.Namespace, ExternalKey: filter.ExternalKey, Status: filter.Status, Activity: filter.Activity, LastRunCreatedFrom: filter.LastRunCreatedFrom, LastRunCreatedTo: filter.LastRunCreatedTo, FirstPage: cursor == "", AfterCreatedAt: pos.Date, AfterID: pos.ID, PageLimit: limit + 1}
+		args := db.ListSessionsParams{
+			Namespace: filter.Namespace, NamespaceContains: filter.NamespaceContains,
+			Profile: filter.Profile, Model: filter.Model, ModelContains: filter.ModelContains,
+			ExternalKey: filter.ExternalKey, Status: filter.Status, Activity: filter.Activity,
+			LastRunCreatedFrom: filter.LastRunCreatedFrom, LastRunCreatedTo: filter.LastRunCreatedTo,
+			FirstPage: cursor == "", AfterCreatedAt: pos.Date, AfterID: pos.ID, PageLimit: limit + 1,
+		}
 		var records []SessionRecord
 		var err error
 		switch {

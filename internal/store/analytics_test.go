@@ -4,6 +4,7 @@ package store
 
 import (
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -294,6 +295,82 @@ func TestDashboardSessionFiltersAndCursor(t *testing.T) {
 	fresh, err := s.ListSessions(ctx, 10, "", filter)
 	if err != nil || len(fresh.Items) != 3 || fresh.Items[0].ID != ids[2] || fresh.Items[1].ID != ids[1] {
 		t.Fatalf("fresh traversal: %+v %v", fresh, err)
+	}
+}
+
+func TestSessionProfileAndSubstringFilters(t *testing.T) {
+	s := fixture(t)
+	ctx := t.Context()
+	var ids []uuid.UUID
+	for _, row := range []struct {
+		namespace      *string
+		profile, model string
+	}{
+		{new("Ops%_Team"), "default", "GPT%_1"},
+		{new("pre/Ops%_Team"), "default", "gpt%_2"},
+		{new("Ops%_Team"), "archived", "GPT%_1"},
+		{new("OpsXYTeam"), "default", "GPTxy1"},
+		{nil, "default", "GPT%_1"},
+	} {
+		req := request()
+		req.Create.Namespace = row.namespace
+		req.Create.Configuration.Agent.Model = &row.model
+		a, err := s.Accept(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, a.SessionID)
+		if _, err := s.Pool.Exec(ctx, "UPDATE sessions SET configuration=jsonb_set(configuration,'{public,agent,profile}',to_jsonb($2::text)) WHERE id=$1", a.SessionID, row.profile); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, sort := range []string{"created_at", "last_run_created_at"} {
+		for _, order := range []string{"asc", "desc"} {
+			t.Run(sort+"/"+order, func(t *testing.T) {
+				filter := ListFilter{Sort: sort, Order: order, Profile: new("default"), NamespaceContains: new("OPS%_"), ModelContains: new("gPt%_")}
+				first, err := s.ListSessions(ctx, 1, "", filter)
+				if err != nil || len(first.Items) != 1 || first.NextCursor == nil {
+					t.Fatalf("first page: %+v %v", first, err)
+				}
+				second, err := s.ListSessions(ctx, 1, *first.NextCursor, filter)
+				if err != nil || len(second.Items) != 1 || second.NextCursor != nil {
+					t.Fatalf("second page: %+v %v", second, err)
+				}
+				got := []uuid.UUID{first.Items[0].ID, second.Items[0].ID}
+				want := slices.Clone(ids[:2])
+				if order == "desc" {
+					slices.Reverse(want)
+				}
+				if !slices.Equal(got, want) {
+					t.Fatalf("IDs %v, want %v", got, want)
+				}
+				for _, changed := range []ListFilter{
+					{Sort: sort, Order: order, Profile: new("default"), NamespaceContains: new("different"), ModelContains: filter.ModelContains},
+					{Sort: sort, Order: order, Profile: new("archived"), NamespaceContains: filter.NamespaceContains, ModelContains: filter.ModelContains},
+					{Sort: sort, Order: order, Profile: new("default"), NamespaceContains: filter.NamespaceContains, ModelContains: new("different")},
+					{Sort: sort, Order: order, Profile: new("default"), NamespaceContains: filter.NamespaceContains, ModelContains: filter.ModelContains, Model: new("GPT%_1")},
+				} {
+					_, err = s.ListSessions(ctx, 1, *first.NextCursor, changed)
+					requireCode(t, err, "invalid_cursor")
+				}
+				filter.Model, filter.Namespace = new("GPT%_1"), new("Ops%_Team")
+				exact, err := s.ListSessions(ctx, 10, "", filter)
+				if err != nil || len(exact.Items) != 1 || exact.Items[0].ID != ids[0] {
+					t.Fatalf("exact match: %+v %v", exact, err)
+				}
+				filter.Model = new("gpt%_1")
+				noMatch, err := s.ListSessions(ctx, 10, "", filter)
+				if err != nil || len(noMatch.Items) != 0 {
+					t.Fatalf("case-sensitive exact match: %+v %v", noMatch, err)
+				}
+			})
+		}
+	}
+	for _, bad := range []ListFilter{
+		{NamespaceContains: new("")}, {Profile: new(" ")}, {Model: new("bad\x00")}, {ModelContains: new("\t")},
+	} {
+		_, err := s.ListSessions(ctx, 10, "", bad)
+		requireCode(t, err, "validation_error")
 	}
 }
 

@@ -38,15 +38,10 @@ func (r Request) Resolve(asOf time.Time) (Query, error) {
 	if err := session.ValidateExternal(r.Namespace, session.NamespaceMaxBytes, "query", "namespace"); err != nil {
 		return q, err
 	}
-	if q.Bucket == "" {
-		q.Bucket = "hour"
-	}
-	if q.Bucket != "hour" && q.Bucket != "day" {
-		return q, Invalid("bucket")
-	}
 	if q.Timezone == "" {
 		q.Timezone = "UTC"
 	}
+	defaultBucket := "hour"
 	if r.From != nil || r.To != nil {
 		if r.Window != "" {
 			return q, Invalid("window")
@@ -58,6 +53,9 @@ func (r Request) Resolve(asOf time.Time) (Query, error) {
 			return q, Invalid("to")
 		}
 		q.From, q.To = r.From.UTC(), r.To.UTC()
+		if !q.From.Before(q.To) || q.To.Sub(q.From) > 31*24*time.Hour {
+			return q, Invalid("from")
+		}
 	} else {
 		q.To = q.AsOf
 		switch r.Window {
@@ -67,17 +65,30 @@ func (r Request) Resolve(asOf time.Time) (Query, error) {
 			q.From = q.To.Add(-7 * 24 * time.Hour)
 		case "30d":
 			q.From = q.To.Add(-30 * 24 * time.Hour)
+		case "3m", "6m", "1y":
+			months := map[string]int{"3m": 3, "6m": 6, "1y": 12}[r.Window]
+			q.From = subtractMonths(q.To, months)
+			defaultBucket = "day"
 		default:
 			return q, Invalid("window")
 		}
 	}
-	if !q.From.Before(q.To) || q.To.Sub(q.From) > 31*24*time.Hour {
-		return q, Invalid("from")
+	if q.Bucket == "" {
+		q.Bucket = defaultBucket
+	}
+	if q.Bucket != "day" && (q.Bucket != "hour" || defaultBucket == "day") {
+		return q, Invalid("bucket")
 	}
 	if q.To.After(q.AsOf) {
 		return q, Invalid("to")
 	}
 	return q, nil
+}
+
+func subtractMonths(t time.Time, months int) time.Time {
+	first := t.AddDate(0, 0, 1-t.Day()).AddDate(0, -months, 0)
+	lastDay := first.AddDate(0, 1, -1).Day()
+	return first.AddDate(0, 0, min(t.Day(), lastDay)-1)
 }
 
 type StatusCounts struct {

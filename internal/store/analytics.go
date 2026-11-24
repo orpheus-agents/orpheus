@@ -93,8 +93,7 @@ func (s *Store) AnalyticsOverview(ctx context.Context, request analytics.Request
 		if !validTimezone {
 			return analytics.Invalid("timezone")
 		}
-		// The 31-day limit currently stays below 800 hourly buckets; keep the
-		// explicit bound at the SQL edge if supported ranges change later.
+		// Enforce the response size limit using the actual local calendar boundaries.
 		var bucketCount int64
 		if err := tx.QueryRow(ctx, analyticsBucketCountSQL, q.Bucket, q.From, q.To, q.Timezone).Scan(&bucketCount); err != nil {
 			return err

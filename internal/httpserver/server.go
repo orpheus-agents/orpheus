@@ -165,7 +165,13 @@ func (s *Server) GetRun(ctx context.Context, r api.GetRunRequestObject) (api.Get
 	return mapResponse[api.GetRun200JSONResponse](v)
 }
 func (s *Server) ListSessions(ctx context.Context, r api.ListSessionsRequestObject) (api.ListSessionsResponseObject, error) {
-	v, err := s.Store.ListSessions(ctx, value(r.Params.Limit, 50), value(r.Params.Cursor, ""), store.ListFilter{Namespace: r.Params.Namespace, ExternalKey: r.Params.ExternalKey, Status: stringPointer(r.Params.Status), Order: string(value(r.Params.Order, "asc")), Activity: string(value(r.Params.Activity, "all")), Sort: string(value(r.Params.Sort, "created_at")), LastRunCreatedFrom: r.Params.LastRunCreatedFrom, LastRunCreatedTo: r.Params.LastRunCreatedTo})
+	v, err := s.Store.ListSessions(ctx, value(r.Params.Limit, 50), value(r.Params.Cursor, ""), store.ListFilter{
+		Namespace: r.Params.Namespace, NamespaceContains: r.Params.NamespaceContains,
+		Profile: r.Params.Profile, Model: r.Params.Model, ModelContains: r.Params.ModelContains,
+		ExternalKey: r.Params.ExternalKey, Status: stringPointer(r.Params.Status), Order: string(value(r.Params.Order, "asc")),
+		Activity: string(value(r.Params.Activity, "all")), Sort: string(value(r.Params.Sort, "created_at")),
+		LastRunCreatedFrom: r.Params.LastRunCreatedFrom, LastRunCreatedTo: r.Params.LastRunCreatedTo,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +181,7 @@ func (s *Server) GetAnalyticsOverview(ctx context.Context, r api.GetAnalyticsOve
 	if r.Params.Timezone != nil && *r.Params.Timezone == "" {
 		return nil, analytics.Invalid("timezone")
 	}
-	v, err := s.Store.AnalyticsOverview(ctx, analytics.Request{Window: string(value(r.Params.Window, "")), From: r.Params.From, To: r.Params.To, Bucket: string(value(r.Params.Bucket, "hour")), Timezone: value(r.Params.Timezone, "UTC"), Namespace: r.Params.Namespace})
+	v, err := s.Store.AnalyticsOverview(ctx, analytics.Request{Window: string(value(r.Params.Window, "")), From: r.Params.From, To: r.Params.To, Bucket: string(value(r.Params.Bucket, "")), Timezone: value(r.Params.Timezone, "UTC"), Namespace: r.Params.Namespace})
 	if err != nil {
 		return nil, err
 	}
