@@ -579,19 +579,27 @@ const listSessions = `-- name: ListSessions :many
 SELECT s.id, s.created_at, s.configuration, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs, s.env_secret_id, s.llm_account_id FROM sessions s
 JOIN runs latest ON latest.session_id = s.id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
-AND ($3::text IS NULL OR latest.status = $3::text)
+AND ($3::text IS NULL OR strpos(lower(s.namespace), lower($3::text)) > 0)
+AND ($4::text IS NULL OR s.configuration #>> '{public,agent,profile}' = $4::text)
+AND ($5::text IS NULL OR s.configuration #>> '{public,agent,model}' = $5::text)
+AND ($6::text IS NULL OR strpos(lower(s.configuration #>> '{public,agent,model}'), lower($6::text)) > 0)
+AND ($7::text IS NULL OR latest.status = $7::text)
 AND NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
-AND ($4::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($4::text = 'active'))
-AND ($5::timestamptz IS NULL OR latest.created_at >= $5::timestamptz)
-AND ($6::timestamptz IS NULL OR latest.created_at < $6::timestamptz)
-AND (s.created_at, s.id) > (CASE WHEN $7::boolean THEN '-infinity'::timestamptz ELSE $8::timestamptz END, $9::uuid)
+AND ($8::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($8::text = 'active'))
+AND ($9::timestamptz IS NULL OR latest.created_at >= $9::timestamptz)
+AND ($10::timestamptz IS NULL OR latest.created_at < $10::timestamptz)
+AND (s.created_at, s.id) > (CASE WHEN $11::boolean THEN '-infinity'::timestamptz ELSE $12::timestamptz END, $13::uuid)
 ORDER BY s.created_at ASC, s.id ASC
-LIMIT $10::int
+LIMIT $14::int
 `
 
 type ListSessionsParams struct {
 	Namespace          *string    `json:"namespace"`
 	ExternalKey        *string    `json:"external_key"`
+	NamespaceContains  *string    `json:"namespace_contains"`
+	Profile            *string    `json:"profile"`
+	Model              *string    `json:"model"`
+	ModelContains      *string    `json:"model_contains"`
 	Status             *string    `json:"status"`
 	Activity           string     `json:"activity"`
 	LastRunCreatedFrom *time.Time `json:"last_run_created_from"`
@@ -606,6 +614,10 @@ func (q *Queries) ListSessions(ctx context.Context, arg ListSessionsParams) ([]S
 	rows, err := q.db.Query(ctx, listSessions,
 		arg.Namespace,
 		arg.ExternalKey,
+		arg.NamespaceContains,
+		arg.Profile,
+		arg.Model,
+		arg.ModelContains,
 		arg.Status,
 		arg.Activity,
 		arg.LastRunCreatedFrom,
@@ -667,18 +679,26 @@ const listSessionsByLatest = `-- name: ListSessionsByLatest :many
 SELECT s.id, s.created_at, s.configuration, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs, s.env_secret_id, s.llm_account_id FROM runs latest JOIN sessions s ON s.id = latest.session_id
 WHERE NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
 AND ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
-AND ($3::text IS NULL OR latest.status = $3::text)
-AND ($4::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($4::text = 'active'))
-AND ($5::timestamptz IS NULL OR latest.created_at >= $5::timestamptz)
-AND ($6::timestamptz IS NULL OR latest.created_at < $6::timestamptz)
-AND (latest.created_at, s.id) > (CASE WHEN $7::boolean THEN '-infinity'::timestamptz ELSE $8::timestamptz END, $9::uuid)
+AND ($3::text IS NULL OR strpos(lower(s.namespace), lower($3::text)) > 0)
+AND ($4::text IS NULL OR s.configuration #>> '{public,agent,profile}' = $4::text)
+AND ($5::text IS NULL OR s.configuration #>> '{public,agent,model}' = $5::text)
+AND ($6::text IS NULL OR strpos(lower(s.configuration #>> '{public,agent,model}'), lower($6::text)) > 0)
+AND ($7::text IS NULL OR latest.status = $7::text)
+AND ($8::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($8::text = 'active'))
+AND ($9::timestamptz IS NULL OR latest.created_at >= $9::timestamptz)
+AND ($10::timestamptz IS NULL OR latest.created_at < $10::timestamptz)
+AND (latest.created_at, s.id) > (CASE WHEN $11::boolean THEN '-infinity'::timestamptz ELSE $12::timestamptz END, $13::uuid)
 ORDER BY latest.created_at ASC, s.id ASC
-LIMIT $10::int
+LIMIT $14::int
 `
 
 type ListSessionsByLatestParams struct {
 	Namespace          *string    `json:"namespace"`
 	ExternalKey        *string    `json:"external_key"`
+	NamespaceContains  *string    `json:"namespace_contains"`
+	Profile            *string    `json:"profile"`
+	Model              *string    `json:"model"`
+	ModelContains      *string    `json:"model_contains"`
 	Status             *string    `json:"status"`
 	Activity           string     `json:"activity"`
 	LastRunCreatedFrom *time.Time `json:"last_run_created_from"`
@@ -693,6 +713,10 @@ func (q *Queries) ListSessionsByLatest(ctx context.Context, arg ListSessionsByLa
 	rows, err := q.db.Query(ctx, listSessionsByLatest,
 		arg.Namespace,
 		arg.ExternalKey,
+		arg.NamespaceContains,
+		arg.Profile,
+		arg.Model,
+		arg.ModelContains,
 		arg.Status,
 		arg.Activity,
 		arg.LastRunCreatedFrom,
@@ -754,18 +778,26 @@ const listSessionsByLatestDesc = `-- name: ListSessionsByLatestDesc :many
 SELECT s.id, s.created_at, s.configuration, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs, s.env_secret_id, s.llm_account_id FROM runs latest JOIN sessions s ON s.id = latest.session_id
 WHERE NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
 AND ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
-AND ($3::text IS NULL OR latest.status = $3::text)
-AND ($4::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($4::text = 'active'))
-AND ($5::timestamptz IS NULL OR latest.created_at >= $5::timestamptz)
-AND ($6::timestamptz IS NULL OR latest.created_at < $6::timestamptz)
-AND (latest.created_at, s.id) < (CASE WHEN $7::boolean THEN 'infinity'::timestamptz ELSE $8::timestamptz END, $9::uuid)
+AND ($3::text IS NULL OR strpos(lower(s.namespace), lower($3::text)) > 0)
+AND ($4::text IS NULL OR s.configuration #>> '{public,agent,profile}' = $4::text)
+AND ($5::text IS NULL OR s.configuration #>> '{public,agent,model}' = $5::text)
+AND ($6::text IS NULL OR strpos(lower(s.configuration #>> '{public,agent,model}'), lower($6::text)) > 0)
+AND ($7::text IS NULL OR latest.status = $7::text)
+AND ($8::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($8::text = 'active'))
+AND ($9::timestamptz IS NULL OR latest.created_at >= $9::timestamptz)
+AND ($10::timestamptz IS NULL OR latest.created_at < $10::timestamptz)
+AND (latest.created_at, s.id) < (CASE WHEN $11::boolean THEN 'infinity'::timestamptz ELSE $12::timestamptz END, $13::uuid)
 ORDER BY latest.created_at DESC, s.id DESC
-LIMIT $10::int
+LIMIT $14::int
 `
 
 type ListSessionsByLatestDescParams struct {
 	Namespace          *string    `json:"namespace"`
 	ExternalKey        *string    `json:"external_key"`
+	NamespaceContains  *string    `json:"namespace_contains"`
+	Profile            *string    `json:"profile"`
+	Model              *string    `json:"model"`
+	ModelContains      *string    `json:"model_contains"`
 	Status             *string    `json:"status"`
 	Activity           string     `json:"activity"`
 	LastRunCreatedFrom *time.Time `json:"last_run_created_from"`
@@ -780,6 +812,10 @@ func (q *Queries) ListSessionsByLatestDesc(ctx context.Context, arg ListSessions
 	rows, err := q.db.Query(ctx, listSessionsByLatestDesc,
 		arg.Namespace,
 		arg.ExternalKey,
+		arg.NamespaceContains,
+		arg.Profile,
+		arg.Model,
+		arg.ModelContains,
 		arg.Status,
 		arg.Activity,
 		arg.LastRunCreatedFrom,
@@ -841,19 +877,27 @@ const listSessionsDesc = `-- name: ListSessionsDesc :many
 SELECT s.id, s.created_at, s.configuration, s.sandbox_state, s.sandbox_last_known_state, s.sandbox_error, s.sandbox_id, s.process_id, s.launch_id, s.thread_id, s.history_path, s.history_offset, s.workspace, s.harness_home, s.slot_reserved, s.next_run_number, s.next_event_sequence, s.namespace, s.external_key, s.input_tokens, s.output_tokens, s.total_tokens, s.cached_input_tokens, s.reasoning_output_tokens, s.cached_input_native_total, s.reasoning_output_native_total, s.allow_multiple_runs, s.env_secret_id, s.llm_account_id FROM sessions s
 JOIN runs latest ON latest.session_id = s.id
 WHERE ($1::text IS NULL OR s.namespace = $1::text) AND ($2::text IS NULL OR s.external_key = $2::text)
-AND ($3::text IS NULL OR latest.status = $3::text)
+AND ($3::text IS NULL OR strpos(lower(s.namespace), lower($3::text)) > 0)
+AND ($4::text IS NULL OR s.configuration #>> '{public,agent,profile}' = $4::text)
+AND ($5::text IS NULL OR s.configuration #>> '{public,agent,model}' = $5::text)
+AND ($6::text IS NULL OR strpos(lower(s.configuration #>> '{public,agent,model}'), lower($6::text)) > 0)
+AND ($7::text IS NULL OR latest.status = $7::text)
 AND NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
-AND ($4::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($4::text = 'active'))
-AND ($5::timestamptz IS NULL OR latest.created_at >= $5::timestamptz)
-AND ($6::timestamptz IS NULL OR latest.created_at < $6::timestamptz)
-AND (s.created_at, s.id) < (CASE WHEN $7::boolean THEN 'infinity'::timestamptz ELSE $8::timestamptz END, $9::uuid)
+AND ($8::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = ($8::text = 'active'))
+AND ($9::timestamptz IS NULL OR latest.created_at >= $9::timestamptz)
+AND ($10::timestamptz IS NULL OR latest.created_at < $10::timestamptz)
+AND (s.created_at, s.id) < (CASE WHEN $11::boolean THEN 'infinity'::timestamptz ELSE $12::timestamptz END, $13::uuid)
 ORDER BY s.created_at DESC, s.id DESC
-LIMIT $10::int
+LIMIT $14::int
 `
 
 type ListSessionsDescParams struct {
 	Namespace          *string    `json:"namespace"`
 	ExternalKey        *string    `json:"external_key"`
+	NamespaceContains  *string    `json:"namespace_contains"`
+	Profile            *string    `json:"profile"`
+	Model              *string    `json:"model"`
+	ModelContains      *string    `json:"model_contains"`
 	Status             *string    `json:"status"`
 	Activity           string     `json:"activity"`
 	LastRunCreatedFrom *time.Time `json:"last_run_created_from"`
@@ -868,6 +912,10 @@ func (q *Queries) ListSessionsDesc(ctx context.Context, arg ListSessionsDescPara
 	rows, err := q.db.Query(ctx, listSessionsDesc,
 		arg.Namespace,
 		arg.ExternalKey,
+		arg.NamespaceContains,
+		arg.Profile,
+		arg.Model,
+		arg.ModelContains,
 		arg.Status,
 		arg.Activity,
 		arg.LastRunCreatedFrom,

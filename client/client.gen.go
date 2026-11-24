@@ -939,17 +939,26 @@ func (e TruncatedResultType) Valid() bool {
 
 // Defines values for GetAnalyticsOverviewParamsWindow.
 const (
+	N1Y  GetAnalyticsOverviewParamsWindow = "1y"
 	N24H GetAnalyticsOverviewParamsWindow = "24h"
 	N30D GetAnalyticsOverviewParamsWindow = "30d"
+	N3M  GetAnalyticsOverviewParamsWindow = "3m"
+	N6M  GetAnalyticsOverviewParamsWindow = "6m"
 	N7D  GetAnalyticsOverviewParamsWindow = "7d"
 )
 
 // Valid indicates whether the value is a known member of the GetAnalyticsOverviewParamsWindow enum.
 func (e GetAnalyticsOverviewParamsWindow) Valid() bool {
 	switch e {
+	case N1Y:
+		return true
 	case N24H:
 		return true
 	case N30D:
+		return true
+	case N3M:
+		return true
+	case N6M:
 		return true
 	case N7D:
 		return true
@@ -1966,7 +1975,7 @@ type GetAccountLimitsParams struct {
 
 // GetAnalyticsOverviewParams defines parameters for GetAnalyticsOverview.
 type GetAnalyticsOverviewParams struct {
-	// Window Server-relative sliding window. Defaults to 24h; cannot be combined with from/to.
+	// Window Server-relative sliding window. Defaults to 24h; cannot be combined with from/to. The 3m, 6m and 1y windows subtract calendar months in UTC and require daily buckets.
 	Window *GetAnalyticsOverviewParamsWindow `form:"window,omitempty" json:"window,omitempty"`
 
 	// From Inclusive RFC 3339 timestamp with offset; requires to.
@@ -1975,7 +1984,7 @@ type GetAnalyticsOverviewParams struct {
 	// To Exclusive RFC 3339 timestamp with offset; requires from and cannot be later than as_of. Range at most 31 days.
 	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
 
-	// Bucket Local calendar hour or day; at most 800 buckets.
+	// Bucket Local calendar hour or day; at most 800 buckets. Defaults to day for 3m, 6m and 1y, and to hour otherwise.
 	Bucket *GetAnalyticsOverviewParamsBucket `form:"bucket,omitempty" json:"bucket,omitempty"`
 
 	// Timezone IANA timezone for bucket boundaries; timestamps in the response are UTC.
@@ -2051,13 +2060,25 @@ type ListSessionsParams struct {
 	LastRunCreatedFrom *time.Time `form:"last_run_created_from,omitempty" json:"last_run_created_from,omitempty"`
 
 	// LastRunCreatedTo Exclusive upper bound for the latest run creation time; requires last_run_created_from. Range at most 31 days.
-	LastRunCreatedTo *time.Time               `form:"last_run_created_to,omitempty" json:"last_run_created_to,omitempty"`
-	Namespace        *string                  `form:"namespace,omitempty" json:"namespace,omitempty"`
-	ExternalKey      *string                  `form:"external_key,omitempty" json:"external_key,omitempty"`
-	Status           *RunStatus               `form:"status,omitempty" json:"status,omitempty"`
-	Order            *ListSessionsParamsOrder `form:"order,omitempty" json:"order,omitempty"`
-	Limit            *int                     `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor           *string                  `form:"cursor,omitempty" json:"cursor,omitempty"`
+	LastRunCreatedTo *time.Time `form:"last_run_created_to,omitempty" json:"last_run_created_to,omitempty"`
+	Namespace        *string    `form:"namespace,omitempty" json:"namespace,omitempty"`
+
+	// NamespaceContains Literal case-insensitive substring, combined with namespace using AND. 1–128 UTF-8 bytes, no NUL or whitespace-only value.
+	NamespaceContains *string `form:"namespace_contains,omitempty" json:"namespace_contains,omitempty"`
+
+	// Profile Exact case-sensitive match on the stored session profile name.
+	Profile *string `form:"profile,omitempty" json:"profile,omitempty"`
+
+	// Model Exact case-sensitive match on the stored session model.
+	Model *string `form:"model,omitempty" json:"model,omitempty"`
+
+	// ModelContains Literal case-insensitive substring of the stored session model, combined with model using AND.
+	ModelContains *string                  `form:"model_contains,omitempty" json:"model_contains,omitempty"`
+	ExternalKey   *string                  `form:"external_key,omitempty" json:"external_key,omitempty"`
+	Status        *RunStatus               `form:"status,omitempty" json:"status,omitempty"`
+	Order         *ListSessionsParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Limit         *int                     `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor        *string                  `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // ListSessionsParamsActivity defines parameters for ListSessions.
@@ -5054,6 +5075,54 @@ func NewListSessionsRequest(server string, params *ListSessionsParams) (*http.Re
 		if params.Namespace != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "namespace", *params.Namespace, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.NamespaceContains != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "namespace_contains", *params.NamespaceContains, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Profile != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "profile", *params.Profile, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Model != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "model", *params.Model, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ModelContains != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "model_contains", *params.ModelContains, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {

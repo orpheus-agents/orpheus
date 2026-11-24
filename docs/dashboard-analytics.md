@@ -7,7 +7,7 @@ curl -H 'Authorization: Bearer <key>' \
   'http://localhost:8000/api/v1/analytics/overview?window=7d&bucket=day&timezone=Europe%2FMoscow'
 ```
 
-The default query is a sliding 24-hour window with hourly UTC buckets. Choose `window=24h|7d|30d`, or supply both `from` and `to` as RFC 3339 timestamps with offsets. Explicit ranges are `[from,to)`, at most 31 days, and cannot end in the future. `namespace` is an exact match; omission includes all namespaces. Responses include the database snapshot time `as_of` and the resolved range.
+The default query is a sliding 24-hour window with hourly UTC buckets. Choose `window=24h|7d|30d|3m|6m|1y`, or supply both `from` and `to` as RFC 3339 timestamps with offsets. The longer presets subtract 3, 6 or 12 calendar months in UTC, clamp to the last day of the target month when needed, and use daily buckets. Explicit ranges are `[from,to)`, span at most 31 days and end no later than `as_of`. Omitting the exact `namespace` filter includes all namespaces. The response contains the database snapshot time `as_of` and the resolved range.
 
 `period` counts **runs created in the range**. `by_status` reports their status at `as_of`; the sum of the eight statuses equals `runs_count`. `usage` sums the stored run counters, including usage recorded after `to`; its values are decimal strings because an aggregate can exceed JavaScript's safe integer range. `cached_input_tokens` is included in `input_tokens`, and `reasoning_output_tokens` is included in `output_tokens`. The breakdown starts when its collection is enabled; earlier usage is not reconstructed. `runtime_seconds` sums each selected run's lifetime from creation to its finish or `as_of`. Parallel runs add their durations. `current.active_sessions` counts sessions with an unfinished run at `as_of`, regardless of the selected range.
 
@@ -15,7 +15,12 @@ The default query is a sliding 24-hour window with hourly UTC buckets. Choose `w
 
 `series` covers the whole range with zero-filled local calendar hours or days. The first and last buckets may be partial. Bucket timestamps are UTC, so repeated local hours at a daylight-saving transition have distinct `from` values. A response contains at most 800 buckets.
 
-`GET /api/v1/sessions` adds `activity=all|active|inactive`, `sort=created_at|last_run_created_at`, and a paired `last_run_created_from` / `last_run_created_to` range of at most 31 days. The list may end in the future; it remains live across pages. Filters combine with the existing namespace, external key and status filters. The `Session` resource now includes `last_run_created_at` in both list and detail responses. A list cursor is tied to all filters and the sort order; changing any of them requires starting from page one.
+`GET /api/v1/sessions` filters by activity, latest run status, external key and a paired `last_run_created_from` / `last_run_created_to` range of at most 31 days. Use `sort=created_at|last_run_created_at` to choose the timestamp for sorting.
+
+- `namespace`, `profile` and `model` match exact values. Profile and model come from the stored session configuration.
+- `namespace_contains` and `model_contains` match literal substrings without regard to case.
+
+Filters combine with AND. The live list cursor binds all filters and the sort order. Start from page one when changing any of them.
 
 For example, current sessions ordered by their latest run:
 

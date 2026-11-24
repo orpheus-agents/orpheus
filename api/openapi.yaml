@@ -2580,8 +2580,8 @@ paths:
             parameters:
                 - in: query
                   name: window
-                  description: Server-relative sliding window. Defaults to 24h; cannot be combined with from/to.
-                  schema: {type: string, enum: [24h, 7d, 30d]}
+                  description: Server-relative sliding window. Defaults to 24h; cannot be combined with from/to. The 3m, 6m and 1y windows subtract calendar months in UTC and require daily buckets.
+                  schema: {type: string, enum: [24h, 7d, 30d, 3m, 6m, 1y]}
                 - in: query
                   name: from
                   description: Inclusive RFC 3339 timestamp with offset; requires to.
@@ -2592,8 +2592,8 @@ paths:
                   schema: {type: string, format: date-time}
                 - in: query
                   name: bucket
-                  description: Local calendar hour or day; at most 800 buckets.
-                  schema: {type: string, enum: [hour, day], default: hour}
+                  description: Local calendar hour or day; at most 800 buckets. Defaults to day for 3m, 6m and 1y, and to hour otherwise.
+                  schema: {type: string, enum: [hour, day]}
                 - in: query
                   name: timezone
                   description: IANA timezone for bucket boundaries; timestamps in the response are UTC.
@@ -2870,6 +2870,22 @@ paths:
                     minLength: 1
                     maxLength: 128
                     description: Exact match; 1–128 UTF-8 bytes, no NUL or whitespace-only value.
+                - in: query
+                  name: namespace_contains
+                  description: Literal case-insensitive substring, combined with namespace using AND. 1–128 UTF-8 bytes, no NUL or whitespace-only value.
+                  schema: {type: string, minLength: 1, maxLength: 128}
+                - in: query
+                  name: profile
+                  description: Exact case-sensitive match on the stored session profile name.
+                  schema: {type: string, minLength: 1}
+                - in: query
+                  name: model
+                  description: Exact case-sensitive match on the stored session model.
+                  schema: {type: string, minLength: 1}
+                - in: query
+                  name: model_contains
+                  description: Literal case-insensitive substring of the stored session model, combined with model using AND.
+                  schema: {type: string, minLength: 1}
                 - in: query
                   name: external_key
                   required: false

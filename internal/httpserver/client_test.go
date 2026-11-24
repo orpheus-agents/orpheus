@@ -91,6 +91,13 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	if err != nil || listed.JSON200 == nil || len(listed.JSON200.Items) != 1 || listed.JSON200.Items[0].ID != a.SessionID {
 		t.Fatalf("sessions: %#v %v", listed, err)
 	}
+	model := got.JSON200.Configuration.Agent.Model
+	filtered, err := c.ListSessionsWithResponse(t.Context(), &client.ListSessionsParams{
+		NamespaceContains: new("NECTOR/"), Profile: new("default"), Model: &model, ModelContains: &model,
+	})
+	if err != nil || filtered.JSON200 == nil || len(filtered.JSON200.Items) != 1 || filtered.JSON200.Items[0].ID != a.SessionID {
+		t.Fatalf("filtered sessions: %#v %v", filtered, err)
+	}
 	active := client.ListSessionsParams{Activity: new(client.ListSessionsParamsActivity("active")), Sort: new(client.ListSessionsParamsSort("last_run_created_at")), Order: new(client.ListSessionsParamsOrder("desc"))}
 	listedActive, err := c.ListSessionsWithResponse(t.Context(), &active)
 	if err != nil || listedActive.JSON200 == nil || len(listedActive.JSON200.Items) != 1 || listedActive.JSON200.Items[0].LastRunCreatedAt.IsZero() {
@@ -99,6 +106,10 @@ func TestGeneratedClientAgainstServer(t *testing.T) {
 	analytics, err := c.GetAnalyticsOverviewWithResponse(t.Context(), &client.GetAnalyticsOverviewParams{Namespace: body.Namespace})
 	if err != nil || analytics.JSON200 == nil || analytics.JSON200.Period.RunsCount != 1 || analytics.JSON200.Current.ActiveSessions != 1 {
 		t.Fatalf("analytics: %#v %v", analytics, err)
+	}
+	year, err := c.GetAnalyticsOverviewWithResponse(t.Context(), &client.GetAnalyticsOverviewParams{Window: new(client.N1Y)})
+	if err != nil || year.JSON200 == nil || year.JSON200.Bucket != client.AnalyticsOverviewBucketDay || len(year.JSON200.Series) < 365 || year.JSON200.Period.RunsCount != 1 {
+		t.Fatalf("year overview: %#v %v", year, err)
 	}
 	runs, err := c.ListRunsWithResponse(t.Context(), a.SessionID, &client.ListRunsParams{InputFingerprint: body.InputFingerprint})
 	if err != nil || runs.JSON200 == nil || len(runs.JSON200.Items) != 1 || runs.JSON200.Items[0].ID != a.RunID {

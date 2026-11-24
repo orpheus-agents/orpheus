@@ -2,6 +2,10 @@
 SELECT s.* FROM sessions s
 JOIN runs latest ON latest.session_id = s.id
 WHERE (sqlc.narg(namespace)::text IS NULL OR s.namespace = sqlc.narg(namespace)::text) AND (sqlc.narg(external_key)::text IS NULL OR s.external_key = sqlc.narg(external_key)::text)
+AND (sqlc.narg(namespace_contains)::text IS NULL OR strpos(lower(s.namespace), lower(sqlc.narg(namespace_contains)::text)) > 0)
+AND (sqlc.narg(profile)::text IS NULL OR s.configuration #>> '{public,agent,profile}' = sqlc.narg(profile)::text)
+AND (sqlc.narg(model)::text IS NULL OR s.configuration #>> '{public,agent,model}' = sqlc.narg(model)::text)
+AND (sqlc.narg(model_contains)::text IS NULL OR strpos(lower(s.configuration #>> '{public,agent,model}'), lower(sqlc.narg(model_contains)::text)) > 0)
 AND (sqlc.narg(status)::text IS NULL OR latest.status = sqlc.narg(status)::text)
 AND NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
 AND (sqlc.arg(activity)::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = (sqlc.arg(activity)::text = 'active'))
@@ -15,6 +19,10 @@ LIMIT sqlc.arg(page_limit)::int;
 SELECT s.* FROM sessions s
 JOIN runs latest ON latest.session_id = s.id
 WHERE (sqlc.narg(namespace)::text IS NULL OR s.namespace = sqlc.narg(namespace)::text) AND (sqlc.narg(external_key)::text IS NULL OR s.external_key = sqlc.narg(external_key)::text)
+AND (sqlc.narg(namespace_contains)::text IS NULL OR strpos(lower(s.namespace), lower(sqlc.narg(namespace_contains)::text)) > 0)
+AND (sqlc.narg(profile)::text IS NULL OR s.configuration #>> '{public,agent,profile}' = sqlc.narg(profile)::text)
+AND (sqlc.narg(model)::text IS NULL OR s.configuration #>> '{public,agent,model}' = sqlc.narg(model)::text)
+AND (sqlc.narg(model_contains)::text IS NULL OR strpos(lower(s.configuration #>> '{public,agent,model}'), lower(sqlc.narg(model_contains)::text)) > 0)
 AND (sqlc.narg(status)::text IS NULL OR latest.status = sqlc.narg(status)::text)
 AND NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
 AND (sqlc.arg(activity)::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = (sqlc.arg(activity)::text = 'active'))
@@ -28,6 +36,10 @@ LIMIT sqlc.arg(page_limit)::int;
 SELECT s.* FROM runs latest JOIN sessions s ON s.id = latest.session_id
 WHERE NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
 AND (sqlc.narg(namespace)::text IS NULL OR s.namespace = sqlc.narg(namespace)::text) AND (sqlc.narg(external_key)::text IS NULL OR s.external_key = sqlc.narg(external_key)::text)
+AND (sqlc.narg(namespace_contains)::text IS NULL OR strpos(lower(s.namespace), lower(sqlc.narg(namespace_contains)::text)) > 0)
+AND (sqlc.narg(profile)::text IS NULL OR s.configuration #>> '{public,agent,profile}' = sqlc.narg(profile)::text)
+AND (sqlc.narg(model)::text IS NULL OR s.configuration #>> '{public,agent,model}' = sqlc.narg(model)::text)
+AND (sqlc.narg(model_contains)::text IS NULL OR strpos(lower(s.configuration #>> '{public,agent,model}'), lower(sqlc.narg(model_contains)::text)) > 0)
 AND (sqlc.narg(status)::text IS NULL OR latest.status = sqlc.narg(status)::text)
 AND (sqlc.arg(activity)::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = (sqlc.arg(activity)::text = 'active'))
 AND (sqlc.narg(last_run_created_from)::timestamptz IS NULL OR latest.created_at >= sqlc.narg(last_run_created_from)::timestamptz)
@@ -40,6 +52,10 @@ LIMIT sqlc.arg(page_limit)::int;
 SELECT s.* FROM runs latest JOIN sessions s ON s.id = latest.session_id
 WHERE NOT EXISTS (SELECT 1 FROM runs newer WHERE newer.session_id = latest.session_id AND newer.number > latest.number)
 AND (sqlc.narg(namespace)::text IS NULL OR s.namespace = sqlc.narg(namespace)::text) AND (sqlc.narg(external_key)::text IS NULL OR s.external_key = sqlc.narg(external_key)::text)
+AND (sqlc.narg(namespace_contains)::text IS NULL OR strpos(lower(s.namespace), lower(sqlc.narg(namespace_contains)::text)) > 0)
+AND (sqlc.narg(profile)::text IS NULL OR s.configuration #>> '{public,agent,profile}' = sqlc.narg(profile)::text)
+AND (sqlc.narg(model)::text IS NULL OR s.configuration #>> '{public,agent,model}' = sqlc.narg(model)::text)
+AND (sqlc.narg(model_contains)::text IS NULL OR strpos(lower(s.configuration #>> '{public,agent,model}'), lower(sqlc.narg(model_contains)::text)) > 0)
 AND (sqlc.narg(status)::text IS NULL OR latest.status = sqlc.narg(status)::text)
 AND (sqlc.arg(activity)::text = 'all' OR (latest.status IN ('accepted','starting','running','cancelling','finalizing')) = (sqlc.arg(activity)::text = 'active'))
 AND (sqlc.narg(last_run_created_from)::timestamptz IS NULL OR latest.created_at >= sqlc.narg(last_run_created_from)::timestamptz)
