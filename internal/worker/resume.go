@@ -50,7 +50,7 @@ func (e *Executor) prepareResume(ctx context.Context, rid uuid.UUID, sandboxID s
 // A session has one executor. The session lock orders each result against API
 // cancellation. No RPC is made under that lock or after a terminal decision.
 func (e *Executor) updateResume(ctx context.Context, o *store.Operation, method, state string, failure error) error {
-	lost := method == "Info" && errors.Is(failure, harness.ErrNotFound)
+	lost := errors.Is(failure, harness.ErrNotFound)
 	wait, firstFailure := false, false
 	outcome := ""
 	var details sandboxFailure
@@ -81,12 +81,12 @@ func (e *Executor) updateResume(ctx context.Context, o *store.Operation, method,
 		switch {
 		case run.CancelRequestedAt != nil:
 			outcome = "cancelled"
-		case !now.Before(*o.DeadlineAt):
-			outcome = "sandbox_resume_timeout"
-			problem = provisionProblem(outcome, fmt.Sprintf("Could not resume the sandbox within %s.", o.DeadlineAt.Sub(o.CreatedAt)))
 		case lost:
 			outcome = "sandbox_lost"
 			problem = provisionProblem(outcome, "Sandbox is no longer available.")
+		case !now.Before(*o.DeadlineAt):
+			outcome = "sandbox_resume_timeout"
+			problem = provisionProblem(outcome, fmt.Sprintf("Could not resume the sandbox within %s.", o.DeadlineAt.Sub(o.CreatedAt)))
 		case errors.Is(failure, harness.ErrRejected):
 			outcome = "environment_unavailable"
 			problem = provisionProblem(outcome, "Sandbox connection was rejected.")

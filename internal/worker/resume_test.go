@@ -164,7 +164,7 @@ func TestResumeLateResponse(t *testing.T) {
 }
 
 func TestResumePendingUpgradeAndProviderFailures(t *testing.T) {
-	for _, scenario := range []string{"old", "rejected", "lost", "info_retry", "cancel_backoff"} {
+	for _, scenario := range []string{"old", "rejected", "lost", "lost_on_connect", "info_retry", "cancel_backoff"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, p, a, e := pausedContinuation(t)
 			switch scenario {
@@ -180,6 +180,15 @@ func TestResumePendingUpgradeAndProviderFailures(t *testing.T) {
 				p.connectError = harness.ErrEnvironmentRejected
 			case "lost":
 				p.infoError = harness.ErrNotFound
+			case "lost_on_connect":
+				o, err := e.operation(t.Context(), "resume", &a.RunID, nil, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				now := o.CreatedAt
+				e.clock = func() time.Time { return now }
+				p.afterInfo = func() { now = o.CreatedAt.Add(s.Settings.SandboxProvisionTimeout - time.Millisecond) }
+				p.connectError = harness.ErrNotFound
 			case "info_retry", "cancel_backoff":
 				p.infoError = errors.New("network offline")
 			}
@@ -211,7 +220,7 @@ func TestResumePendingUpgradeAndProviderFailures(t *testing.T) {
 				if v.Error == nil || v.Error.Code != "environment_unavailable" {
 					t.Fatal(v)
 				}
-			case "lost":
+			case "lost", "lost_on_connect":
 				record, _, err := s.Read(t.Context(), a.SessionID)
 				if v.Error == nil || v.Error.Code != "sandbox_lost" || err != nil || record.SandboxState != "unavailable" || record.SlotReserved {
 					t.Fatal(v, err)
