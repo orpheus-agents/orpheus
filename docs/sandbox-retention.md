@@ -18,3 +18,23 @@ external deletion is discovered after acceptance, the run fails asynchronously
 with `sandbox_lost`. Replaying an accepted idempotency key still returns the
 original acceptance. Deploy connectors that handle `deleting` and `deleted`
 reusable sessions before deploying this worker version.
+
+## Resuming a sandbox for a new run
+
+The worker gives the first connection to an existing sandbox the same time
+budget as initial creation. `SANDBOX_PROVISION_TIMEOUT_SECONDS` defaults to 120.
+The deadline applies to both the state check and the connection. Transient
+errors are retried with backoff. The journal preserves the deadline and retry
+schedule across worker restarts, including upgrades from an earlier release.
+
+If the sandbox cannot be reached in time, the run fails during preparation
+with `sandbox_resume_timeout`. Cancellation finishes locally even during a
+provider outage. The session keeps its sandbox ID and workspace. A late
+connection cannot start a hook or dispatch the assignment. The worker settles
+the sandbox according to the session lifecycle. Confirmed loss of the sandbox
+produces `sandbox_lost`.
+
+The first provider failure records the method, error type and available HTTP
+status. The terminal resume log includes the operation ID, attempt count and
+elapsed time. After the first successful connection, hook execution and agent
+recovery follow their own deadlines.

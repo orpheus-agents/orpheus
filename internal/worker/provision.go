@@ -249,6 +249,39 @@ func (e *Executor) reserveCheck(ctx context.Context, o *store.Operation) (bool, 
 	return due, err
 }
 
+type sandboxFailure struct {
+	Code       string `json:"code"`
+	Method     string `json:"method,omitempty"`
+	HTTPStatus int    `json:"http_status,omitempty"`
+}
+
+func sandboxFailureDetails(failure error) sandboxFailure {
+	code := "platform_error"
+	if errors.Is(failure, context.DeadlineExceeded) {
+		code = "deadline_exceeded"
+	}
+	if errors.Is(failure, harness.ErrRejected) {
+		code = "rejected"
+	}
+	if errors.Is(failure, harness.ErrNotFound) {
+		code = "not_found"
+	}
+	if errors.Is(failure, errProvisionNotFound) {
+		code = "sandbox_not_found_yet"
+	}
+	if errors.Is(failure, errProvisionMultiple) {
+		code = "multiple_matches"
+	}
+	details := sandboxFailure{Code: code}
+	if upstream, ok := errors.AsType[interface {
+		HTTPStatus() int
+		error
+	}](failure); ok {
+		details.HTTPStatus = upstream.HTTPStatus()
+	}
+	return details
+}
+
 func (e *Executor) saveProvisionResult(ctx context.Context, o store.Operation, status string, result *operationResult, failure error) error {
 	return e.Store.Mutate(ctx, e.ID, false, func(tx pgx.Tx, _ *store.SessionRecord) error {
 		current, err := db.New(tx).GetSessionOperation(ctx, db.GetSessionOperationParams{ID: o.ID, SessionID: e.ID})
@@ -264,29 +297,7 @@ func (e *Executor) saveProvisionResult(ctx context.Context, o store.Operation, s
 		}
 		if failure != nil {
 			if current.FirstError == nil {
-				code := "platform_error"
-				if errors.Is(failure, context.DeadlineExceeded) {
-					code = "deadline_exceeded"
-				}
-				if errors.Is(failure, harness.ErrRejected) {
-					code = "rejected"
-				}
-				if errors.Is(failure, harness.ErrNotFound) {
-					code = "not_found"
-				}
-				if errors.Is(failure, errProvisionNotFound) {
-					code = "sandbox_not_found_yet"
-				}
-				if errors.Is(failure, errProvisionMultiple) {
-					code = "multiple_matches"
-				}
-				details := map[string]any{"code": code}
-				if upstream, ok := errors.AsType[interface {
-					error
-					HTTPStatus() int
-				}](failure); ok {
-					details["http_status"] = upstream.HTTPStatus()
-				}
+				details := sandboxFailureDetails(failure)
 				current.FirstError, err = json.Marshal(details)
 				if err != nil {
 					return err
@@ -295,7 +306,7 @@ func (e *Executor) saveProvisionResult(ctx context.Context, o store.Operation, s
 				if errors.Is(failure, errProvisionNotFound) {
 					level = slog.LevelDebug
 				}
-				slog.Log(ctx, level, "Sandbox operation unresolved", "session_id", e.ID, "operation_id", o.ID, "code", code, "error_type", diagnostic.Describe(failure))
+				slog.Log(ctx, level, "Sandbox operation unresolved", "session_id", e.ID, "operation_id", o.ID, "code", details.Code, "error_type", diagnostic.Describe(failure))
 			} else {
 				slog.DebugContext(ctx, "Sandbox operation still unresolved", "session_id", e.ID, "operation_id", o.ID, "error_type", diagnostic.Describe(failure))
 			}
