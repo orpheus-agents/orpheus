@@ -429,6 +429,13 @@ func (e *Executor) tick(ctx context.Context) (err error) {
 	if _, err := e.provision(ctx, run.ID, false, nil); err != nil {
 		return err
 	}
+	// Bound the first connection of a continuation, including after a worker
+	// restart. Hooks and running turns have their own recovery lifecycle.
+	if e.sandbox == nil && record.SandboxID != nil && run.Number > 1 && run.Phase != nil && *run.Phase == "preparation" {
+		if err := e.prepareResume(ctx, run.ID, *record.SandboxID); err != nil {
+			return err
+		}
+	}
 	if run.CancelRequestedAt != nil && run.ExecutionStartedAt == nil {
 		if run.Phase != nil && (*run.Phase == "after_create" || *run.Phase == "before_run") {
 			h, err := e.Store.Hook(ctx, run.ID, *run.Phase)

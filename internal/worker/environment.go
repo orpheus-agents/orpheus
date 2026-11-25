@@ -54,8 +54,11 @@ func (e *Executor) ensureSandbox(ctx context.Context, record *store.SessionRecor
 		if err != nil {
 			return err
 		}
-		if err := e.opStatus(ctx, o.ID, "sending", nil); err != nil {
-			return err
+		// A confirmed initial resume stays confirmed across later reconnects.
+		if o.Status != "confirmed" {
+			if err := e.opStatus(ctx, o.ID, "sending", nil); err != nil {
+				return err
+			}
 		}
 		box, err := e.Platform.Connect(ctx, *record.SandboxID, sandboxLeaseTimeout)
 		if err != nil {

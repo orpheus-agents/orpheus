@@ -3004,7 +3004,7 @@ type ClientInterface interface {
 
 	// CreateRunWithBody Create Run
 	//
-	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
+	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. An initial resume that exceeds the sandbox provisioning deadline fails with sandbox_resume_timeout during preparation. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -3013,7 +3013,7 @@ type ClientInterface interface {
 
 	// CreateRun Create Run
 	//
-	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
+	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. An initial resume that exceeds the sandbox provisioning deadline fails with sandbox_resume_timeout during preparation. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -3663,7 +3663,7 @@ func (c *Client) ListRuns(ctx context.Context, sid openapi_types.UUID, params *L
 
 // CreateRunWithBody Create Run
 //
-// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
+// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. An initial resume that exceeds the sandbox provisioning deadline fails with sandbox_resume_timeout during preparation. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
 //
 // Takes any type of body and a specified content type.
 //
@@ -3682,7 +3682,7 @@ func (c *Client) CreateRunWithBody(ctx context.Context, sid openapi_types.UUID, 
 
 // CreateRun Create Run
 //
-// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
+// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. An initial resume that exceeds the sandbox provisioning deadline fails with sandbox_resume_timeout during preparation. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -6544,7 +6544,7 @@ type ClientWithResponsesInterface interface {
 
 	// CreateRunWithBodyWithResponse Create Run
 	//
-	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
+	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. An initial resume that exceeds the sandbox provisioning deadline fails with sandbox_resume_timeout during preparation. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -6553,7 +6553,7 @@ type ClientWithResponsesInterface interface {
 
 	// CreateRunWithResponse Create Run
 	//
-	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
+	// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. An initial resume that exceeds the sandbox provisioning deadline fails with sandbox_resume_timeout during preparation. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -9637,7 +9637,7 @@ func (c *ClientWithResponses) ListRunsWithResponse(ctx context.Context, sid open
 
 // CreateRunWithBodyWithResponse Create Run
 //
-// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
+// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. An initial resume that exceeds the sandbox provisioning deadline fails with sandbox_resume_timeout during preparation. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -9652,7 +9652,7 @@ func (c *ClientWithResponses) CreateRunWithBodyWithResponse(ctx context.Context,
 
 // CreateRunWithResponse Create Run
 //
-// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
+// Create a subsequent run. Sessions created with allow_multiple_runs=false reject this operation with 409 multiple_runs_not_allowed. Deleting, deleted or unavailable environments reject new input with 409 session_unavailable; create a new session with the required context. If external sandbox loss is discovered after acceptance, the run fails asynchronously with sandbox_lost. An initial resume that exceeds the sandbox provisioning deadline fails with sandbox_resume_timeout during preparation. Idempotent replay of an accepted request returns the original acceptance, regardless of sandbox state.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //

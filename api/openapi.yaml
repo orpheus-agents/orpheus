@@ -3534,7 +3534,9 @@ paths:
                 deleted or unavailable environments reject new input with 409
                 session_unavailable; create a new session with the required context.
                 If external sandbox loss is discovered after acceptance, the run fails
-                asynchronously with sandbox_lost. Idempotent replay of an accepted
+                asynchronously with sandbox_lost. An initial resume that exceeds the sandbox
+                provisioning deadline fails with sandbox_resume_timeout during preparation.
+                Idempotent replay of an accepted
                 request returns the original acceptance, regardless of sandbox state.
             operationId: create_run
             parameters:
